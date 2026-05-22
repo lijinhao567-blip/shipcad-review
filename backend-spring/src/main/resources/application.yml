@@ -1,0 +1,36 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: shipcad-review
+  datasource:
+    url: ${SHIPCAD_DATASOURCE_URL:jdbc:h2:file:../data/db/shipcad;MODE=MySQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE}
+    driver-class-name: ${SHIPCAD_DATASOURCE_DRIVER:org.h2.Driver}
+    username: ${SHIPCAD_DATASOURCE_USERNAME:sa}
+    password: ${SHIPCAD_DATASOURCE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+shipcad:
+  storage-root: ${SHIPCAD_STORAGE_ROOT:../data}
+  worker-url: ${SHIPCAD_WORKER_URL:http://127.0.0.1:9000}
+  vision-url: ${SHIPCAD_VISION_URL:http://127.0.0.1:9100}
+  cors-origin: ${SHIPCAD_CORS_ORIGIN:http://127.0.0.1:5173}
+  review-queue:
+    core-size: ${SHIPCAD_REVIEW_QUEUE_CORE_SIZE:2}
+    max-size: ${SHIPCAD_REVIEW_QUEUE_MAX_SIZE:4}
+    capacity: ${SHIPCAD_REVIEW_QUEUE_CAPACITY:50}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

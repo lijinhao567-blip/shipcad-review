@@ -1,0 +1,68 @@
+:root {
+  --bg: #f5f7fa;
+  --panel: #fff;
+  --ink: #172033;
+  --muted: #667085;
+  --line: #d9e1ea;
+  --brand: #0f766e;
+  --brand-dark: #115e59;
+  --danger: #b42318;
+  --warn: #b54708;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Microsoft YaHei", "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+button, input, select, textarea { font: inherit; }
+button { border: 0; border-radius: 6px; padding: 10px 14px; background: var(--brand); color: #fff; font-weight: 700; cursor: pointer; }
+button:hover { background: var(--brand-dark); }
+.shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 100vh; }
+.sidebar { display: flex; flex-direction: column; gap: 20px; padding: 24px; background: #102a43; color: #fff; }
+.eyebrow { margin: 0 0 8px; color: #99f6e4; font-size: 13px; }
+h1 { margin: 0; font-size: 24px; line-height: 1.35; }
+h2 { margin: 0 0 14px; font-size: 18px; }
+nav { display: grid; gap: 8px; }
+nav button { text-align: left; background: rgba(255,255,255,.12); }
+nav button.active { background: #fff; color: #102a43; }
+.content { padding: 24px; }
+.topline { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; margin-bottom: 16px; }
+.login { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.14); }
+.login span { color: #cbd5e1; font-size: 13px; }
+label { display: grid; gap: 6px; margin-bottom: 12px; color: var(--muted); font-size: 14px; }
+input, select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; background: #fff; color: var(--ink); }
+textarea { min-height: 80px; resize: vertical; }
+.grid { display: grid; gap: 16px; }
+.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.kpi span { color: var(--muted); }
+.kpi strong { display: block; margin-top: 8px; font-size: 30px; }
+.bar-row { display: grid; grid-template-columns: 150px 1fr 44px; align-items: center; gap: 10px; margin: 10px 0; }
+.bar { height: 10px; background: #d1fae5; border-radius: 99px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--brand); }
+.inline { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+.inline h2 { width: 100%; }
+.inline > *:not(h2) { min-width: 180px; flex: 1; }
+.item { border: 1px solid var(--line); background: #fbfcfe; border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+.item p { margin: 6px 0 0; color: var(--muted); }
+.task-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); background: #fbfcfe; border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+.task-row p { margin: 6px 0 0; color: var(--muted); }
+.task-row .error { color: var(--danger); }
+.issue { border-left: 4px solid var(--warn); background: #fffaf5; padding: 14px; border-radius: 6px; margin-bottom: 12px; }
+.issue.HIGH { border-color: var(--danger); background: #fff5f5; }
+.issue.LOW, .issue.INFO { border-color: var(--brand); background: #f0fdfa; }
+.issue.selected { outline: 2px solid #dc2626; }
+.issue p { color: var(--muted); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.preview-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, .75fr); gap: 16px; align-items: start; }
+.preview-panel { min-width: 0; }
+.section-title { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px; }
+.section-title h2 { margin: 0; }
+.section-title select { max-width: 360px; }
+.dxf-canvas { display: block; width: 100%; height: 520px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.hint { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+pre { min-height: 300px; padding: 16px; color: #dbeafe; background: #0b1220; border-radius: 8px; white-space: pre-wrap; overflow: auto; }
+@media (max-width: 960px) {
+  .shell, .grid.two, .preview-grid { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -58,3 +58,75 @@ Keep current Canvas viewer if:
 - A short proof-of-concept report.
 - Screenshots or notes about rendering quality.
 - Recommendation: adopt, keep as optional, or reject.
+
+## Current POC Result
+
+POC directory:
+
+```text
+experiments/cad-viewer-poc
+```
+
+### mlightcad/cad-viewer
+
+Result: component integration works, but rendering is not yet reliable in this project environment.
+
+Observed:
+
+- npm version tested: `@mlightcad/cad-viewer@1.5.0`.
+- Build succeeds in isolated Vue/Vite project.
+- Component mounts and accepts `localFile`.
+- Toolbar and UI render correctly.
+- Project sample `valid_ship_section.dxf` is accepted.
+- Drawing area remains blank.
+- Browser reports worker errors.
+- Build warns that package internals externalize Node `fs` for browser compatibility.
+- Bundle size is large.
+
+Decision:
+
+- Do not promote to main frontend yet.
+- Keep as a research candidate.
+- Revisit if worker configuration, bundling, or package version issues can be resolved.
+
+### vagran/dxf-viewer
+
+Result: DXF rendering works for the project sample.
+
+Observed:
+
+- npm version tested: `dxf-viewer@1.0.47`.
+- License: MPL-2.0.
+- Build succeeds in isolated Vue/Vite project.
+- `samples/dxf/valid_ship_section.dxf` renders in browser.
+- Viewer reports 6 layers.
+- Viewer exposes drawing bounds.
+- API supports `GetLayers`, `GetBounds`, `ShowLayer`, and `FitView`.
+
+Limitations:
+
+- DXF only; no direct DWG support.
+- UI is not a full CAD workstation UI.
+- Issue highlighting by entity still needs a custom overlay or mapping strategy.
+- Bundle size increases when both mlightcad and dxf-viewer are installed in the same POC.
+
+Decision:
+
+- Use `dxf-viewer` as the preferred near-term candidate for replacing or enhancing the current Canvas DXF preview.
+- Keep `mlightcad/cad-viewer` as a longer-term DWG/DXF viewer candidate, but do not integrate it into the main app until the rendering issue is understood.
+
+## Next Engineering Step
+
+Create a main-frontend integration branch or small feature:
+
+```text
+frontend-vue/src/components/DxfViewerPreview.vue
+```
+
+Recommended path:
+
+1. Add `dxf-viewer` to the main frontend only.
+2. Keep current `DxfCanvas` as fallback.
+3. Load uploaded DXF preview through backend file URL or parser artifact URL.
+4. Display layers in side panel.
+5. Implement issue highlighting first by layer visibility/color, then by bounding box overlay.

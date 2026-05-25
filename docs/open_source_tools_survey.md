@@ -94,6 +94,7 @@ Risks:
 
 - Need to confirm API stability.
 - Need to ensure issue highlighting can be integrated cleanly.
+- Current POC mounts the component but renders a blank drawing area with worker errors. Keep as research candidate.
 
 ### vagran/dxf-viewer
 
@@ -104,8 +105,8 @@ Use cases:
 
 Integration plan:
 
-- Evaluate if mlightcad/cad-viewer is too broad or unstable.
-- Good fallback for DXF-only preview.
+- Prefer as near-term DXF preview candidate because current POC renders `samples/dxf/valid_ship_section.dxf` and exposes layers/bounds.
+- Use current Canvas preview as fallback during integration.
 
 ### three-dxf
 

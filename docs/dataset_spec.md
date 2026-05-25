@@ -70,6 +70,22 @@ datasets/
 
 The system should not identify samples by file name. File names only help tests locate input files. The actual result must come from CAD parsing and rule execution.
 
+Current rule golden dataset:
+
+```text
+datasets/rules/cases/*.dxf
+datasets/rules/expected.json
+```
+
+Generation and acceptance commands:
+
+```powershell
+.\.venv\Scripts\python.exe tools\generate_golden_dataset.py
+.\.venv\Scripts\python.exe tools\run_golden_e2e.py --keep-going
+```
+
+The E2E script uploads each DXF, creates a review task, polls until it finishes, checks the generated `ReviewIssue.ruleCode` set, validates parser summary expectations, and verifies the authenticated version file endpoint used by the official preview path.
+
 ## YOLOv8 Dataset
 
 Use YOLO detection format:

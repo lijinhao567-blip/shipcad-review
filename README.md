@@ -61,6 +61,12 @@ cd frontend-vue
 npm run build
 ```
 
+Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
+
+```powershell
+.\.venv\Scripts\python.exe tools\run_golden_e2e.py --keep-going
+```
+
 ## 当前已实现能力
 
 - DXF 上传、异步解析和实体几何提取

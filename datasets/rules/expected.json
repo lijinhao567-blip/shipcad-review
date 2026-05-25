@@ -1,0 +1,161 @@
+[
+  {
+    "id": "compliant_section",
+    "file": "cases/compliant_section.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-COMPLIANT_SECTION",
+    "title": "Compliant Section",
+    "versionNo": "V1",
+    "expectedRuleCodes": [],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 6,
+      "requiredLayers": [
+        "TITLE",
+        "S-HULL",
+        "DIM-MAIN",
+        "TEXT-NOTE"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ]
+    },
+    "description": "Baseline DXF with accepted layers, title block, enough entities, and no placeholder text."
+  },
+  {
+    "id": "invalid_layer_name",
+    "file": "cases/invalid_layer_name.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-INVALID_LAYER_NAME",
+    "title": "Invalid Layer Name",
+    "versionNo": "V1",
+    "expectedRuleCodes": [
+      "LAYER_NAME_STANDARD"
+    ],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 7,
+      "requiredLayers": [
+        "BAD-LAYER"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ]
+    },
+    "description": "Contains one custom layer that violates the configured layer prefix convention."
+  },
+  {
+    "id": "empty_custom_layer",
+    "file": "cases/empty_custom_layer.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-EMPTY_CUSTOM_LAYER",
+    "title": "Empty Custom Layer",
+    "versionNo": "V1",
+    "expectedRuleCodes": [
+      "EMPTY_LAYER_CHECK"
+    ],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 6,
+      "requiredLayers": [
+        "S-EMPTY"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ]
+    },
+    "description": "Declares a non-system layer with no entities."
+  },
+  {
+    "id": "missing_title_block",
+    "file": "cases/missing_title_block.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-MISSING_TITLE_BLOCK",
+    "title": "Missing Title Block",
+    "versionNo": "V1",
+    "expectedRuleCodes": [
+      "TITLE_BLOCK_REQUIRED"
+    ],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 5,
+      "requiredLayers": [
+        "S-HULL",
+        "DIM-MAIN",
+        "TEXT-NOTE"
+      ],
+      "requiredBlocks": []
+    },
+    "description": "Has drawing geometry but no title block or title keywords."
+  },
+  {
+    "id": "placeholder_text",
+    "file": "cases/placeholder_text.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-PLACEHOLDER_TEXT",
+    "title": "Placeholder Text",
+    "versionNo": "V1",
+    "expectedRuleCodes": [
+      "TEXT_PLACEHOLDER"
+    ],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 7,
+      "requiredLayers": [
+        "TEXT-NOTE"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ]
+    },
+    "description": "Contains one TBD note that should be reviewed before delivery."
+  },
+  {
+    "id": "low_entity_density",
+    "file": "cases/low_entity_density.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-LOW_ENTITY_DENSITY",
+    "title": "Low Entity Density",
+    "versionNo": "V1",
+    "expectedRuleCodes": [
+      "ENTITY_DENSITY"
+    ],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 2,
+      "requiredLayers": [
+        "TITLE",
+        "S-HULL"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ]
+    },
+    "description": "Title block exists, but the drawing has too few model-space entities."
+  },
+  {
+    "id": "invalid_version_format",
+    "file": "cases/invalid_version_format.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-INVALID_VERSION_FORMAT",
+    "title": "Invalid Version Format",
+    "versionNo": "draft",
+    "expectedRuleCodes": [
+      "VERSION_FORMAT"
+    ],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 6,
+      "requiredLayers": [
+        "TITLE",
+        "S-HULL",
+        "DIM-MAIN",
+        "TEXT-NOTE"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ]
+    },
+    "description": "Geometry is valid, but the uploaded version number is not traceable."
+  }
+]

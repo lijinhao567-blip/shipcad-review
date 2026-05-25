@@ -52,6 +52,35 @@ class RuleEngineTest {
                 .contains("LAYER_NAME_STANDARD", "EMPTY_LAYER_CHECK", "TITLE_BLOCK_REQUIRED", "VERSION_FORMAT", "TEXT_PLACEHOLDER", "ENTITY_DENSITY");
     }
 
+    @Test
+    void ignoresDxfSystemLayersForLayerRules() {
+        DrawingVersion version = new DrawingVersion();
+        version.id = "version_system_layers";
+        version.versionNo = "V1";
+
+        WorkerSummary summary = new WorkerSummary(
+                3,
+                Map.of("LINE", 3),
+                Map.of("S-HULL", 3),
+                List.of("0", "Defpoints", "S-HULL"),
+                List.of("0", "Defpoints"),
+                List.of(),
+                List.of("TITLE_BLOCK"),
+                Map.of(),
+                "ezdxf",
+                "1.4.4"
+        );
+
+        List<ReviewRule> rules = List.of(
+                rule("LAYER_NAME_STANDARD", Severity.MEDIUM),
+                rule("EMPTY_LAYER_CHECK", Severity.LOW)
+        );
+
+        List<ReviewIssue> issues = new RuleEngine().run("task_system_layers", version, summary, List.of(), rules);
+
+        assertThat(issues).isEmpty();
+    }
+
     private ReviewRule rule(String code, Severity severity) {
         ReviewRule rule = new ReviewRule();
         rule.id = "rule_" + code;

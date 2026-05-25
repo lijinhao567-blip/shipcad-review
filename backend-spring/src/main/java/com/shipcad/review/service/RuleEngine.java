@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.jeasy.rules.annotation.Action;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class RuleEngine {
     private static final List<String> ALLOWED_LAYER_PREFIXES = List.of("S-", "P-", "E-", "H-", "M-", "A-", "DIM-", "TEXT-", "TITLE", "0");
+    private static final Set<String> SYSTEM_LAYERS = Set.of("0", "Defpoints");
     private static final Pattern VERSION_PATTERN = Pattern.compile("^(V\\d+|[A-Z]|R\\d+)$");
     private static final List<String> PLACEHOLDERS = List.of("TBD", "TODO", "XXX", "待定", "未定");
 
@@ -117,6 +119,9 @@ public class RuleEngine {
         }
 
         private boolean invalidLayer(String layer) {
+            if (SYSTEM_LAYERS.contains(layer)) {
+                return false;
+            }
             return ALLOWED_LAYER_PREFIXES.stream().noneMatch(layer::startsWith);
         }
     }
@@ -125,12 +130,14 @@ public class RuleEngine {
     public static class EmptyLayerRule extends BaseReviewRule {
         @Condition
         public boolean when(Facts facts) {
-            return enabled(facts, "EMPTY_LAYER_CHECK") && !safe(context(facts).summary().emptyLayers()).isEmpty();
+            return enabled(facts, "EMPTY_LAYER_CHECK") && safe(context(facts).summary().emptyLayers()).stream().anyMatch(layer -> !SYSTEM_LAYERS.contains(layer));
         }
 
         @Action
         public void then(Facts facts) {
-            safe(context(facts).summary().emptyLayers()).forEach(layer -> add(facts, "EMPTY_LAYER_CHECK", "存在空图层：" + layer,
+            safe(context(facts).summary().emptyLayers()).stream()
+                    .filter(layer -> !SYSTEM_LAYERS.contains(layer))
+                    .forEach(layer -> add(facts, "EMPTY_LAYER_CHECK", "存在空图层：" + layer,
                     "该图层已声明但没有实体。", layer, "", "确认是否为历史残留图层，必要时清理。"));
         }
     }

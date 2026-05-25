@@ -25,7 +25,7 @@ Status: next.
 
 ## v0.2: CAD Parsing Hardening
 
-- Integrate `dxf-viewer` as the near-term DXF preview candidate; keep current Canvas as fallback.
+- Promote `dxf-viewer` as the official DXF preview path; keep Canvas as a manual diagnostic view, not an automatic fallback.
 - Keep `mlightcad/cad-viewer` as a longer-term DWG/DXF research candidate until worker rendering issues are resolved.
 - Improve DXF entity coverage: dimensions, hatches, leaders, attributes, nested blocks.
 - Add public DWG compatibility samples where licensing permits.

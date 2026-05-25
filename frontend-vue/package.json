@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@vitejs/plugin-vue": "^6.0.7",
+    "dxf-viewer": "^1.0.47",
     "vite": "^8.0.14",
     "vue": "^3.5.34"
   },
   "devDependencies": {
+    "@types/three": "^0.184.1",
     "typescript": "^5.9.3",
     "vue-tsc": "^3.3.1"
   }

@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { api, type Dashboard, type Drawing, type DrawingVersion, type ParsedEntity, type Project, type ReviewIssue, type ReviewTask } from './api'
-import DxfCanvas from './components/DxfCanvas.vue'
+
+const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfViewerPreview.vue'))
+const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
 
 const tab = ref<'dashboard' | 'projects' | 'issues' | 'reports'>('dashboard')
 const loginState = reactive({ username: 'admin', password: 'admin123', label: '未登录' })
@@ -11,9 +13,14 @@ const uploadForm = reactive({ drawingId: '', versionNo: 'V1', file: null as File
 const selectedReviewVersion = ref('')
 const selectedTask = ref('')
 const previewVersionId = ref('')
+const previewFileUrl = ref('')
+const previewFileError = ref('')
 const selectedIssueId = ref('')
+const showCanvasDiagnostics = ref(false)
 const compare = reactive({ leftId: '', rightId: '' })
 const output = ref('')
+let previewFileRequestId = 0
+let previewFileVersionId = ''
 
 const dashboard = ref<Dashboard | null>(null)
 const projects = ref<Project[]>([])
@@ -26,6 +33,8 @@ const loading = ref(false)
 
 const selectedDrawingVersions = computed(() => versions.value)
 const previewIssues = computed(() => issues.value.filter((issue) => !previewVersionId.value || issue.versionId === previewVersionId.value))
+const previewVersion = computed(() => versions.value.find((item) => item.id === previewVersionId.value))
+const isDxfPreview = computed(() => previewVersion.value?.fileName.toLowerCase().endsWith('.dxf') ?? false)
 
 function versionLabel(version: DrawingVersion): string {
   const drawing = drawings.value.find((item) => item.id === version.drawingId)
@@ -74,7 +83,7 @@ async function refreshAll() {
     selectedTask.value ||= t[0]?.id ?? ''
     compare.leftId ||= v[0]?.id ?? ''
     compare.rightId ||= v[1]?.id ?? v[0]?.id ?? ''
-    await refreshEntities()
+    await refreshPreview()
   } finally {
     loading.value = false
   }
@@ -99,6 +108,43 @@ async function refreshEntities() {
     return
   }
   entities.value = await api.request<ParsedEntity[]>(`/api/versions/${previewVersionId.value}/entities`)
+}
+
+function messageOf(value: unknown): string {
+  return value instanceof Error ? value.message : String(value)
+}
+
+function releasePreviewFileUrl() {
+  if (previewFileUrl.value) URL.revokeObjectURL(previewFileUrl.value)
+  previewFileUrl.value = ''
+  previewFileVersionId = ''
+}
+
+async function refreshPreviewFile(force = false) {
+  const requestId = ++previewFileRequestId
+  const version = previewVersion.value
+  if (!force && version && previewFileUrl.value && previewFileVersionId === version.id) return
+  releasePreviewFileUrl()
+  previewFileError.value = ''
+  if (!previewVersionId.value || !api.token || !version) return
+  if (!isDxfPreview.value) {
+    previewFileError.value = '正式预览当前仅支持DXF；DWG需要先通过LibreDWG/ODA转换生成DXF预览文件。'
+    return
+  }
+  try {
+    const blob = await api.blob(`/api/versions/${previewVersionId.value}/file`)
+    if (requestId !== previewFileRequestId) return
+    previewFileUrl.value = URL.createObjectURL(blob)
+    previewFileVersionId = version.id
+  } catch (reason) {
+    if (requestId !== previewFileRequestId) return
+    previewFileError.value = messageOf(reason)
+  }
+}
+
+async function refreshPreview(resetDiagnostics = false) {
+  if (resetDiagnostics) showCanvasDiagnostics.value = false
+  await Promise.all([refreshEntities(), refreshPreviewFile(resetDiagnostics)])
 }
 
 async function login() {
@@ -172,7 +218,13 @@ function barRows(data: Record<string, number> = {}) {
   return Object.entries(data).map(([key, value]) => ({ key, value, width: `${(value / max) * 100}%` }))
 }
 
-watch(previewVersionId, refreshEntities)
+watch(previewVersionId, () => {
+  refreshPreview(true).catch((reason) => {
+    previewFileError.value = messageOf(reason)
+  })
+})
+
+onBeforeUnmount(releasePreviewFileUrl)
 
 onMounted(() => {
   if (api.token) {
@@ -287,11 +339,33 @@ onMounted(() => {
         <div class="preview-grid">
           <div class="panel preview-panel">
             <div class="section-title">
-              <h2>CAD图纸预览与问题定位</h2>
+              <h2>DXF正式预览与问题定位</h2>
               <select v-model="previewVersionId"><option v-for="v in versions" :key="v.id" :value="v.id">{{ versionLabel(v) }}</option></select>
             </div>
-            <DxfCanvas :entities="entities" :issues="previewIssues" :selected-issue-id="selectedIssueId" />
-            <p class="hint">橙色表示命中问题的图层或图元，红色表示当前选中的问题定位。</p>
+            <DxfViewerPreview
+              v-if="previewFileUrl && isDxfPreview"
+              :file-url="previewFileUrl"
+              :issues="previewIssues"
+              :selected-issue-id="selectedIssueId"
+              @load-failed="previewFileError = $event"
+            />
+            <div v-else class="preview-state">
+              <strong>{{ previewFileError || '正在准备DXF正式预览文件' }}</strong>
+              <p>正式链路不会自动切换到Canvas；若这里失败，请优先修复dxf-viewer、文件服务或DXF兼容性问题。</p>
+            </div>
+            <div class="preview-actions">
+              <button type="button" class="secondary" @click="showCanvasDiagnostics = !showCanvasDiagnostics">
+                {{ showCanvasDiagnostics ? '关闭Canvas诊断' : '打开Canvas诊断' }}
+              </button>
+            </div>
+            <div v-if="showCanvasDiagnostics" class="canvas-diagnostics">
+              <div class="diagnostic-title">
+                <strong>Canvas诊断视图</strong>
+                <span>仅用于比对解析实体，不作为正式预览兜底。</span>
+              </div>
+              <DxfCanvasDiagnostics :entities="entities" :issues="previewIssues" :selected-issue-id="selectedIssueId" />
+            </div>
+            <p class="hint">正式预览使用dxf-viewer；问题图层会在右侧图层列表中标记。Canvas只用于人工诊断解析实体。</p>
           </div>
           <div class="panel">
             <h2>问题清单</h2>

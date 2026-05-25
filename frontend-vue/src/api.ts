@@ -95,6 +95,17 @@ export class ApiClient {
     return response.json() as Promise<T>
   }
 
+  async blob(path: string, init: RequestInit = {}): Promise<Blob> {
+    const headers = new Headers(init.headers)
+    if (this.token) headers.set('Authorization', `Bearer ${this.token}`)
+    const response = await fetch(`${API_BASE}${path}`, { ...init, headers })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: response.statusText }))
+      throw new Error(error.message ?? response.statusText)
+    }
+    return response.blob()
+  }
+
   async login(username: string, password: string): Promise<LoginResponse> {
     const result = await this.request<LoginResponse>('/api/auth/login', {
       method: 'POST',

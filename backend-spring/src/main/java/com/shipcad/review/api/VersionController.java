@@ -8,9 +8,20 @@ import com.shipcad.review.repo.ParsedEntityRepository;
 import com.shipcad.review.service.AuthService;
 import com.shipcad.review.service.ReviewPlatformService;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -60,9 +71,33 @@ public class VersionController extends BaseController {
     }
 
     @GetMapping("/{versionId}/entities")
-    public List<EntityView> entities(@RequestHeader("Authorization") String authorization, @org.springframework.web.bind.annotation.PathVariable String versionId) {
+    public List<EntityView> entities(@RequestHeader("Authorization") String authorization, @PathVariable String versionId) {
         user(authorization);
         return entities.findByVersionId(versionId).stream().map(this::view).toList();
+    }
+
+    @GetMapping("/{versionId}/file")
+    public ResponseEntity<Resource> file(@RequestHeader("Authorization") String authorization, @PathVariable String versionId) throws MalformedURLException {
+        user(authorization);
+        DrawingVersion version = versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        if (version.filePath == null || version.filePath.isBlank()) {
+            throw new IllegalArgumentException("图纸文件路径缺失");
+        }
+        Path path = Path.of(version.filePath).toAbsolutePath().normalize();
+        if (!Files.isRegularFile(path) || !Files.isReadable(path)) {
+            throw new IllegalArgumentException("图纸文件不可读取");
+        }
+        String fileName = version.fileName == null || version.fileName.isBlank() ? "drawing" : version.fileName;
+        MediaType contentType = fileName.toLowerCase().endsWith(".dxf")
+                ? MediaType.parseMediaType("application/dxf")
+                : MediaType.APPLICATION_OCTET_STREAM;
+        ContentDisposition disposition = ContentDisposition.inline()
+                .filename(fileName, StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .contentType(contentType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(new UrlResource(path.toUri()));
     }
 
     private EntityView view(ParsedEntity entity) {

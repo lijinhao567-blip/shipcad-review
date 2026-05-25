@@ -6,7 +6,7 @@
 
 ## 应用架构
 
-- Vue Web 工作台：项目、图纸、版本、Canvas图纸预览、问题定位、统计看板和报告导出。
+- Vue Web 工作台：项目、图纸、版本、dxf-viewer WebGL正式预览、Canvas诊断视图、问题定位、统计看板和报告导出。
 - Spring Boot API：鉴权、主数据管理、文件管理、异步审查任务、Easy Rules规则审查、整改流转、审计日志和OpenAPI。
 - Python CAD Worker：基于 ezdxf 解析 DXF 文件；安装 LibreDWG 后，通过 `dwg2dxf` 转换 DWG 并复用 DXF 解析链路。
 - Python Vision Worker：基于 Ultralytics YOLOv8 识别图纸渲染图中的符号目标，输出类别、置信度和检测框。

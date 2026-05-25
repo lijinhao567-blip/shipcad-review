@@ -4,7 +4,7 @@
 
 ## 技术栈
 
-- 前端：Vue 3 + TypeScript + Vite + Canvas 图纸预览
+- 前端：Vue 3 + TypeScript + Vite + dxf-viewer WebGL正式预览，Canvas仅作诊断视图
 - 后端：Spring Boot 3 + Spring Data JPA + OpenAPI
 - CAD Worker：Python + FastAPI + ezdxf + LibreDWG 命令行适配
 - Vision Worker：Python + FastAPI + Ultralytics YOLOv8
@@ -66,7 +66,7 @@ npm run build
 - DXF 上传、异步解析和实体几何提取
 - DWG 上传入口和 LibreDWG 转 DXF 解析适配，需要本机安装 `dwg2dxf`
 - 审查任务队列：支持 PENDING、RUNNING、FINISHED、FAILED 状态和失败重试
-- Canvas 图纸预览，支持线、圆、弧、文字、块参照和多段线的基础显示
+- dxf-viewer DXF正式预览，支持图层查看；Canvas仅用于人工诊断解析实体
 - 问题定位高亮：按问题关联图元或图层高亮显示
 - YOLOv8 Vision Worker 骨架：支持上传渲染图并返回符号检测框，需配置模型权重
 - Easy Rules 规则审查：图层命名、空图层、标题栏、版次格式、占位文本、实体数量

@@ -1,6 +1,6 @@
 # Experiment: CAD Viewer Integration
 
-Goal: evaluate whether an open-source CAD viewer can replace or enhance the current lightweight Canvas preview.
+Goal: evaluate whether an open-source CAD viewer can become the official DXF preview path while keeping the lightweight Canvas renderer as a manual diagnostic view.
 
 ## Candidate Tools
 
@@ -46,12 +46,14 @@ Adopt as main viewer if:
 - integration complexity is acceptable
 - license is compatible and recorded
 
-Keep current Canvas viewer if:
+Keep Canvas available as a diagnostic tool if:
 
 - highlighting cannot be controlled
 - API is unstable
 - viewer is too heavy for MVP
 - DWG/DXF support does not match our needs
+
+Canvas must not be used as an automatic fallback for the official preview path. If `dxf-viewer` fails, the UI should expose that failure so the primary viewer, file service, or DXF compatibility issue is fixed deliberately.
 
 ## Expected Output
 
@@ -112,7 +114,8 @@ Limitations:
 
 Decision:
 
-- Use `dxf-viewer` as the preferred near-term candidate for replacing or enhancing the current Canvas DXF preview.
+- Use `dxf-viewer` as the official near-term DXF preview path.
+- Keep the current `DxfCanvas` component as a manually opened diagnostic view for parsed-entity comparison only.
 - Keep `mlightcad/cad-viewer` as a longer-term DWG/DXF viewer candidate, but do not integrate it into the main app until the rendering issue is understood.
 
 ## Next Engineering Step
@@ -126,7 +129,7 @@ frontend-vue/src/components/DxfViewerPreview.vue
 Recommended path:
 
 1. Add `dxf-viewer` to the main frontend only.
-2. Keep current `DxfCanvas` as fallback.
-3. Load uploaded DXF preview through backend file URL or parser artifact URL.
-4. Display layers in side panel.
+2. Load uploaded DXF preview through an authenticated backend file endpoint and a browser blob URL.
+3. Display layers in side panel.
+4. Keep current `DxfCanvas` as a manual diagnostics panel, not as automatic fallback.
 5. Implement issue highlighting first by layer visibility/color, then by bounding box overlay.

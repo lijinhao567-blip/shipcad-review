@@ -34,9 +34,9 @@ CADParserAdapter
   - LibreDwgParser
 
 DrawingViewerAdapter
-  - BuiltInCanvasViewer
-  - MLightCadViewer
   - DxfViewer
+  - BuiltInCanvasDiagnosticViewer
+  - MLightCadViewer
 
 VisionDetectorAdapter
   - YoloV8Detector

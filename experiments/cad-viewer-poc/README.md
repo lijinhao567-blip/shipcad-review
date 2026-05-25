@@ -55,4 +55,4 @@ Observed:
 
 ## Notes
 
-This POC intentionally lives outside `frontend-vue` to avoid destabilizing the main UI. The recommended next step is to add a focused `DxfViewerPreview.vue` component to the main frontend using `dxf-viewer`, while keeping the current Canvas preview as fallback.
+This POC intentionally lives outside `frontend-vue` to avoid destabilizing the main UI. The recommended next step is to add a focused `DxfViewerPreview.vue` component to the main frontend using `dxf-viewer`, while keeping the current Canvas preview as a manual diagnostic view rather than an automatic fallback.

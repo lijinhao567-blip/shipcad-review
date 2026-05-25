@@ -15,7 +15,7 @@ This survey records open-source tools that can support ShipCAD Review. It focuse
 |---:|---|---|---|---|
 | P0 | ezdxf | DXF parsing | MIT | Continue as primary DXF parser in CAD Worker. |
 | P0 | GNU LibreDWG | DWG conversion/parsing | GPLv3+ | Continue DWG path through `dwg2dxf`, then parse with ezdxf. |
-| P1 | mlightcad/cad-viewer | Web DWG/DXF viewer | MIT | Research replacing or enhancing current Canvas preview. |
+| P1 | mlightcad/cad-viewer | Web DWG/DXF viewer | MIT | Research as a longer-term DWG/DXF viewer candidate. |
 | P1 | CVAT | YOLO dataset labeling | MIT | Use for symbol bounding-box annotation. |
 | P1 | Ultralytics YOLOv8 | Symbol detection | AGPL-3.0 / Enterprise | Continue as Vision Worker inference and training framework. |
 | P2 | PaddleOCR | OCR | Apache-2.0 | Add title block, revision table, and note recognition. |
@@ -88,7 +88,7 @@ Integration plan:
 1. Build an isolated proof of concept in Vue.
 2. Test it with existing sample DXF files.
 3. Check whether it exposes entity selection and layer data needed for issue highlighting.
-4. If it works, replace the current lightweight Canvas preview or run both views side by side.
+4. If it works, evaluate whether it can become a future official viewer path without hiding `dxf-viewer` failures.
 
 Risks:
 
@@ -106,7 +106,7 @@ Use cases:
 Integration plan:
 
 - Prefer as near-term DXF preview candidate because current POC renders `samples/dxf/valid_ship_section.dxf` and exposes layers/bounds.
-- Use current Canvas preview as fallback during integration.
+- Use current Canvas preview only as a manual diagnostic view during integration, not as automatic fallback.
 
 ### three-dxf
 
@@ -305,8 +305,8 @@ Steps:
 
 Decision:
 
-- If entity/layer highlighting is possible, promote it to main preview candidate.
-- If not, keep current Canvas preview and use cad-viewer only as a secondary full-view mode.
+- If entity/layer highlighting is possible, compare it against the current `dxf-viewer` official path.
+- If not, keep it as a research-only candidate.
 
 ### Experiment 2: CVAT + YOLO Dataset Flow
 

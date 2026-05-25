@@ -17,7 +17,7 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 | FastAPI | Python API framework | MIT |
 | Uvicorn | ASGI server | BSD-3-Clause |
 | mlightcad/cad-viewer | Candidate DWG/DXF web viewer | MIT |
-| dxf-viewer | Candidate DXF WebGL viewer | MPL-2.0 |
+| dxf-viewer | Main DXF WebGL preview viewer | MPL-2.0 |
 
 ## CAD And AI
 

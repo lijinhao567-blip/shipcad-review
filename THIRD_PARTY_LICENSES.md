@@ -16,6 +16,8 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 | ezdxf | DXF parsing | MIT |
 | FastAPI | Python API framework | MIT |
 | Uvicorn | ASGI server | BSD-3-Clause |
+| mlightcad/cad-viewer | Candidate DWG/DXF web viewer | MIT |
+| vagran/dxf-viewer | Candidate DXF WebGL viewer | MPL-2.0 |
 
 ## CAD And AI
 
@@ -24,6 +26,14 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 | GNU LibreDWG | Optional DWG to DXF conversion | GPLv3+ |
 | Ultralytics YOLOv8 | Optional symbol detection worker | AGPL-3.0 or Enterprise License |
 | Pillow | Image loading in vision worker | HPND |
+| CVAT | Candidate dataset annotation platform | MIT |
+| Label Studio | Candidate dataset annotation platform | Apache-2.0 |
+| PaddleOCR | Candidate OCR engine | Apache-2.0 |
+| Tesseract OCR | Candidate OCR engine | Apache-2.0 |
+| OpenCV | Candidate image processing toolkit | Apache-2.0 |
+| Apache Jena | Candidate knowledge graph framework | Apache-2.0 |
+| Eclipse RDF4J | Candidate RDF framework | EDL-1.0 / BSD-style ecosystem |
+| Drools | Candidate advanced rule engine | Apache-2.0 |
 
 ## Repository Policy
 

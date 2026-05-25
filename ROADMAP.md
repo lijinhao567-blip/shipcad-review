@@ -16,6 +16,7 @@ Status: current baseline.
 
 ## v0.2: CAD Parsing Hardening
 
+- Evaluate `mlightcad/cad-viewer` for full DWG/DXF browser preview.
 - Improve DXF entity coverage: dimensions, hatches, leaders, attributes, nested blocks.
 - Add public DWG compatibility samples where licensing permits.
 - Add parser golden dataset and regression tests.
@@ -30,6 +31,7 @@ Status: current baseline.
 
 ## v0.4: YOLOv8 Symbol Recognition
 
+- Validate CVAT-based dataset labeling flow.
 - Define symbol taxonomy.
 - Add dataset format and labeling guide.
 - Add training and evaluation scripts.

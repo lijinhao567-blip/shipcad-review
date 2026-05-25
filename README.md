@@ -72,6 +72,13 @@ npm run build
 - Easy Rules 规则审查：图层命名、空图层、标题栏、版次格式、占位文本、实体数量
 - 问题整改闭环、审查报告、统计看板和版本对比
 
+## 下一阶段重点
+
+- 开源工具集成策略：`docs/integration_strategy.md`
+- 多来源证据模型：`docs/evidence_model.md`
+- CAD Viewer 预研：`docs/experiment_cad_viewer_integration.md`
+- 工具调研清单：`docs/open_source_tools_survey.md`
+
 ## 容器部署骨架
 
 ```powershell

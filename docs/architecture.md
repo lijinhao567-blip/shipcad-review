@@ -20,6 +20,17 @@
 
 后端按照 Controller / Service / Repository 分层，CAD解析和视觉识别作为独立Worker，避免重型CAD/AI依赖污染核心业务服务。上传版本后先入库，审查任务进入后台队列，由任务线程完成解析、规则执行、问题生成和状态回写。规则通过 Easy Rules 注册和执行，后续可迁移到 Drools 或规则配置中心。文件默认保存到 `data/uploads`，报告保存到数据库并可导出。
 
+## 证据驱动架构
+
+后续能力不应绕过审查流程直接给结论，而应统一进入证据层：
+
+- CAD解析产生 `ParsedEntity` 证据。
+- YOLOv8 产生 `DetectedSymbol` 证据。
+- OCR 产生 `OcrTextRegion` 证据。
+- 知识图谱产生 `KnowledgeClause` 证据。
+
+规则引擎消费证据并生成 `ReviewIssue`，AI 基于问题和证据生成解释与报告。详细设计见 `docs/evidence_model.md`。
+
 ## 部署架构
 
 当前提供三类边界：

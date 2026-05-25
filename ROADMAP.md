@@ -14,6 +14,15 @@ Status: current baseline.
 - Easy Rules deterministic review engine.
 - Docker Compose and Kubernetes skeleton.
 
+## v0.1.1: Open-Source Integration Plan
+
+Status: next.
+
+- Use `docs/integration_strategy.md` as the rule for integrating external tools.
+- Use `docs/evidence_model.md` as the target model for parser, vision, OCR, and knowledge graph outputs.
+- Run the CAD viewer experiment in `docs/experiment_cad_viewer_integration.md`.
+- Keep open-source tools behind adapters or workers instead of scattering direct calls through the codebase.
+
 ## v0.2: CAD Parsing Hardening
 
 - Evaluate `mlightcad/cad-viewer` for full DWG/DXF browser preview.

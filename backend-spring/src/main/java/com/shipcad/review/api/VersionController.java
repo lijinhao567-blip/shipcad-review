@@ -1,7 +1,9 @@
 package com.shipcad.review.api;
 
 import com.shipcad.review.domain.DrawingVersion;
+import com.shipcad.review.domain.EvidenceType;
 import com.shipcad.review.domain.ParsedEntity;
+import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.dto.ApiDtos.EntityView;
 import com.shipcad.review.repo.DrawingVersionRepository;
 import com.shipcad.review.repo.ParsedEntityRepository;
@@ -74,6 +76,26 @@ public class VersionController extends BaseController {
     public List<EntityView> entities(@RequestHeader("Authorization") String authorization, @PathVariable String versionId) {
         user(authorization);
         return entities.findByVersionId(versionId).stream().map(this::view).toList();
+    }
+
+    @PostMapping("/{versionId}/vision-detect")
+    public List<ReviewEvidence> visionDetect(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable String versionId,
+            @RequestParam MultipartFile file,
+            @RequestParam(defaultValue = "0.25") double confidence
+    ) throws IOException {
+        return platform.runVisionDetection(versionId, file, confidence, user(authorization));
+    }
+
+    @GetMapping("/{versionId}/evidences")
+    public List<ReviewEvidence> evidences(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable String versionId,
+            @RequestParam(required = false) EvidenceType type
+    ) {
+        user(authorization);
+        return platform.listVersionEvidence(versionId, type);
     }
 
     @GetMapping("/{versionId}/file")

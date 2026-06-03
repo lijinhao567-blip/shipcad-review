@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shipcad.review.domain.AppUser;
 import com.shipcad.review.domain.Drawing;
 import com.shipcad.review.domain.DrawingVersion;
+import com.shipcad.review.domain.EvidenceType;
 import com.shipcad.review.domain.IssueStatus;
 import com.shipcad.review.domain.ParsedEntity;
 import com.shipcad.review.domain.Project;
@@ -16,6 +17,8 @@ import com.shipcad.review.domain.ReviewTask;
 import com.shipcad.review.dto.ApiDtos.DrawingRequest;
 import com.shipcad.review.dto.ApiDtos.IssueUpdateRequest;
 import com.shipcad.review.dto.ApiDtos.ProjectRequest;
+import com.shipcad.review.dto.ApiDtos.VisionDetection;
+import com.shipcad.review.dto.ApiDtos.VisionDetectionResponse;
 import com.shipcad.review.dto.ApiDtos.WorkerEntity;
 import com.shipcad.review.dto.ApiDtos.WorkerParseResponse;
 import com.shipcad.review.dto.ApiDtos.WorkerSummary;
@@ -37,9 +40,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
@@ -63,6 +68,7 @@ public class ReviewPlatformService {
     private final RemediationRecordRepository remediations;
     private final ReportDocumentRepository reports;
     private final CadWorkerClient worker;
+    private final VisionWorkerClient visionWorker;
     private final RuleEngine ruleEngine;
     private final ReviewReportBuilder reportBuilder;
     private final AiGateway aiGateway;
@@ -85,6 +91,7 @@ public class ReviewPlatformService {
             RemediationRecordRepository remediations,
             ReportDocumentRepository reports,
             CadWorkerClient worker,
+            VisionWorkerClient visionWorker,
             RuleEngine ruleEngine,
             ReviewReportBuilder reportBuilder,
             AiGateway aiGateway,
@@ -106,6 +113,7 @@ public class ReviewPlatformService {
         this.remediations = remediations;
         this.reports = reports;
         this.worker = worker;
+        this.visionWorker = visionWorker;
         this.ruleEngine = ruleEngine;
         this.reportBuilder = reportBuilder;
         this.aiGateway = aiGateway;
@@ -200,6 +208,31 @@ public class ReviewPlatformService {
         return version;
     }
 
+    @Transactional
+    public List<ReviewEvidence> runVisionDetection(String versionId, MultipartFile file, double confidence, AppUser actor) throws IOException {
+        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        if (confidence <= 0 || confidence > 1) {
+            throw new IllegalArgumentException("视觉检测置信度必须在0到1之间");
+        }
+        Path image = storeVisionImage(versionId, file);
+        VisionDetectionResponse response = visionWorker.detect(image, confidence);
+        List<VisionDetection> detections = response == null || response.detections() == null ? List.of() : response.detections();
+        List<ReviewEvidence> generated = new ArrayList<>();
+        for (int index = 0; index < detections.size(); index += 1) {
+            generated.add(visionEvidence(versionId, image, response, detections.get(index), index));
+        }
+        evidences.saveAll(generated);
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("versionId", versionId);
+        detail.put("imagePath", image.toString());
+        detail.put("confidenceThreshold", confidence);
+        detail.put("detectionCount", generated.size());
+        detail.put("engine", response == null ? "" : response.engine());
+        audit.record(actor.username, "VISION_DETECT", "version", versionId, detail);
+        return generated;
+    }
+
     public ReviewTask createReviewTask(String versionId, AppUser actor) {
         versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
         ReviewTask task = new ReviewTask();
@@ -281,6 +314,17 @@ public class ReviewPlatformService {
         return evidences.findByIssueId(issueId);
     }
 
+    public List<ReviewEvidence> listVersionEvidence(String versionId, EvidenceType type) {
+        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        List<ReviewEvidence> source = evidences.findByVersionId(versionId);
+        if (type == null) {
+            return source;
+        }
+        return source.stream()
+                .filter(evidence -> type.equals(evidence.evidenceType))
+                .toList();
+    }
+
     public com.shipcad.review.domain.AiExplanation explainIssue(String issueId) {
         ReviewIssue issue = issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
         return aiGateway.explain(attachEvidence(issue));
@@ -351,6 +395,77 @@ public class ReviewPlatformService {
 
     public WorkerSummary summaryOf(DrawingVersion version) {
         return fromJson(version.parseSummaryJson, WorkerSummary.class);
+    }
+
+    private ReviewEvidence visionEvidence(String versionId, Path image, VisionDetectionResponse response, VisionDetection detection, int index) {
+        String className = detection.className() == null || detection.className().isBlank() ? "unknown" : detection.className();
+        String confidenceText = detection.confidence() == null ? "-" : String.format(Locale.ROOT, "%.2f", detection.confidence());
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("classId", detection.classId());
+        payload.put("className", className);
+        payload.put("confidence", detection.confidence());
+        payload.put("xyxy", detection.xyxy());
+        payload.put("imagePath", image.toString());
+        payload.put("imageWidth", response == null ? null : response.imageWidth());
+        payload.put("imageHeight", response == null ? null : response.imageHeight());
+        payload.put("engine", response == null ? "" : response.engine());
+
+        ReviewEvidence evidence = new ReviewEvidence();
+        evidence.id = Ids.next("evidence");
+        evidence.issueId = null;
+        evidence.taskId = null;
+        evidence.versionId = versionId;
+        evidence.ruleCode = "VISION_DETECTION";
+        evidence.evidenceType = EvidenceType.YOLO_SYMBOL;
+        evidence.sourceId = "symbol:" + className + "#" + index;
+        evidence.sourceLabel = "vision_worker.yolov8";
+        evidence.summary = "检测到视觉符号 " + className + "，置信度 " + confidenceText + "，边界框 " + bboxText(detection.xyxy());
+        evidence.payloadJson = toJson(payload);
+        evidence.confidence = detection.confidence();
+        evidence.createdAt = Ids.now();
+        return evidence;
+    }
+
+    private Path storeVisionImage(String versionId, MultipartFile file) throws IOException {
+        String fileName = safeFileName(file.getOriginalFilename(), "vision-image.png");
+        String lowerName = fileName.toLowerCase(Locale.ROOT);
+        if (file.isEmpty() || !(lowerName.endsWith(".png") || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg"))) {
+            throw new IllegalArgumentException("视觉检测当前仅支持PNG或JPG图片");
+        }
+        if (file.getSize() > 20L * 1024 * 1024) {
+            throw new IllegalArgumentException("视觉检测图片超过20MB限制");
+        }
+        Path folder = storageRoot.resolve("vision").resolve(versionId).toAbsolutePath().normalize();
+        Files.createDirectories(folder);
+        Path target = folder.resolve(Ids.next("vision") + "_" + fileName).normalize();
+        if (!target.startsWith(folder)) {
+            throw new IllegalArgumentException("视觉检测文件路径非法");
+        }
+        file.transferTo(target);
+        return target;
+    }
+
+    private String safeFileName(String originalName, String fallback) {
+        String value = originalName == null || originalName.isBlank() ? fallback : originalName.trim();
+        value = value.replace('\\', '/');
+        int lastSeparator = value.lastIndexOf('/');
+        if (lastSeparator >= 0) {
+            value = value.substring(lastSeparator + 1);
+        }
+        value = value.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (value.isBlank() || ".".equals(value) || "..".equals(value)) {
+            return fallback;
+        }
+        return value;
+    }
+
+    private String bboxText(List<Double> xyxy) {
+        if (xyxy == null || xyxy.isEmpty()) {
+            return "[]";
+        }
+        return xyxy.stream()
+                .map(value -> value == null ? "-" : String.format(Locale.ROOT, "%.1f", value))
+                .collect(Collectors.joining(", ", "[", "]"));
     }
 
     @SuppressWarnings("unchecked")

@@ -170,6 +170,8 @@ Current status: implemented. CAD parser evidence drives deterministic rules for 
 
 Store YOLO detections from Vision Worker and display them as overlays.
 
+Current status: first ingestion layer implemented. `vision_worker` exposes `/detect` for PNG/JPG images and returns YOLOv8 detections with class, confidence, bounding box, image size, and engine metadata. The backend exposes `POST /api/versions/{versionId}/vision-detect` to run detection and persists each detection as version-level `YOLO_SYMBOL` `ReviewEvidence`. The frontend can trigger this manually from the preview workspace and list the generated visual evidence. This stage does not yet include trained ship-symbol weights, automatic DXF-to-image rendering, issue generation from visual evidence, or overlay rendering on top of the official DXF preview.
+
 ### Stage 4: OCR Evidence
 
 Store recognized text regions and allow rules to query them.

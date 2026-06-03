@@ -24,7 +24,7 @@ def capabilities() -> dict:
         "license": "AGPL-3.0",
         "modelConfigured": bool(model_path),
         "modelPath": model_path,
-        "outputs": ["bounding_box", "class_id", "class_name", "confidence"],
+        "outputs": ["bounding_box", "class_id", "class_name", "confidence", "image_size"],
     }
 
 
@@ -54,6 +54,7 @@ async def detect(file: UploadFile = File(...), confidence: float = 0.25) -> dict
         from PIL import Image
 
         image = Image.open(BytesIO(payload)).convert("RGB")
+        width, height = image.size
         model = load_model()
         results = model.predict(image, conf=confidence, verbose=False)
     except RuntimeError as exc:
@@ -77,4 +78,9 @@ async def detect(file: UploadFile = File(...), confidence: float = 0.25) -> dict
                     "xyxy": [float(value) for value in box.xyxy[0].tolist()],
                 }
             )
-    return {"detections": detections}
+    return {
+        "detections": detections,
+        "imageWidth": width,
+        "imageHeight": height,
+        "engine": "ultralytics-yolov8",
+    }

@@ -19,3 +19,5 @@ admin / admin123
 ## YOLOv8 Vision Worker
 
 Vision Worker 当前提供独立接口，用于后续图纸符号识别。运行前需要准备模型权重并设置 `YOLO_MODEL_PATH`。模型权重和真实训练数据不进入仓库。
+
+启动 Vision Worker 后，可在“问题闭环”的预览工作区上传 PNG/JPG 图像并触发视觉检测。后端会把检测结果保存为当前版本的 `YOLO_SYMBOL` 证据。该证据目前只是视觉识别输入，不会自动生成审查问题；后续规则引擎和知识图谱会继续消费这些证据。

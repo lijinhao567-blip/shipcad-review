@@ -17,6 +17,9 @@ const previewFileUrl = ref('')
 const previewFileError = ref('')
 const selectedIssueId = ref('')
 const showCanvasDiagnostics = ref(false)
+const visionForm = reactive({ file: null as File | null, confidence: 0.25 })
+const visionDetecting = ref(false)
+const visionMessage = ref('')
 const compare = reactive({ leftId: '', rightId: '' })
 const output = ref('')
 const reportDocument = ref<ReportDocument | null>(null)
@@ -45,6 +48,7 @@ const versions = ref<DrawingVersion[]>([])
 const tasks = ref<ReviewTask[]>([])
 const issues = ref<ReviewIssue[]>([])
 const entities = ref<ParsedEntity[]>([])
+const versionEvidences = ref<ReviewEvidence[]>([])
 const loading = ref(false)
 
 const selectedDrawingVersions = computed(() => versions.value)
@@ -53,6 +57,7 @@ const previewVersion = computed(() => versions.value.find((item) => item.id === 
 const isDxfPreview = computed(() => previewVersion.value?.fileName.toLowerCase().endsWith('.dxf') ?? false)
 const entityById = computed(() => new Map(entities.value.map((entity) => [entity.id, entity])))
 const selectedIssue = computed(() => issues.value.find((issue) => issue.id === selectedIssueId.value))
+const previewVisionEvidences = computed(() => versionEvidences.value.filter((evidence) => evidence.evidenceType === 'YOLO_SYMBOL'))
 const selectedReportTask = computed(() => tasks.value.find((task) => task.id === selectedTask.value))
 const selectedReportVersion = computed(() => versions.value.find((version) => version.id === selectedReportTask.value?.versionId))
 const selectedReportIssues = computed(() => issues.value.filter((issue) => issue.taskId === selectedTask.value))
@@ -256,6 +261,14 @@ async function refreshEntities() {
   entities.value = await api.request<ParsedEntity[]>(`/api/versions/${previewVersionId.value}/entities`)
 }
 
+async function refreshVersionEvidences() {
+  if (!previewVersionId.value || !api.token) {
+    versionEvidences.value = []
+    return
+  }
+  versionEvidences.value = await api.request<ReviewEvidence[]>(`/api/versions/${previewVersionId.value}/evidences?type=YOLO_SYMBOL`)
+}
+
 function messageOf(value: unknown): string {
   return value instanceof Error ? value.message : String(value)
 }
@@ -290,7 +303,7 @@ async function refreshPreviewFile(force = false) {
 
 async function refreshPreview(resetDiagnostics = false) {
   if (resetDiagnostics) showCanvasDiagnostics.value = false
-  await Promise.all([refreshEntities(), refreshPreviewFile(resetDiagnostics)])
+  await Promise.all([refreshEntities(), refreshPreviewFile(resetDiagnostics), refreshVersionEvidences()])
 }
 
 async function login() {
@@ -328,6 +341,35 @@ async function runReview() {
   tab.value = 'issues'
   await refreshAll()
   await waitForTask(task.id)
+}
+
+async function runVisionDetection() {
+  if (!previewVersionId.value) {
+    visionMessage.value = '请选择图纸版本'
+    return
+  }
+  if (!visionForm.file) {
+    visionMessage.value = '请选择PNG或JPG图片'
+    return
+  }
+  const confidence = Number(visionForm.confidence)
+  if (!Number.isFinite(confidence) || confidence <= 0 || confidence > 1) {
+    visionMessage.value = '置信度必须在0到1之间'
+    return
+  }
+  const body = new FormData()
+  body.set('file', visionForm.file)
+  visionDetecting.value = true
+  visionMessage.value = ''
+  try {
+    const generated = await api.request<ReviewEvidence[]>(`/api/versions/${previewVersionId.value}/vision-detect?confidence=${confidence}`, { method: 'POST', body })
+    await refreshVersionEvidences()
+    visionMessage.value = `视觉检测完成：生成 ${generated.length} 条 YOLO_SYMBOL 证据`
+  } catch (reason) {
+    visionMessage.value = `视觉检测失败：${messageOf(reason)}`
+  } finally {
+    visionDetecting.value = false
+  }
 }
 
 async function retryTask(task: ReviewTask) {
@@ -457,6 +499,7 @@ function barRows(data: Record<string, number> = {}) {
 }
 
 watch(previewVersionId, () => {
+  visionMessage.value = ''
   refreshPreview(true).catch((reason) => {
     previewFileError.value = messageOf(reason)
   })
@@ -600,6 +643,24 @@ onMounted(() => {
                 {{ showCanvasDiagnostics ? '关闭Canvas诊断' : '打开Canvas诊断' }}
               </button>
             </div>
+            <form class="vision-panel" @submit.prevent="runVisionDetection">
+              <div class="diagnostic-title">
+                <strong>YOLOv8视觉证据</strong>
+                <span>上传PNG/JPG图像后生成版本级符号识别证据。</span>
+              </div>
+              <div class="vision-grid">
+                <label>图像<input type="file" accept=".png,.jpg,.jpeg" @change="visionForm.file = ($event.target as HTMLInputElement).files?.[0] ?? null" /></label>
+                <label>置信度<input v-model.number="visionForm.confidence" type="number" min="0.01" max="1" step="0.01" /></label>
+                <button type="submit" :disabled="visionDetecting || !visionForm.file">{{ visionDetecting ? '检测中' : '视觉检测' }}</button>
+              </div>
+              <p v-if="visionMessage" class="hint">{{ visionMessage }}</p>
+              <div v-if="previewVisionEvidences.length" class="vision-evidence-list">
+                <strong>视觉证据</strong>
+                <ul>
+                  <li v-for="evidence in previewVisionEvidences" :key="evidence.id">{{ formatEvidence(evidence) }}</li>
+                </ul>
+              </div>
+            </form>
             <div v-if="showCanvasDiagnostics" class="canvas-diagnostics">
               <div class="diagnostic-title">
                 <strong>Canvas诊断视图</strong>

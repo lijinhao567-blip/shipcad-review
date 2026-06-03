@@ -138,3 +138,5 @@ class_id x_center y_center width height
 Coordinates are normalized to image width and height.
 
 Recommended first symbol classes are defined in `docs/yolov8_symbol_taxonomy.md`.
+
+The current backend can ingest model outputs as `YOLO_SYMBOL` evidence through `POST /api/versions/{versionId}/vision-detect`, but the vision dataset is not part of the deterministic golden E2E dataset yet. Do not store private ship drawings, private labels, or model weights in the repository.

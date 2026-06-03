@@ -39,6 +39,12 @@ public final class ApiDtos {
     public record WorkerEntity(String entityType, String layer, String text, String blockName, Double x, Double y, Map<String, Object> geometry) {
     }
 
+    public record VisionDetectionResponse(List<VisionDetection> detections, Integer imageWidth, Integer imageHeight, String engine) {
+    }
+
+    public record VisionDetection(Integer classId, String className, Double confidence, List<Double> xyxy) {
+    }
+
     public record EntityView(String id, String versionId, String entityType, String layerName, String textValue, String blockName, Double x, Double y, Map<String, Object> geometry) {
     }
 

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shipcad.review.domain.DrawingVersion;
 import com.shipcad.review.domain.EvidenceType;
 import com.shipcad.review.domain.IssueStatus;
+import com.shipcad.review.domain.KnowledgeClause;
 import com.shipcad.review.domain.ParsedEntity;
 import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
@@ -38,12 +39,19 @@ public class RuleEngine {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public List<ReviewIssue> run(String taskId, DrawingVersion version, WorkerSummary summary, List<ParsedEntity> entities, List<ReviewRule> rules) {
+        return run(taskId, version, summary, entities, rules, List.of());
+    }
+
+    public List<ReviewIssue> run(String taskId, DrawingVersion version, WorkerSummary summary, List<ParsedEntity> entities, List<ReviewRule> rules, List<KnowledgeClause> clauses) {
         ReviewContext context = new ReviewContext(
                 taskId,
                 version,
                 summary,
                 entities,
                 rules.stream().filter(rule -> rule.enabled).collect(Collectors.toMap(rule -> rule.code, rule -> rule)),
+                clauses.stream()
+                        .filter(clause -> clause.code != null && !clause.code.isBlank())
+                        .collect(Collectors.toMap(clause -> clause.code, clause -> clause, (left, right) -> left)),
                 new ArrayList<>()
         );
         Facts facts = new Facts();
@@ -72,6 +80,7 @@ public class RuleEngine {
             WorkerSummary summary,
             List<ParsedEntity> entities,
             Map<String, ReviewRule> enabledRules,
+            Map<String, KnowledgeClause> knowledgeClauses,
             List<ReviewIssue> issues
     ) {
     }
@@ -186,6 +195,10 @@ public class RuleEngine {
             } else {
                 issue.evidences.add(cadSummaryEvidence(context, issue));
             }
+            ReviewEvidence knowledgeEvidence = knowledgeClauseEvidence(context, issue, rule);
+            if (knowledgeEvidence != null) {
+                issue.evidences.add(knowledgeEvidence);
+            }
             context.issues().add(issue);
         }
 
@@ -269,6 +282,32 @@ public class RuleEngine {
             );
         }
 
+        private ReviewEvidence knowledgeClauseEvidence(ReviewContext context, ReviewIssue issue, ReviewRule rule) {
+            if (rule.knowledgeClauseCode == null || rule.knowledgeClauseCode.isBlank()) {
+                return null;
+            }
+            KnowledgeClause clause = context.knowledgeClauses().get(rule.knowledgeClauseCode);
+            if (clause == null) {
+                return null;
+            }
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("code", clause.code);
+            payload.put("title", clause.title);
+            payload.put("content", clause.content);
+            payload.put("source", clause.source);
+            payload.put("tags", clause.tags);
+            payload.put("remediationHint", clause.remediationHint);
+            return evidence(
+                    context,
+                    issue,
+                    EvidenceType.KNOWLEDGE_CLAUSE,
+                    clause.code,
+                    value(clause.source),
+                    value(clause.title) + ": " + shorten(value(clause.content), 160),
+                    payload
+            );
+        }
+
         private ReviewEvidence evidence(
                 ReviewContext context,
                 ReviewIssue issue,
@@ -306,6 +345,13 @@ public class RuleEngine {
 
         private String value(Object value) {
             return value == null ? "" : value.toString();
+        }
+
+        private String shorten(String value, int maxLength) {
+            if (value.length() <= maxLength) {
+                return value;
+            }
+            return value.substring(0, maxLength - 3) + "...";
         }
 
         private String toJson(Map<String, Object> payload) {

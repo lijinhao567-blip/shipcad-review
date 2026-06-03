@@ -165,6 +165,8 @@ class GoldenE2E:
             evidence_types = {item.get("evidenceType") for item in evidence_items}
             if "RULE_RESULT" not in evidence_types:
                 raise AssertionError(f"issue {issue['id']} is missing RULE_RESULT evidence")
+            if "KNOWLEDGE_CLAUSE" not in evidence_types:
+                raise AssertionError(f"issue {issue['id']} is missing KNOWLEDGE_CLAUSE evidence")
 
         expected_evidence = case.get("expectedEvidence") or {}
         if not expected_evidence:

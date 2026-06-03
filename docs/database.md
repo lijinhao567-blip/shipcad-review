@@ -6,30 +6,45 @@
 
 ## 核心表
 
-- `app_user`：用户、角色、密码哈希
-- `project`：审图项目
-- `drawing`：图纸主数据
-- `drawing_version`：图纸版本、文件哈希、解析状态、解析摘要
-- `parsed_entity`：DXF图元摘要
-- `review_rule`：审查规则
-- `review_task`：审查任务，包含 PENDING、RUNNING、FINISHED、FAILED 状态和失败原因
-- `review_issue`：规则命中问题
-- `review_evidence`：审查证据，保存 CAD 图元、CAD 图层、解析摘要、规则结果以及后续 YOLO/OCR/知识图谱证据
-- `remediation_record`：整改记录
-- `audit_log`：审计日志
-- `report_document`：审查报告
+- `app_user`：用户、角色、密码哈希。
+- `project`：审图项目。
+- `drawing`：图纸主数据。
+- `drawing_version`：图纸版本、文件哈希、解析状态、解析摘要。
+- `parsed_entity`：DXF 图元摘要。
+- `review_rule`：审查规则；`knowledge_clause_code` 用于绑定规则依据条款。
+- `knowledge_clause`：规则依据、规范条款或内部审查知识条目。
+- `review_task`：审查任务，包含 PENDING、RUNNING、FINISHED、FAILED 状态和失败原因。
+- `review_issue`：规则命中问题。
+- `review_evidence`：审查证据，保存 CAD 图元、CAD 图层、解析摘要、规则结果、知识条款以及后续 YOLO/OCR 证据。
+- `remediation_record`：整改记录。
+- `audit_log`：审计日志。
+- `report_document`：审查报告。
+
+## 知识条款表设计
+
+`knowledge_clause` 是当前知识图谱路线的最小落点。它还不是完整图数据库，但已经具备规则依据的核心字段：
+
+- `code`：条款代码，例如 `BASIS_DIMENSION_EVIDENCE`。
+- `title`：条款标题。
+- `content`：条款内容或内部审查依据说明。
+- `source`：来源，例如 `MVP_INTERNAL_RULE_BASIS`。当前种子数据是项目内部规则依据，不冒充真实船级社规范。
+- `tags`：检索标签。
+- `remediation_hint`：整改提示。
+
+后续接入 Neo4j、Apache Jena 或企业规范库时，应通过适配层把外部查询结果转换为 `KnowledgeClause` 或 `KNOWLEDGE_CLAUSE` evidence。
 
 ## 证据表设计
 
-`review_evidence` 是后续多证据来源的统一落点。当前已由规则引擎自动写入：
+`review_evidence` 是多证据来源的统一落点。当前已由规则引擎自动写入：
 
 - `RULE_RESULT`：规则命中本身的判断证据。
 - `CAD_ENTITY`：能定位到具体 `parsed_entity` 时的 CAD 图元证据。
 - `CAD_LAYER`：图层级问题的 CAD 图层证据。
 - `CAD_SUMMARY`：版本级问题的解析摘要证据。
+- `KNOWLEDGE_CLAUSE`：规则绑定的依据条款证据。
 
-预留类型包括 `YOLO_SYMBOL`、`OCR_TEXT`、`KNOWLEDGE_CLAUSE`。后续 Vision Worker、OCR Worker 和知识图谱模块接入时，应写入同一张证据表，并由 `review_issue.evidences` 返回给前端和报告生成器。
+预留类型包括 `YOLO_SYMBOL` 和 `OCR_TEXT`。后续 Vision Worker、OCR Worker 和知识图谱模块接入时，应继续写入同一张证据表，并由 `review_issue.evidences` 返回给前端和报告生成器。
 
 ## 迁移建议
 
-商业化版本建议引入 Flyway 或 Liquibase 管理达梦 DM8 脚本，避免依赖 `ddl-auto=update`。
+商业化或长期维护版本建议引入 Flyway 或 Liquibase 管理达梦 DM8 脚本，避免依赖 `ddl-auto=update`。

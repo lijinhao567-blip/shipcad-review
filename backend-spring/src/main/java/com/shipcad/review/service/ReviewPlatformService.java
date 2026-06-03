@@ -21,6 +21,7 @@ import com.shipcad.review.dto.ApiDtos.WorkerParseResponse;
 import com.shipcad.review.dto.ApiDtos.WorkerSummary;
 import com.shipcad.review.repo.DrawingRepository;
 import com.shipcad.review.repo.DrawingVersionRepository;
+import com.shipcad.review.repo.KnowledgeClauseRepository;
 import com.shipcad.review.repo.ParsedEntityRepository;
 import com.shipcad.review.repo.ProjectRepository;
 import com.shipcad.review.repo.RemediationRecordRepository;
@@ -58,6 +59,7 @@ public class ReviewPlatformService {
     private final ReviewTaskRepository tasks;
     private final ReviewIssueRepository issues;
     private final ReviewEvidenceRepository evidences;
+    private final KnowledgeClauseRepository knowledgeClauses;
     private final RemediationRecordRepository remediations;
     private final ReportDocumentRepository reports;
     private final CadWorkerClient worker;
@@ -78,6 +80,7 @@ public class ReviewPlatformService {
             ReviewTaskRepository tasks,
             ReviewIssueRepository issues,
             ReviewEvidenceRepository evidences,
+            KnowledgeClauseRepository knowledgeClauses,
             RemediationRecordRepository remediations,
             ReportDocumentRepository reports,
             CadWorkerClient worker,
@@ -97,6 +100,7 @@ public class ReviewPlatformService {
         this.tasks = tasks;
         this.issues = issues;
         this.evidences = evidences;
+        this.knowledgeClauses = knowledgeClauses;
         this.remediations = remediations;
         this.reports = reports;
         this.worker = worker;
@@ -230,7 +234,7 @@ public class ReviewPlatformService {
             }
             WorkerSummary summary = fromJson(version.parseSummaryJson, WorkerSummary.class);
             List<ParsedEntity> parsedEntities = entities.findByVersionId(task.versionId);
-            List<ReviewIssue> generated = ruleEngine.run(task.id, version, summary, parsedEntities, rules.findByEnabledTrue());
+            List<ReviewIssue> generated = ruleEngine.run(task.id, version, summary, parsedEntities, rules.findByEnabledTrue(), knowledgeClauses.findAll());
             issues.saveAll(generated);
             evidences.saveAll(generated.stream()
                     .flatMap(issue -> safeEvidences(issue).stream())

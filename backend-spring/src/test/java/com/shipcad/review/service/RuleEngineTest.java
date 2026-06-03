@@ -2,6 +2,7 @@ package com.shipcad.review.service;
 
 import com.shipcad.review.domain.DrawingVersion;
 import com.shipcad.review.domain.EvidenceType;
+import com.shipcad.review.domain.KnowledgeClause;
 import com.shipcad.review.domain.ParsedEntity;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewRule;
@@ -181,6 +182,43 @@ class RuleEngineTest {
     }
 
     @Test
+    void attachesKnowledgeClauseEvidenceWhenRuleIsBound() {
+        DrawingVersion version = version("version_missing_dimension_basis", "V1");
+        ParsedEntity drawingNo = attribute("entity_drawing_no", "DRAWING_NO", "A22-001");
+        ParsedEntity revision = attribute("entity_revision", "REVISION", "V1");
+        WorkerSummary summary = summary(
+                5,
+                Map.of("INSERT", 1, "ATTRIB", 2, "LINE", 2),
+                List.of("TITLE", "S-HULL", "DIM-MAIN"),
+                List.of("TITLE_BLOCK")
+        );
+        ReviewRule rule = rule("DIMENSION_REQUIRED", Severity.MEDIUM);
+        rule.knowledgeClauseCode = "BASIS_DIMENSION_EVIDENCE";
+        KnowledgeClause clause = clause("BASIS_DIMENSION_EVIDENCE", "尺寸标注审查依据");
+
+        List<ReviewIssue> issues = new RuleEngine().run(
+                "task_missing_dimension_basis",
+                version,
+                summary,
+                List.of(drawingNo, revision),
+                List.of(rule),
+                List.of(clause)
+        );
+
+        assertThat(issues).singleElement().satisfies(issue -> {
+            assertThat(issue.ruleCode).isEqualTo("DIMENSION_REQUIRED");
+            assertThat(issue.evidences).extracting(evidence -> evidence.evidenceType)
+                    .contains(EvidenceType.KNOWLEDGE_CLAUSE);
+            assertThat(issue.evidences).filteredOn(evidence -> evidence.evidenceType == EvidenceType.KNOWLEDGE_CLAUSE)
+                    .singleElement()
+                    .satisfies(evidence -> {
+                        assertThat(evidence.sourceId).isEqualTo("BASIS_DIMENSION_EVIDENCE");
+                        assertThat(evidence.summary).contains("尺寸标注审查依据");
+                    });
+        });
+    }
+
+    @Test
     void acceptsCompleteTitleAndDimensionEvidence() {
         DrawingVersion version = version("version_clean", "V1");
         ParsedEntity drawingNo = attribute("entity_drawing_no", "DRAWING_NO", "A22-001");
@@ -255,5 +293,17 @@ class RuleEngineTest {
         rule.severity = severity;
         rule.enabled = true;
         return rule;
+    }
+
+    private KnowledgeClause clause(String code, String title) {
+        KnowledgeClause clause = new KnowledgeClause();
+        clause.id = "clause_" + code;
+        clause.code = code;
+        clause.title = title;
+        clause.content = "结构图纸应保留关键尺寸标注，且尺寸实体应放置在约定的尺寸图层。";
+        clause.source = "TEST_BASIS";
+        clause.tags = "dimension,review";
+        clause.remediationHint = "补充关键结构尺寸。";
+        return clause;
     }
 }

@@ -71,6 +71,17 @@ export type ReviewEvidence = {
   createdAt: string
 }
 
+export type KnowledgeClause = {
+  id: string
+  code: string
+  title: string
+  content: string
+  source: string
+  tags: string
+  remediationHint: string
+  createdAt: string
+}
+
 export type ReportDocument = {
   id: string
   taskId: string

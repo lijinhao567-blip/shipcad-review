@@ -435,7 +435,20 @@ function structuredEvidenceItems(issue: ReviewIssue): string[] {
 function formatEvidence(evidence: ReviewEvidence): string {
   const source = evidence.sourceId || evidence.sourceLabel || '-'
   const summary = evidence.summary || evidence.payloadJson || '-'
-  return `${evidence.evidenceType} / ${source}: ${summary}`
+  return `${evidenceTypeLabel(evidence.evidenceType)} / ${source}: ${summary}`
+}
+
+function evidenceTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    RULE_RESULT: '规则命中',
+    CAD_ENTITY: 'CAD图元',
+    CAD_LAYER: 'CAD图层',
+    CAD_SUMMARY: '解析摘要',
+    KNOWLEDGE_CLAUSE: '依据条款',
+    YOLO_SYMBOL: '视觉符号',
+    OCR_TEXT: 'OCR文字'
+  }
+  return labels[type] ?? type
 }
 
 function barRows(data: Record<string, number> = {}) {

@@ -69,6 +69,8 @@ KnowledgeClause
   content
   source
   tags
+  remediationHint
+  createdAt
 
 Evidence
   id
@@ -85,7 +87,7 @@ Evidence
   createdAt
 ```
 
-Current implementation uses `ReviewEvidence` as the first production schema. `ReviewIssue` returns a transient `evidences` array in API responses, while evidence rows are persisted independently in `review_evidence`.
+Current implementation uses `ReviewEvidence` as the first production schema. `ReviewIssue` returns a transient `evidences` array in API responses, while evidence rows are persisted independently in `review_evidence`. `KnowledgeClause` is also implemented as the minimal rule-basis store before a full graph database is introduced.
 
 ## Review Flow
 
@@ -175,6 +177,8 @@ Store recognized text regions and allow rules to query them.
 ### Stage 5: Knowledge Evidence
 
 Attach standard clauses and rule basis to review issues.
+
+Current status: minimal implementation complete. `knowledge_clause` stores internal rule-basis entries, `review_rule.knowledgeClauseCode` binds deterministic rules to those entries, and every bound rule can emit `KNOWLEDGE_CLAUSE` evidence. The current seed clauses are MVP internal review bases, not official classification-society standards. A later graph adapter can replace or enrich this source without changing the evidence chain.
 
 ### Stage 6: AI Explanation
 

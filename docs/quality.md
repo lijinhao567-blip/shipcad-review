@@ -8,7 +8,7 @@
 - 后端：登录、项目创建、图纸创建、版本上传、异步审查任务、任务失败重试、问题整改、报告生成、版本对比。
 - 前端：构建通过，API 调用路径可配置，dxf-viewer 能加载上传 DXF 并显示图层；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
 - Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字和实体数量异常。
-- 报告：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用；Golden E2E 会验证这些内容。
+- 报告：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用、结构化 evidence chain。
 - 安全：Token 鉴权、文件类型限制、20MB 限制、审计日志。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
 
@@ -17,12 +17,13 @@
 - Every generated `ReviewIssue` should include at least one `RULE_RESULT` evidence row.
 - Rules with expected entity evidence should include `CAD_ENTITY` evidence whose `sourceId` matches `ReviewIssue.entityRef`.
 - Rules with expected layer evidence should include `CAD_LAYER` evidence whose `sourceId` matches `ReviewIssue.layerName`.
+- Default seeded rules should include `KNOWLEDGE_CLAUSE` evidence so each issue has a traceable rule basis.
 - `tools/run_golden_e2e.py` verifies these evidence checks for the golden DXF dataset.
 
 ## 验收目标
 
 - 一台 Windows 开发机可启动前端、后端、Worker。
-- 上传 golden DXF 样例后，可通过审查任务队列生成规则问题和结构化证据。
+- 上传 golden DXF 样例后，可通过审查任务队列生成规则问题、CAD 证据和知识条款证据。
 - 问题状态可以流转到整改中、待复核和关闭。
-- 可导出审查报告。
+- 可导出包含 evidence chain 的审查报告。
 - OpenAPI 文档可访问。

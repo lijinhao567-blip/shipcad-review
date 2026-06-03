@@ -25,6 +25,7 @@ class ReviewReportBuilderTest {
         ReviewIssue issue = issue("issue_revision", "VERSION_TITLE_CONSISTENCY", Severity.MEDIUM, "entity_revision");
         issue.evidences.add(evidence("evidence_rule", issue, EvidenceType.RULE_RESULT, "Rule VERSION_TITLE_CONSISTENCY generated this review issue."));
         issue.evidences.add(evidence("evidence_entity", issue, EvidenceType.CAD_ENTITY, "CAD entity entity_revision supports this issue."));
+        issue.evidences.add(evidence("evidence_clause", issue, EvidenceType.KNOWLEDGE_CLAUSE, "版次可追溯依据: 标题栏版次应与系统上传版次一致。"));
         ParsedEntity revision = entity(
                 "entity_revision",
                 "ATTRIB",
@@ -60,7 +61,8 @@ class ReviewReportBuilderTest {
         assertThat(report).contains("MEDIUM 1");
         assertThat(report).contains("Evidence chain");
         assertThat(report).contains("RULE_RESULT");
-        assertThat(report).contains("结构化证据 2 条");
+        assertThat(report).contains("KNOWLEDGE_CLAUSE");
+        assertThat(report).contains("结构化证据 3 条");
         assertThat(report).contains("实体类型：ATTRIB=1, DIMENSION=1, LINE=2");
     }
 

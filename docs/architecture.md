@@ -44,3 +44,7 @@
 ## 开源合规边界
 
 项目源码采用 AGPL-3.0。ezdxf、LibreDWG、Ultralytics YOLOv8 等第三方依赖保留各自许可证。真实图纸、训练数据和模型权重不进入仓库。详细边界见 `docs/extension_boundaries.md`。
+
+## 当前知识证据状态
+
+当前已实现知识图谱路线的最小工程骨架：后端新增 `KnowledgeClause`/`knowledge_clause`，默认规则通过 `review_rule.knowledge_clause_code` 绑定内部审查依据，规则命中时会生成 `KNOWLEDGE_CLAUSE` evidence。后续接入 Neo4j、Apache Jena 或企业规范库时，应通过适配层替换或丰富 `KnowledgeClause` 来源，而不是绕过 `ReviewIssue` 和 `review_evidence`。

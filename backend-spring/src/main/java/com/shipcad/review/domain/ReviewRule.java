@@ -15,4 +15,5 @@ public class ReviewRule {
     @Enumerated(EnumType.STRING)
     public Severity severity;
     public boolean enabled;
+    public String knowledgeClauseCode;
 }

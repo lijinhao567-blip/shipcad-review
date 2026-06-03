@@ -43,7 +43,7 @@
 - `CAD_SUMMARY`：版本级问题的解析摘要证据。
 - `KNOWLEDGE_CLAUSE`：规则绑定的依据条款证据。
 
-`YOLO_SYMBOL` 已作为版本级视觉证据接入，`OCR_TEXT` 仍为预留类型。后续 Vision Worker、OCR Worker 和知识图谱模块接入时，应继续写入同一张证据表；已生成问题的证据由 `review_issue.evidences` 返回，版本级证据由版本 evidence 接口返回，等待规则显式消费后再转化为审查问题证据。
+`YOLO_SYMBOL` 已作为版本级视觉证据接入，`OCR_TEXT` 已作为版本级文字证据接入。后续 Vision Worker、OCR Worker 和知识图谱模块接入时，应继续写入同一张证据表；已生成问题的证据由 `review_issue.evidences` 返回，版本级证据由版本 evidence 接口返回，等待规则显式消费后再转化为审查问题证据。
 
 ## 迁移建议
 

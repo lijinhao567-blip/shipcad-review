@@ -176,6 +176,8 @@ Current status: first ingestion layer implemented. `vision_worker` exposes `/det
 
 Store recognized text regions and allow rules to query them.
 
+Current status: first ingestion layer implemented. `ocr_worker` exposes `/ocr` for PNG/JPG images and returns text regions with recognized text, confidence, bounding box, image size, OCR engine, and language metadata. The backend exposes `POST /api/versions/{versionId}/ocr-recognize` and persists each region as version-level `OCR_TEXT` `ReviewEvidence`. The frontend can trigger OCR manually from the preview workspace and list the generated text evidence. This stage does not yet include automatic DXF-to-image rendering, OCR overlay rendering, or rules that consume OCR evidence to generate issues.
+
 ### Stage 5: Knowledge Evidence
 
 Attach standard clauses and rule basis to review issues.

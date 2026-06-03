@@ -21,6 +21,17 @@ services:
     ports:
       - "9100:9100"
 
+  ocr-worker:
+    profiles:
+      - ocr
+    build:
+      context: ..
+      dockerfile: ocr_worker/Dockerfile
+    environment:
+      OCR_LANG: eng+chi_sim
+    ports:
+      - "9200:9200"
+
   backend:
     build:
       context: ..
@@ -30,6 +41,7 @@ services:
     environment:
       SHIPCAD_WORKER_URL: http://cad-worker:9000
       SHIPCAD_VISION_URL: http://vision-worker:9100
+      SHIPCAD_OCR_URL: http://ocr-worker:9200
       SHIPCAD_STORAGE_ROOT: /app/data
       SHIPCAD_DATASOURCE_URL: jdbc:h2:file:/app/data/db/shipcad;MODE=MySQL;DATABASE_TO_LOWER=TRUE
       SHIPCAD_CORS_ORIGIN: http://127.0.0.1:5173

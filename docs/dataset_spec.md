@@ -140,3 +140,18 @@ Coordinates are normalized to image width and height.
 Recommended first symbol classes are defined in `docs/yolov8_symbol_taxonomy.md`.
 
 The current backend can ingest model outputs as `YOLO_SYMBOL` evidence through `POST /api/versions/{versionId}/vision-detect`, but the vision dataset is not part of the deterministic golden E2E dataset yet. Do not store private ship drawings, private labels, or model weights in the repository.
+
+## OCR Dataset
+
+OCR evidence currently uses rendered PNG/JPG images and stores recognized text as `OCR_TEXT` evidence through `POST /api/versions/{versionId}/ocr-recognize`. OCR samples should be kept separate from deterministic DXF rule samples until rules explicitly consume OCR output.
+
+Recommended future structure:
+
+```text
+datasets/
+  ocr/
+    images/
+    expected.json
+```
+
+`expected.json` should describe image file, expected text snippets, optional bounding boxes, language, and confidence floor. Do not store private ship drawings or private labels in the repository.

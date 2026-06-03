@@ -25,6 +25,7 @@ shipcad:
   storage-root: ${SHIPCAD_STORAGE_ROOT:../data}
   worker-url: ${SHIPCAD_WORKER_URL:http://127.0.0.1:9000}
   vision-url: ${SHIPCAD_VISION_URL:http://127.0.0.1:9100}
+  ocr-url: ${SHIPCAD_OCR_URL:http://127.0.0.1:9200}
   cors-origin: ${SHIPCAD_CORS_ORIGIN:http://127.0.0.1:5173}
   review-queue:
     core-size: ${SHIPCAD_REVIEW_QUEUE_CORE_SIZE:2}

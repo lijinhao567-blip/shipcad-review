@@ -192,7 +192,7 @@ Use cases:
 
 Integration plan:
 
-- Add an OCR Worker or extend Vision Worker later.
+- Current baseline OCR Worker uses Tesseract; evaluate PaddleOCR as the stronger mixed Chinese/English OCR engine when OCR quality becomes the bottleneck.
 - Start with title block and revision block crops from YOLO detections.
 
 ### Tesseract
@@ -204,7 +204,7 @@ Use cases:
 
 Integration plan:
 
-- Use as fallback or baseline.
+- Used as the current baseline OCR Worker engine.
 - Prefer PaddleOCR for mixed Chinese/English CAD text.
 
 ### OpenCV

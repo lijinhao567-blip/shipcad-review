@@ -16,6 +16,10 @@ if ($env:START_VISION_WORKER -eq "1") {
     Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$root'; & '$python' -m uvicorn vision_worker.app.main:app --host 127.0.0.1 --port 9100"
     Start-Sleep -Seconds 2
 }
+if ($env:START_OCR_WORKER -eq "1") {
+    Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$root'; & '$python' -m uvicorn ocr_worker.app.main:app --host 127.0.0.1 --port 9200"
+    Start-Sleep -Seconds 2
+}
 Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$root'; `$env:JAVA_HOME='$env:JAVA_HOME'; & '$maven' -f backend-spring\pom.xml spring-boot:run"
 Start-Sleep -Seconds 8
 Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoExit", "-Command", "cd '$root\frontend-vue'; npm run dev"
@@ -26,4 +30,7 @@ Write-Host "Backend:  http://127.0.0.1:8080/swagger-ui.html"
 Write-Host "Worker:   http://127.0.0.1:9000/docs"
 if ($env:START_VISION_WORKER -eq "1") {
     Write-Host "Vision:   http://127.0.0.1:9100/docs"
+}
+if ($env:START_OCR_WORKER -eq "1") {
+    Write-Host "OCR:      http://127.0.0.1:9200/docs"
 }

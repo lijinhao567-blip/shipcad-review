@@ -11,6 +11,7 @@ metadata:
 data:
   SHIPCAD_WORKER_URL: http://cad-worker:9000
   SHIPCAD_VISION_URL: http://vision-worker:9100
+  SHIPCAD_OCR_URL: http://ocr-worker:9200
   SHIPCAD_STORAGE_ROOT: /app/data
   SHIPCAD_CORS_ORIGIN: http://127.0.0.1:5173
 ---
@@ -142,6 +143,42 @@ spec:
   ports:
     - port: 9100
       targetPort: 9100
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocr-worker
+  namespace: shipcad-review
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ocr-worker
+  template:
+    metadata:
+      labels:
+        app: ocr-worker
+    spec:
+      containers:
+        - name: ocr-worker
+          image: shipcad/ocr-worker:dev
+          env:
+            - name: OCR_LANG
+              value: eng+chi_sim
+          ports:
+            - containerPort: 9200
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ocr-worker
+  namespace: shipcad-review
+spec:
+  selector:
+    app: ocr-worker
+  ports:
+    - port: 9200
+      targetPort: 9200
 ---
 apiVersion: apps/v1
 kind: Deployment

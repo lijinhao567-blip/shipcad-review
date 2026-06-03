@@ -10,6 +10,7 @@
 - Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字和实体数量异常。
 - 报告：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用、结构化 evidence chain。
 - Vision evidence：配置模型后，`POST /api/versions/{versionId}/vision-detect` 应能保存 `YOLO_SYMBOL` evidence；未配置模型时应返回明确错误，不能伪造检测结果。
+- OCR evidence：配置 Tesseract 后，`POST /api/versions/{versionId}/ocr-recognize` 应能保存 `OCR_TEXT` evidence；未安装 OCR 引擎时应返回明确错误，不能伪造识别文本。
 - 安全：Token 鉴权、文件类型限制、20MB 限制、审计日志。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
 
@@ -21,6 +22,7 @@
 - Default seeded rules should include `KNOWLEDGE_CLAUSE` evidence so each issue has a traceable rule basis.
 - Every generated issue returned by `/api/issues` should include `aiExplanation` with summary, reason, and basis generated from the evidence chain.
 - Version-level visual detections should be stored as `YOLO_SYMBOL` evidence and remain separate from `ReviewIssue` until rules explicitly consume them.
+- Version-level OCR regions should be stored as `OCR_TEXT` evidence and remain separate from `ReviewIssue` until rules explicitly consume them.
 - `tools/run_golden_e2e.py` verifies these evidence checks for the golden DXF dataset.
 
 ## 验收目标

@@ -45,6 +45,12 @@ public final class ApiDtos {
     public record VisionDetection(Integer classId, String className, Double confidence, List<Double> xyxy) {
     }
 
+    public record OcrResponse(List<OcrRegion> regions, Integer imageWidth, Integer imageHeight, String engine, String language) {
+    }
+
+    public record OcrRegion(String text, Double confidence, List<Double> xyxy, String language) {
+    }
+
     public record EntityView(String id, String versionId, String entityType, String layerName, String textValue, String blockName, Double x, Double y, Map<String, Object> geometry) {
     }
 

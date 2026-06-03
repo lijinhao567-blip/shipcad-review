@@ -10,6 +10,7 @@
 - Spring Boot API：鉴权、主数据管理、文件管理、异步审查任务、Easy Rules规则审查、整改流转、审计日志和OpenAPI。
 - Python CAD Worker：基于 ezdxf 解析 DXF 文件；安装 LibreDWG 后，通过 `dwg2dxf` 转换 DWG 并复用 DXF 解析链路。
 - Python Vision Worker：基于 Ultralytics YOLOv8 识别图纸渲染图中的符号目标，输出类别、置信度和检测框。
+- Python OCR Worker：基于 Tesseract OCR 提取图纸渲染图中的文字区域，输出文本、置信度和检测框；后续可替换或增强为 PaddleOCR。
 - AI Gateway：当前采用可审计的本地 evidence summarizer，只基于 `ReviewIssue` 与 evidence chain 生成解释；后续可替换为本地大模型或 OpenAI 兼容接口。
 
 ## 数据架构
@@ -31,14 +32,14 @@
 
 规则引擎消费证据并生成 `ReviewIssue`，AI 基于问题和证据生成解释与报告。详细设计见 `docs/evidence_model.md`。
 
-当前实现中，后端已新增 `ReviewEvidence`/`review_evidence`，现有确定性规则会为每个 `ReviewIssue` 自动保存 `RULE_RESULT` 与 CAD 证据。Vision Worker 检测结果可通过版本接口写入 `YOLO_SYMBOL` 证据，图片保存在 `data/vision/{versionId}`。OCR 和更完整的知识图谱后续不应直接绕过问题闭环，而应继续写入同一证据层。
+当前实现中，后端已新增 `ReviewEvidence`/`review_evidence`，现有确定性规则会为每个 `ReviewIssue` 自动保存 `RULE_RESULT` 与 CAD 证据。Vision Worker 检测结果可通过版本接口写入 `YOLO_SYMBOL` 证据，图片保存在 `data/vision/{versionId}`。OCR Worker 识别结果可通过版本接口写入 `OCR_TEXT` 证据，图片保存在 `data/ocr/{versionId}`。更完整的知识图谱后续不应直接绕过问题闭环，而应继续写入同一证据层。
 
 ## 部署架构
 
 当前提供三类边界：
 
-- 本地开发：PowerShell 脚本或手动启动前端、后端、CAD Worker 和可选 Vision Worker。
-- 容器部署：`deploy/docker-compose.yml` 构建并启动核心服务；使用 `--profile vision` 启动 YOLOv8 识别服务。
+- 本地开发：PowerShell 脚本或手动启动前端、后端、CAD Worker、可选 Vision Worker 和可选 OCR Worker。
+- 容器部署：`deploy/docker-compose.yml` 构建并启动核心服务；使用 `--profile vision` 启动 YOLOv8 识别服务，使用 `--profile ocr` 启动 OCR 识别服务。
 - 云原生占位：`deploy/kubernetes/shipcad-review.yaml` 提供 Deployment、Service、ConfigMap 和 PVC 骨架，后续可接入 DM8、Redis、MinIO 和 Ingress。
 
 ## 开源合规边界

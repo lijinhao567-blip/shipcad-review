@@ -20,6 +20,9 @@ const showCanvasDiagnostics = ref(false)
 const visionForm = reactive({ file: null as File | null, confidence: 0.25 })
 const visionDetecting = ref(false)
 const visionMessage = ref('')
+const ocrForm = reactive({ file: null as File | null, confidence: 0.5 })
+const ocrRecognizing = ref(false)
+const ocrMessage = ref('')
 const compare = reactive({ leftId: '', rightId: '' })
 const output = ref('')
 const reportDocument = ref<ReportDocument | null>(null)
@@ -58,6 +61,7 @@ const isDxfPreview = computed(() => previewVersion.value?.fileName.toLowerCase()
 const entityById = computed(() => new Map(entities.value.map((entity) => [entity.id, entity])))
 const selectedIssue = computed(() => issues.value.find((issue) => issue.id === selectedIssueId.value))
 const previewVisionEvidences = computed(() => versionEvidences.value.filter((evidence) => evidence.evidenceType === 'YOLO_SYMBOL'))
+const previewOcrEvidences = computed(() => versionEvidences.value.filter((evidence) => evidence.evidenceType === 'OCR_TEXT'))
 const selectedReportTask = computed(() => tasks.value.find((task) => task.id === selectedTask.value))
 const selectedReportVersion = computed(() => versions.value.find((version) => version.id === selectedReportTask.value?.versionId))
 const selectedReportIssues = computed(() => issues.value.filter((issue) => issue.taskId === selectedTask.value))
@@ -266,7 +270,11 @@ async function refreshVersionEvidences() {
     versionEvidences.value = []
     return
   }
-  versionEvidences.value = await api.request<ReviewEvidence[]>(`/api/versions/${previewVersionId.value}/evidences?type=YOLO_SYMBOL`)
+  const [vision, ocr] = await Promise.all([
+    api.request<ReviewEvidence[]>(`/api/versions/${previewVersionId.value}/evidences?type=YOLO_SYMBOL`),
+    api.request<ReviewEvidence[]>(`/api/versions/${previewVersionId.value}/evidences?type=OCR_TEXT`)
+  ])
+  versionEvidences.value = [...vision, ...ocr]
 }
 
 function messageOf(value: unknown): string {
@@ -369,6 +377,35 @@ async function runVisionDetection() {
     visionMessage.value = `视觉检测失败：${messageOf(reason)}`
   } finally {
     visionDetecting.value = false
+  }
+}
+
+async function runOcrRecognition() {
+  if (!previewVersionId.value) {
+    ocrMessage.value = '请选择图纸版本'
+    return
+  }
+  if (!ocrForm.file) {
+    ocrMessage.value = '请选择PNG或JPG图片'
+    return
+  }
+  const confidence = Number(ocrForm.confidence)
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+    ocrMessage.value = '置信度必须在0到1之间'
+    return
+  }
+  const body = new FormData()
+  body.set('file', ocrForm.file)
+  ocrRecognizing.value = true
+  ocrMessage.value = ''
+  try {
+    const generated = await api.request<ReviewEvidence[]>(`/api/versions/${previewVersionId.value}/ocr-recognize?confidence=${confidence}`, { method: 'POST', body })
+    await refreshVersionEvidences()
+    ocrMessage.value = `OCR识别完成：生成 ${generated.length} 条 OCR_TEXT 证据`
+  } catch (reason) {
+    ocrMessage.value = `OCR识别失败：${messageOf(reason)}`
+  } finally {
+    ocrRecognizing.value = false
   }
 }
 
@@ -500,6 +537,7 @@ function barRows(data: Record<string, number> = {}) {
 
 watch(previewVersionId, () => {
   visionMessage.value = ''
+  ocrMessage.value = ''
   refreshPreview(true).catch((reason) => {
     previewFileError.value = messageOf(reason)
   })
@@ -658,6 +696,24 @@ onMounted(() => {
                 <strong>视觉证据</strong>
                 <ul>
                   <li v-for="evidence in previewVisionEvidences" :key="evidence.id">{{ formatEvidence(evidence) }}</li>
+                </ul>
+              </div>
+            </form>
+            <form class="ocr-panel" @submit.prevent="runOcrRecognition">
+              <div class="diagnostic-title">
+                <strong>OCR文字证据</strong>
+                <span>上传PNG/JPG图像后生成版本级文字识别证据。</span>
+              </div>
+              <div class="ocr-grid">
+                <label>图像<input type="file" accept=".png,.jpg,.jpeg" @change="ocrForm.file = ($event.target as HTMLInputElement).files?.[0] ?? null" /></label>
+                <label>置信度<input v-model.number="ocrForm.confidence" type="number" min="0" max="1" step="0.01" /></label>
+                <button type="submit" :disabled="ocrRecognizing || !ocrForm.file">{{ ocrRecognizing ? '识别中' : 'OCR识别' }}</button>
+              </div>
+              <p v-if="ocrMessage" class="hint">{{ ocrMessage }}</p>
+              <div v-if="previewOcrEvidences.length" class="ocr-evidence-list">
+                <strong>文字证据</strong>
+                <ul>
+                  <li v-for="evidence in previewOcrEvidences" :key="evidence.id">{{ formatEvidence(evidence) }}</li>
                 </ul>
               </div>
             </form>

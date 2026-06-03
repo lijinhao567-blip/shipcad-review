@@ -16,6 +16,8 @@ import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewTask;
 import com.shipcad.review.dto.ApiDtos.DrawingRequest;
 import com.shipcad.review.dto.ApiDtos.IssueUpdateRequest;
+import com.shipcad.review.dto.ApiDtos.OcrRegion;
+import com.shipcad.review.dto.ApiDtos.OcrResponse;
 import com.shipcad.review.dto.ApiDtos.ProjectRequest;
 import com.shipcad.review.dto.ApiDtos.VisionDetection;
 import com.shipcad.review.dto.ApiDtos.VisionDetectionResponse;
@@ -69,6 +71,7 @@ public class ReviewPlatformService {
     private final ReportDocumentRepository reports;
     private final CadWorkerClient worker;
     private final VisionWorkerClient visionWorker;
+    private final OcrWorkerClient ocrWorker;
     private final RuleEngine ruleEngine;
     private final ReviewReportBuilder reportBuilder;
     private final AiGateway aiGateway;
@@ -92,6 +95,7 @@ public class ReviewPlatformService {
             ReportDocumentRepository reports,
             CadWorkerClient worker,
             VisionWorkerClient visionWorker,
+            OcrWorkerClient ocrWorker,
             RuleEngine ruleEngine,
             ReviewReportBuilder reportBuilder,
             AiGateway aiGateway,
@@ -114,6 +118,7 @@ public class ReviewPlatformService {
         this.reports = reports;
         this.worker = worker;
         this.visionWorker = visionWorker;
+        this.ocrWorker = ocrWorker;
         this.ruleEngine = ruleEngine;
         this.reportBuilder = reportBuilder;
         this.aiGateway = aiGateway;
@@ -230,6 +235,32 @@ public class ReviewPlatformService {
         detail.put("detectionCount", generated.size());
         detail.put("engine", response == null ? "" : response.engine());
         audit.record(actor.username, "VISION_DETECT", "version", versionId, detail);
+        return generated;
+    }
+
+    @Transactional
+    public List<ReviewEvidence> runOcrRecognition(String versionId, MultipartFile file, double confidence, AppUser actor) throws IOException {
+        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        if (confidence < 0 || confidence > 1) {
+            throw new IllegalArgumentException("OCR置信度必须在0到1之间");
+        }
+        Path image = storeOcrImage(versionId, file);
+        OcrResponse response = ocrWorker.recognize(image, confidence);
+        List<OcrRegion> regions = response == null || response.regions() == null ? List.of() : response.regions();
+        List<ReviewEvidence> generated = new ArrayList<>();
+        for (int index = 0; index < regions.size(); index += 1) {
+            generated.add(ocrEvidence(versionId, image, response, regions.get(index), index));
+        }
+        evidences.saveAll(generated);
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("versionId", versionId);
+        detail.put("imagePath", image.toString());
+        detail.put("confidenceThreshold", confidence);
+        detail.put("regionCount", generated.size());
+        detail.put("engine", response == null ? "" : response.engine());
+        detail.put("language", response == null ? "" : response.language());
+        audit.record(actor.username, "OCR_RECOGNIZE", "version", versionId, detail);
         return generated;
     }
 
@@ -426,20 +457,57 @@ public class ReviewPlatformService {
         return evidence;
     }
 
+    private ReviewEvidence ocrEvidence(String versionId, Path image, OcrResponse response, OcrRegion region, int index) {
+        String text = region.text() == null ? "" : region.text();
+        String confidenceText = region.confidence() == null ? "-" : String.format(Locale.ROOT, "%.2f", region.confidence());
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("text", text);
+        payload.put("confidence", region.confidence());
+        payload.put("xyxy", region.xyxy());
+        payload.put("language", region.language());
+        payload.put("imagePath", image.toString());
+        payload.put("imageWidth", response == null ? null : response.imageWidth());
+        payload.put("imageHeight", response == null ? null : response.imageHeight());
+        payload.put("engine", response == null ? "" : response.engine());
+
+        ReviewEvidence evidence = new ReviewEvidence();
+        evidence.id = Ids.next("evidence");
+        evidence.issueId = null;
+        evidence.taskId = null;
+        evidence.versionId = versionId;
+        evidence.ruleCode = "OCR_RECOGNITION";
+        evidence.evidenceType = EvidenceType.OCR_TEXT;
+        evidence.sourceId = "ocr:text#" + index;
+        evidence.sourceLabel = "ocr_worker." + (response == null || response.engine() == null || response.engine().isBlank() ? "unknown" : response.engine());
+        evidence.summary = "OCR识别文字 " + text + "，置信度 " + confidenceText + "，边界框 " + bboxText(region.xyxy());
+        evidence.payloadJson = toJson(payload);
+        evidence.confidence = region.confidence();
+        evidence.createdAt = Ids.now();
+        return evidence;
+    }
+
     private Path storeVisionImage(String versionId, MultipartFile file) throws IOException {
-        String fileName = safeFileName(file.getOriginalFilename(), "vision-image.png");
+        return storeEvidenceImage(versionId, file, "vision", "vision", "vision-image.png", "视觉检测");
+    }
+
+    private Path storeOcrImage(String versionId, MultipartFile file) throws IOException {
+        return storeEvidenceImage(versionId, file, "ocr", "ocr", "ocr-image.png", "OCR识别");
+    }
+
+    private Path storeEvidenceImage(String versionId, MultipartFile file, String folderName, String idPrefix, String fallbackName, String label) throws IOException {
+        String fileName = safeFileName(file.getOriginalFilename(), fallbackName);
         String lowerName = fileName.toLowerCase(Locale.ROOT);
         if (file.isEmpty() || !(lowerName.endsWith(".png") || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg"))) {
-            throw new IllegalArgumentException("视觉检测当前仅支持PNG或JPG图片");
+            throw new IllegalArgumentException(label + "当前仅支持PNG或JPG图片");
         }
         if (file.getSize() > 20L * 1024 * 1024) {
-            throw new IllegalArgumentException("视觉检测图片超过20MB限制");
+            throw new IllegalArgumentException(label + "图片超过20MB限制");
         }
-        Path folder = storageRoot.resolve("vision").resolve(versionId).toAbsolutePath().normalize();
+        Path folder = storageRoot.resolve(folderName).resolve(versionId).toAbsolutePath().normalize();
         Files.createDirectories(folder);
-        Path target = folder.resolve(Ids.next("vision") + "_" + fileName).normalize();
+        Path target = folder.resolve(Ids.next(idPrefix) + "_" + fileName).normalize();
         if (!target.startsWith(folder)) {
-            throw new IllegalArgumentException("视觉检测文件路径非法");
+            throw new IllegalArgumentException(label + "文件路径非法");
         }
         file.transferTo(target);
         return target;

@@ -88,6 +88,16 @@ public class VersionController extends BaseController {
         return platform.runVisionDetection(versionId, file, confidence, user(authorization));
     }
 
+    @PostMapping("/{versionId}/ocr-recognize")
+    public List<ReviewEvidence> ocrRecognize(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable String versionId,
+            @RequestParam MultipartFile file,
+            @RequestParam(defaultValue = "0.5") double confidence
+    ) throws IOException {
+        return platform.runOcrRecognition(versionId, file, confidence, user(authorization));
+    }
+
     @GetMapping("/{versionId}/evidences")
     public List<ReviewEvidence> evidences(
             @RequestHeader("Authorization") String authorization,

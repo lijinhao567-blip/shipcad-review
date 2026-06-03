@@ -106,6 +106,9 @@ class GoldenE2E:
     def issues(self, task_id: str) -> list[dict[str, Any]]:
         return self.request("GET", "/api/issues", params={"taskId": task_id}).json()
 
+    def entities(self, version_id: str) -> list[dict[str, Any]]:
+        return self.request("GET", f"/api/versions/{version_id}/entities").json()
+
     def versions(self) -> list[dict[str, Any]]:
         return self.request("GET", "/api/versions").json()
 
@@ -133,6 +136,7 @@ class GoldenE2E:
             actual_rules = sorted({issue["ruleCode"] for issue in actual_issues})
             self.assert_rules(case, expected_rules, actual_rules)
             self.assert_parser_expectations(version["id"], case.get("parserExpectations", {}))
+            self.assert_issue_evidence(version["id"], case, actual_issues)
             return CaseResult(case_id, True, expected_rules, actual_rules, "ok")
         except Exception as exc:
             return CaseResult(case_id, False, expected_rules, [], str(exc))
@@ -145,6 +149,37 @@ class GoldenE2E:
             return
         if actual_rules != expected_rules:
             raise AssertionError(f"expected rule codes {expected_rules}, got {actual_rules}")
+
+    def assert_issue_evidence(self, version_id: str, case: dict[str, Any], issues: list[dict[str, Any]]) -> None:
+        parsed_entities = {entity["id"]: entity for entity in self.entities(version_id)}
+        for issue in issues:
+            entity_ref = issue.get("entityRef") or ""
+            if entity_ref and entity_ref not in parsed_entities:
+                raise AssertionError(f"issue {issue['id']} references missing entityRef={entity_ref}")
+
+        expected_evidence = case.get("expectedEvidence") or {}
+        if not expected_evidence:
+            return
+        issues_by_rule: dict[str, list[dict[str, Any]]] = {}
+        for issue in issues:
+            issues_by_rule.setdefault(issue["ruleCode"], []).append(issue)
+
+        for rule_code, expected in expected_evidence.items():
+            candidates = issues_by_rule.get(rule_code) or []
+            if not candidates:
+                raise AssertionError(f"no issue found for expected evidence rule {rule_code}")
+            issue = candidates[0]
+            expected_layer = expected.get("layerName")
+            if expected_layer is not None and issue.get("layerName") != expected_layer:
+                raise AssertionError(f"{rule_code} expected layerName={expected_layer}, got {issue.get('layerName')}")
+
+            entity_ref = issue.get("entityRef") or ""
+            if expected.get("requireEntityRef") and not entity_ref:
+                raise AssertionError(f"{rule_code} expected a non-empty entityRef")
+            if entity_ref:
+                entity = parsed_entities[entity_ref]
+                if expected_layer is not None and entity.get("layerName") != expected_layer:
+                    raise AssertionError(f"{rule_code} entityRef layer mismatch: expected {expected_layer}, got {entity.get('layerName')}")
 
     def assert_parser_expectations(self, version_id: str, expectations: dict[str, Any]) -> None:
         version = next((item for item in self.versions() if item["id"] == version_id), None)

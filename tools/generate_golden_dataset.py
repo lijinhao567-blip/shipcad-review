@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -12,6 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DATASET_DIR = ROOT / "datasets" / "rules"
 CASE_DIR = DATASET_DIR / "cases"
 MANIFEST_PATH = DATASET_DIR / "expected.json"
+FIXED_DXF_TIMESTAMP = "2451545.0"
+FIXED_DXF_CREATED_BY = "1.4.4 @ 2000-01-01T00:00:00+00:00"
+FIXED_DXF_GUID = "{00000000-0000-0000-0000-000000000000}"
 
 
 @dataclass(frozen=True)
@@ -25,11 +29,29 @@ class Case:
     required_layers: list[str]
     required_blocks: list[str]
     description: str
+    expected_evidence: dict[str, dict[str, object]] = field(default_factory=dict)
 
 
 def ensure_layer(doc: ezdxf.EzDxf, name: str) -> None:
     if name not in doc.layers:
         doc.layers.add(name)
+
+
+def save_deterministic(doc: ezdxf.EzDxf, path: Path) -> None:
+    doc.header["$TDCREATE"] = float(FIXED_DXF_TIMESTAMP)
+    doc.header["$TDUCREATE"] = float(FIXED_DXF_TIMESTAMP)
+    doc.header["$TDUPDATE"] = float(FIXED_DXF_TIMESTAMP)
+    doc.header["$TDUUPDATE"] = float(FIXED_DXF_TIMESTAMP)
+    doc.header["$FINGERPRINTGUID"] = FIXED_DXF_GUID
+    doc.header["$VERSIONGUID"] = FIXED_DXF_GUID
+    doc.saveas(path)
+
+    content = path.read_text(encoding="utf-8", errors="ignore")
+    for variable in ("TDCREATE", "TDUCREATE", "TDUPDATE", "TDUUPDATE"):
+        content = re.sub(rf"(\${variable}\n\s*40\n)[^\n]+", rf"\g<1>{FIXED_DXF_TIMESTAMP}", content)
+    content = re.sub(r"\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}", FIXED_DXF_GUID, content)
+    content = re.sub(r"1\.4\.4 @ [0-9T:\-+.]+", FIXED_DXF_CREATED_BY, content)
+    path.write_text(content, encoding="utf-8", newline="\n")
 
 
 def base_doc(*, with_title: bool = True) -> ezdxf.EzDxf:
@@ -62,7 +84,7 @@ def build_compliant(path: Path) -> None:
     msp = doc.modelspace()
     add_title(msp)
     add_standard_geometry(msp)
-    doc.saveas(path)
+    save_deterministic(doc, path)
 
 
 def build_invalid_layer(path: Path) -> None:
@@ -72,7 +94,7 @@ def build_invalid_layer(path: Path) -> None:
     add_title(msp)
     add_standard_geometry(msp)
     msp.add_line((10, 10), (20, 15), dxfattribs={"layer": "BAD-LAYER"})
-    doc.saveas(path)
+    save_deterministic(doc, path)
 
 
 def build_empty_layer(path: Path) -> None:
@@ -81,14 +103,14 @@ def build_empty_layer(path: Path) -> None:
     msp = doc.modelspace()
     add_title(msp)
     add_standard_geometry(msp)
-    doc.saveas(path)
+    save_deterministic(doc, path)
 
 
 def build_missing_title(path: Path) -> None:
     doc = base_doc(with_title=False)
     msp = doc.modelspace()
     add_standard_geometry(msp)
-    doc.saveas(path)
+    save_deterministic(doc, path)
 
 
 def build_placeholder_text(path: Path) -> None:
@@ -97,7 +119,7 @@ def build_placeholder_text(path: Path) -> None:
     add_title(msp)
     add_standard_geometry(msp)
     msp.add_text("TBD bracket opening", dxfattribs={"layer": "TEXT-NOTE", "height": 2.0}).set_placement((20, 46))
-    doc.saveas(path)
+    save_deterministic(doc, path)
 
 
 def build_low_density(path: Path) -> None:
@@ -108,7 +130,7 @@ def build_low_density(path: Path) -> None:
     msp = doc.modelspace()
     msp.add_blockref("TITLE_BLOCK", (0, 0), dxfattribs={"layer": "TITLE"})
     msp.add_line((0, 0), (10, 0), dxfattribs={"layer": "S-HULL"})
-    doc.saveas(path)
+    save_deterministic(doc, path)
 
 
 CASES = [
@@ -133,6 +155,7 @@ CASES = [
         required_layers=["BAD-LAYER"],
         required_blocks=["TITLE_BLOCK"],
         description="Contains one custom layer that violates the configured layer prefix convention.",
+        expected_evidence={"LAYER_NAME_STANDARD": {"layerName": "BAD-LAYER", "requireEntityRef": True}},
     ),
     Case(
         case_id="empty_custom_layer",
@@ -144,6 +167,7 @@ CASES = [
         required_layers=["S-EMPTY"],
         required_blocks=["TITLE_BLOCK"],
         description="Declares a non-system layer with no entities.",
+        expected_evidence={"EMPTY_LAYER_CHECK": {"layerName": "S-EMPTY", "requireEntityRef": False}},
     ),
     Case(
         case_id="missing_title_block",
@@ -166,6 +190,7 @@ CASES = [
         required_layers=["TEXT-NOTE"],
         required_blocks=["TITLE_BLOCK"],
         description="Contains one TBD note that should be reviewed before delivery.",
+        expected_evidence={"TEXT_PLACEHOLDER": {"layerName": "TEXT-NOTE", "requireEntityRef": True}},
     ),
     Case(
         case_id="low_entity_density",
@@ -195,8 +220,7 @@ CASES = [
 def build_manifest() -> list[dict[str, object]]:
     manifest = []
     for case in CASES:
-        manifest.append(
-            {
+        item = {
                 "id": case.case_id,
                 "file": f"cases/{case.file_name}",
                 "format": "dxf",
@@ -212,7 +236,9 @@ def build_manifest() -> list[dict[str, object]]:
                 },
                 "description": case.description,
             }
-        )
+        if case.expected_evidence:
+            item["expectedEvidence"] = case.expected_evidence
+        manifest.append(item)
     return manifest
 
 

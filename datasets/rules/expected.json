@@ -42,7 +42,13 @@
         "TITLE_BLOCK"
       ]
     },
-    "description": "Contains one custom layer that violates the configured layer prefix convention."
+    "description": "Contains one custom layer that violates the configured layer prefix convention.",
+    "expectedEvidence": {
+      "LAYER_NAME_STANDARD": {
+        "layerName": "BAD-LAYER",
+        "requireEntityRef": true
+      }
+    }
   },
   {
     "id": "empty_custom_layer",
@@ -64,7 +70,13 @@
         "TITLE_BLOCK"
       ]
     },
-    "description": "Declares a non-system layer with no entities."
+    "description": "Declares a non-system layer with no entities.",
+    "expectedEvidence": {
+      "EMPTY_LAYER_CHECK": {
+        "layerName": "S-EMPTY",
+        "requireEntityRef": false
+      }
+    }
   },
   {
     "id": "missing_title_block",
@@ -108,7 +120,13 @@
         "TITLE_BLOCK"
       ]
     },
-    "description": "Contains one TBD note that should be reviewed before delivery."
+    "description": "Contains one TBD note that should be reviewed before delivery.",
+    "expectedEvidence": {
+      "TEXT_PLACEHOLDER": {
+        "layerName": "TEXT-NOTE",
+        "requireEntityRef": true
+      }
+    }
   },
   {
     "id": "low_entity_density",

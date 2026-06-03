@@ -35,6 +35,8 @@ const selectedDrawingVersions = computed(() => versions.value)
 const previewIssues = computed(() => issues.value.filter((issue) => !previewVersionId.value || issue.versionId === previewVersionId.value))
 const previewVersion = computed(() => versions.value.find((item) => item.id === previewVersionId.value))
 const isDxfPreview = computed(() => previewVersion.value?.fileName.toLowerCase().endsWith('.dxf') ?? false)
+const entityById = computed(() => new Map(entities.value.map((entity) => [entity.id, entity])))
+const selectedIssue = computed(() => issues.value.find((issue) => issue.id === selectedIssueId.value))
 
 function versionLabel(version: DrawingVersion): string {
   const drawing = drawings.value.find((item) => item.id === version.drawingId)
@@ -213,6 +215,26 @@ function selectIssue(issue: ReviewIssue) {
   previewVersionId.value = issue.versionId
 }
 
+function coordinateLabel(entity: ParsedEntity): string {
+  if (entity.x == null || entity.y == null) return ''
+  return ` / 坐标 ${entity.x.toFixed(1)}, ${entity.y.toFixed(1)}`
+}
+
+function issueEvidence(issue: ReviewIssue): string {
+  const entity = issue.entityRef ? entityById.value.get(issue.entityRef) : undefined
+  if (entity) {
+    const text = entity.textValue ? ` / 内容 ${entity.textValue}` : ''
+    return `图元定位：${entity.entityType} / 图层 ${entity.layerName || '-'}${coordinateLabel(entity)}${text}`
+  }
+  if (issue.entityRef) {
+    return `图元定位：${issue.entityRef}（切换到对应版本后加载详细图元）`
+  }
+  if (issue.layerName) {
+    return `图层定位：${issue.layerName}`
+  }
+  return '版本级问题：需要结合图纸版本或审查任务上下文确认'
+}
+
 function barRows(data: Record<string, number> = {}) {
   const max = Math.max(1, ...Object.values(data))
   return Object.entries(data).map(([key, value]) => ({ key, value, width: `${(value / max) * 100}%` }))
@@ -342,6 +364,10 @@ onMounted(() => {
               <h2>DXF正式预览与问题定位</h2>
               <select v-model="previewVersionId"><option v-for="v in versions" :key="v.id" :value="v.id">{{ versionLabel(v) }}</option></select>
             </div>
+            <div v-if="selectedIssue" class="location-summary">
+              <strong>当前定位证据</strong>
+              <span>{{ issueEvidence(selectedIssue) }}</span>
+            </div>
             <DxfViewerPreview
               v-if="previewFileUrl && isDxfPreview"
               :file-url="previewFileUrl"
@@ -372,6 +398,7 @@ onMounted(() => {
             <div v-for="issue in issues" :key="issue.id" class="issue" :class="[issue.severity, { selected: selectedIssueId === issue.id }]" @click="selectIssue(issue)">
               <strong>{{ issue.title }}</strong>
               <p>{{ issue.ruleCode }} / {{ issue.severity }} / {{ issue.status }} / 图层 {{ issue.layerName || '-' }}</p>
+              <p class="evidence">{{ issueEvidence(issue) }}</p>
               <p>{{ issue.description }}</p>
               <p>建议：{{ issue.suggestion }}</p>
               <div class="actions">

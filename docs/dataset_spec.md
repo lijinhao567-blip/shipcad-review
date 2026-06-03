@@ -63,7 +63,13 @@ datasets/
         "ruleCode": "TEXT_PLACEHOLDER",
         "severity": "MEDIUM"
       }
-    ]
+    ],
+    "expectedEvidence": {
+      "TEXT_PLACEHOLDER": {
+        "layerName": "TEXT-NOTE",
+        "requireEntityRef": true
+      }
+    }
   }
 ]
 ```
@@ -84,7 +90,7 @@ Generation and acceptance commands:
 .\.venv\Scripts\python.exe tools\run_golden_e2e.py --keep-going
 ```
 
-The E2E script uploads each DXF, creates a review task, polls until it finishes, checks the generated `ReviewIssue.ruleCode` set, validates parser summary expectations, and verifies the authenticated version file endpoint used by the official preview path.
+The E2E script uploads each DXF, creates a review task, polls until it finishes, checks the generated `ReviewIssue.ruleCode` set, validates parser summary expectations, verifies issue evidence fields such as `layerName` and `entityRef`, and checks the authenticated version file endpoint used by the official preview path.
 
 ## YOLOv8 Dataset
 

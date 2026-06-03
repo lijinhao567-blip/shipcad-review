@@ -78,6 +78,13 @@ public class RuleEngine {
             return values == null ? List.of() : values;
         }
 
+        protected ParsedEntity firstEntityOnLayer(Facts facts, String layer) {
+            return context(facts).entities().stream()
+                    .filter(entity -> layer != null && layer.equals(entity.layerName))
+                    .findFirst()
+                    .orElse(null);
+        }
+
         protected void add(Facts facts, String code, String title, String description, String layer, String entityRef, String suggestion) {
             ReviewContext context = context(facts);
             ReviewRule rule = context.enabledRules().get(code);
@@ -114,8 +121,11 @@ public class RuleEngine {
         public void then(Facts facts) {
             safe(context(facts).summary().layers()).stream()
                     .filter(this::invalidLayer)
-                    .forEach(layer -> add(facts, "LAYER_NAME_STANDARD", "图层命名不规范：" + layer,
-                            "图层 " + layer + " 未使用推荐前缀。", layer, "", "建议使用 S-/P-/E-/H-/M-/A-/DIM-/TEXT-/TITLE 等前缀。"));
+                    .forEach(layer -> {
+                        ParsedEntity entity = firstEntityOnLayer(facts, layer);
+                        add(facts, "LAYER_NAME_STANDARD", "图层命名不规范：" + layer,
+                                "图层 " + layer + " 未使用推荐前缀。", layer, entity == null ? "" : entity.id, "建议使用 S-/P-/E-/H-/M-/A-/DIM-/TEXT-/TITLE 等前缀。");
+                    });
         }
 
         private boolean invalidLayer(String layer) {
@@ -138,7 +148,7 @@ public class RuleEngine {
             safe(context(facts).summary().emptyLayers()).stream()
                     .filter(layer -> !SYSTEM_LAYERS.contains(layer))
                     .forEach(layer -> add(facts, "EMPTY_LAYER_CHECK", "存在空图层：" + layer,
-                    "该图层已声明但没有实体。", layer, "", "确认是否为历史残留图层，必要时清理。"));
+                            "该图层已声明但没有实体。", layer, "", "确认是否为历史残留图层，必要时清理。"));
         }
     }
 

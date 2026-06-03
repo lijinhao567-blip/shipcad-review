@@ -50,6 +50,10 @@ class RuleEngineTest {
 
         assertThat(issues).extracting(issue -> issue.ruleCode)
                 .contains("LAYER_NAME_STANDARD", "EMPTY_LAYER_CHECK", "TITLE_BLOCK_REQUIRED", "VERSION_FORMAT", "TEXT_PLACEHOLDER", "ENTITY_DENSITY");
+        assertThat(issues).filteredOn(issue -> "LAYER_NAME_STANDARD".equals(issue.ruleCode) && "entity_test".equals(issue.entityRef))
+                .hasSize(1);
+        assertThat(issues).filteredOn(issue -> "TEXT_PLACEHOLDER".equals(issue.ruleCode)).singleElement()
+                .satisfies(issue -> assertThat(issue.entityRef).isEqualTo("entity_test"));
     }
 
     @Test

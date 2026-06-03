@@ -55,12 +55,15 @@ textarea { min-height: 80px; resize: vertical; }
 .issue.LOW, .issue.INFO { border-color: var(--brand); background: #f0fdfa; }
 .issue.selected { outline: 2px solid #dc2626; }
 .issue p { color: var(--muted); }
+.issue .evidence { color: #334155; font-weight: 700; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .preview-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, .75fr); gap: 16px; align-items: start; }
 .preview-panel { min-width: 0; }
 .section-title { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px; }
 .section-title h2 { margin: 0; }
 .section-title select { max-width: 360px; }
+.location-summary { display: grid; gap: 4px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; background: #f8fafc; }
+.location-summary span { color: var(--muted); font-size: 13px; }
 .preview-state { display: grid; place-content: center; min-height: 520px; border: 1px solid var(--line); border-radius: 8px; padding: 24px; background: #fff; text-align: center; }
 .preview-state p { max-width: 560px; margin: 8px auto 0; color: var(--muted); }
 .preview-actions { display: flex; justify-content: flex-end; margin-top: 10px; }

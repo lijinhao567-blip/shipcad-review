@@ -161,6 +161,8 @@ Define the model and keep future integrations aligned.
 
 Promote current `ParsedEntity` outputs into evidence attached to issues.
 
+Current status: CAD parser evidence already drives deterministic rules for layers, text placeholders, title block attributes, title revision consistency, dimension existence, and dimension layer placement. `ReviewIssue.entityRef` points back to the parsed entity when the finding can be tied to a concrete CAD entity.
+
 ### Stage 3: Vision Evidence
 
 Store YOLO detections from Vision Worker and display them as overlays.

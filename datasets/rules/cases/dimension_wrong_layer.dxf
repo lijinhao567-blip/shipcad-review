@@ -549,7 +549,7 @@ $SPLINESEGS
   9
 $HANDSEED
   5
-5A
+59
   9
 $SURFTAB1
  70
@@ -1549,7 +1549,7 @@ LAYER
 100
 AcDbSymbolTable
  70
-7
+6
   0
 LAYER
   5
@@ -1697,30 +1697,6 @@ Continuous
 347
 21
   0
-LAYER
-  5
-38
-330
-1
-100
-AcDbSymbolTableRecord
-100
-AcDbLayerTableRecord
-  2
-S-EMPTY
- 70
-0
- 62
-7
-  6
-Continuous
-370
--3
-390
-13
-347
-21
-  0
 ENDTAB
   0
 TABLE
@@ -1821,7 +1797,7 @@ ACAD
   0
 APPID
   5
-57
+56
 330
 3
 100
@@ -1835,7 +1811,7 @@ HATCHBACKGROUNDCOLOR
   0
 APPID
   5
-58
+57
 330
 3
 100
@@ -2075,7 +2051,7 @@ TITLE_BLOCK
   0
 BLOCK_RECORD
   5
-44
+43
 330
 9
 100
@@ -2095,7 +2071,7 @@ AcDbBlockTableRecord
   0
 BLOCK_RECORD
   5
-49
+48
 330
 9
 100
@@ -2297,9 +2273,9 @@ AcDbBlockEnd
   0
 BLOCK
   5
-45
-330
 44
+330
+43
 100
 AcDbEntity
   8
@@ -2323,9 +2299,9 @@ AcDbBlockBegin
   0
 LINE
   5
-47
+46
 330
-44
+43
 100
 AcDbEntity
   8
@@ -2347,9 +2323,9 @@ AcDbLine
   0
 LINE
   5
-48
+47
 330
-44
+43
 100
 AcDbEntity
   8
@@ -2371,13 +2347,13 @@ AcDbLine
   0
 INSERT
   5
-4D
+4C
 330
-44
+43
 100
 AcDbEntity
   8
-DIM-MAIN
+S-HULL
 100
 AcDbBlockReference
   2
@@ -2397,13 +2373,13 @@ _CLOSEDFILLED
   0
 INSERT
   5
-4F
+4E
 330
-44
+43
 100
 AcDbEntity
   8
-DIM-MAIN
+S-HULL
 100
 AcDbBlockReference
   2
@@ -2421,9 +2397,9 @@ _CLOSEDFILLED
   0
 LINE
   5
-51
+50
 330
-44
+43
 100
 AcDbEntity
   8
@@ -2445,9 +2421,9 @@ AcDbLine
   0
 LINE
   5
-52
+51
 330
-44
+43
 100
 AcDbEntity
   8
@@ -2469,13 +2445,13 @@ AcDbLine
   0
 MTEXT
   5
-53
+52
 330
-44
+43
 100
 AcDbEntity
   8
-DIM-MAIN
+S-HULL
 100
 AcDbMText
  10
@@ -2493,9 +2469,9 @@ AcDbMText
   0
 POINT
   5
-54
+53
 330
-44
+43
 100
 AcDbEntity
   8
@@ -2511,9 +2487,9 @@ AcDbPoint
   0
 POINT
   5
-55
+54
 330
-44
+43
 100
 AcDbEntity
   8
@@ -2529,9 +2505,9 @@ AcDbPoint
   0
 POINT
   5
-56
+55
 330
-44
+43
 100
 AcDbEntity
   8
@@ -2547,9 +2523,9 @@ AcDbPoint
   0
 ENDBLK
   5
-46
+45
 330
-44
+43
 100
 AcDbEntity
   8
@@ -2559,9 +2535,9 @@ AcDbBlockEnd
   0
 BLOCK
   5
-4A
-330
 49
+330
+48
 100
 AcDbEntity
   8
@@ -2585,9 +2561,9 @@ _CLOSEDFILLED
   0
 SOLID
   5
-4C
+4B
 330
-49
+48
 100
 AcDbEntity
   8
@@ -2625,9 +2601,9 @@ AcDbTrace
   0
 ENDBLK
   5
-4B
+4A
 330
-49
+48
 100
 AcDbEntity
   8
@@ -2643,7 +2619,7 @@ ENTITIES
   0
 INSERT
   5
-39
+38
 330
 17
 100
@@ -2665,7 +2641,7 @@ TITLE_BLOCK
   0
 ATTRIB
   5
-3B
+3A
 330
 17
 100
@@ -2693,7 +2669,7 @@ DRAWING_NO
   0
 ATTRIB
   5
-3C
+3B
 330
 17
 100
@@ -2721,9 +2697,9 @@ REVISION
   0
 SEQEND
   5
-3A
-330
 39
+330
+38
 100
 AcDbEntity
   8
@@ -2731,7 +2707,7 @@ TITLE
   0
 TEXT
   5
-3D
+3C
 330
 17
 100
@@ -2761,7 +2737,7 @@ AcDbText
   0
 LINE
   5
-3E
+3D
 330
 17
 100
@@ -2785,7 +2761,7 @@ AcDbLine
   0
 LINE
   5
-3F
+3E
 330
 17
 100
@@ -2809,7 +2785,7 @@ AcDbLine
   0
 CIRCLE
   5
-40
+3F
 330
 17
 100
@@ -2829,7 +2805,7 @@ AcDbCircle
   0
 TEXT
   5
-41
+40
 330
 17
 100
@@ -2859,7 +2835,7 @@ AcDbText
   0
 TEXT
   5
-42
+41
 330
 17
 100
@@ -2889,13 +2865,13 @@ AcDbText
   0
 DIMENSION
   5
-43
+42
 330
 17
 100
 AcDbEntity
   8
-DIM-MAIN
+S-HULL
 100
 AcDbDimension
 280
@@ -3931,7 +3907,7 @@ CREATED_BY_EZDXF
   3
 WRITTEN_BY_EZDXF
 350
-59
+58
   0
 DICTIONARYVAR
   5
@@ -3947,7 +3923,7 @@ DictionaryVariables
   0
 DICTIONARYVAR
   5
-59
+58
 330
 2D
 100

@@ -1,5 +1,7 @@
 package com.shipcad.review.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shipcad.review.domain.DrawingVersion;
 import com.shipcad.review.domain.IssueStatus;
 import com.shipcad.review.domain.ParsedEntity;
@@ -27,8 +29,10 @@ import org.springframework.stereotype.Service;
 public class RuleEngine {
     private static final List<String> ALLOWED_LAYER_PREFIXES = List.of("S-", "P-", "E-", "H-", "M-", "A-", "DIM-", "TEXT-", "TITLE", "0");
     private static final Set<String> SYSTEM_LAYERS = Set.of("0", "Defpoints");
+    private static final List<String> REQUIRED_TITLE_ATTRIBUTES = List.of("DRAWING_NO", "REVISION");
     private static final Pattern VERSION_PATTERN = Pattern.compile("^(V\\d+|[A-Z]|R\\d+)$");
     private static final List<String> PLACEHOLDERS = List.of("TBD", "TODO", "XXX", "待定", "未定");
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public List<ReviewIssue> run(String taskId, DrawingVersion version, WorkerSummary summary, List<ParsedEntity> entities, List<ReviewRule> rules) {
         ReviewContext context = new ReviewContext(
@@ -49,6 +53,10 @@ public class RuleEngine {
         easyRules.register(new VersionFormatRule());
         easyRules.register(new PlaceholderTextRule());
         easyRules.register(new EntityDensityRule());
+        easyRules.register(new TitleAttributeRule());
+        easyRules.register(new VersionTitleConsistencyRule());
+        easyRules.register(new DimensionRequiredRule());
+        easyRules.register(new DimensionLayerRule());
 
         RulesEngine engine = new DefaultRulesEngine();
         engine.fire(easyRules, facts);
@@ -83,6 +91,67 @@ public class RuleEngine {
                     .filter(entity -> layer != null && layer.equals(entity.layerName))
                     .findFirst()
                     .orElse(null);
+        }
+
+        protected boolean hasTitleBlock(Facts facts) {
+            String blocks = String.join(" ", safe(context(facts).summary().blocks()));
+            return blocks.toUpperCase(Locale.ROOT).contains("TITLE");
+        }
+
+        protected boolean isType(ParsedEntity entity, String type) {
+            return type.equalsIgnoreCase(entity.entityType == null ? "" : entity.entityType);
+        }
+
+        protected int typeCount(Facts facts, String type) {
+            Map<String, Integer> typeCounts = context(facts).summary().typeCounts();
+            return typeCounts == null ? 0 : typeCounts.getOrDefault(type, 0);
+        }
+
+        protected List<ParsedEntity> titleAttributes(Facts facts) {
+            return context(facts).entities().stream()
+                    .filter(entity -> isType(entity, "ATTRIB"))
+                    .filter(entity -> containsIgnoreCase(entity.blockName, "TITLE"))
+                    .toList();
+        }
+
+        protected Map<String, ParsedEntity> titleAttributesByTag(Facts facts) {
+            return titleAttributes(facts).stream()
+                    .filter(entity -> !attributeTag(entity).isBlank())
+                    .collect(Collectors.toMap(this::attributeTag, entity -> entity, (left, right) -> left));
+        }
+
+        protected String attributeTag(ParsedEntity entity) {
+            return geometryString(entity, "tag").toUpperCase(Locale.ROOT);
+        }
+
+        protected String normalizeVersion(String value) {
+            return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        }
+
+        protected boolean validVersion(String value) {
+            return VERSION_PATTERN.matcher(normalizeVersion(value)).matches();
+        }
+
+        private boolean containsIgnoreCase(String value, String part) {
+            return value != null && value.toUpperCase(Locale.ROOT).contains(part.toUpperCase(Locale.ROOT));
+        }
+
+        @SuppressWarnings("unchecked")
+        private String geometryString(ParsedEntity entity, String key) {
+            if (entity.rawJson == null || entity.rawJson.isBlank()) {
+                return "";
+            }
+            try {
+                Map<String, Object> raw = MAPPER.readValue(entity.rawJson, Map.class);
+                Object geometry = raw.get("geometry");
+                if (geometry instanceof Map<?, ?> geometryMap) {
+                    Object value = geometryMap.get(key);
+                    return value == null ? "" : value.toString();
+                }
+            } catch (JsonProcessingException ignored) {
+                return "";
+            }
+            return "";
         }
 
         protected void add(Facts facts, String code, String title, String description, String layer, String entityRef, String suggestion) {
@@ -175,7 +244,7 @@ public class RuleEngine {
     public static class VersionFormatRule extends BaseReviewRule {
         @Condition
         public boolean when(Facts facts) {
-            return enabled(facts, "VERSION_FORMAT") && !VERSION_PATTERN.matcher(context(facts).version().versionNo.toUpperCase(Locale.ROOT)).matches();
+            return enabled(facts, "VERSION_FORMAT") && !validVersion(context(facts).version().versionNo);
         }
 
         @Action
@@ -216,6 +285,87 @@ public class RuleEngine {
         public void then(Facts facts) {
             add(facts, "ENTITY_DENSITY", "图纸实体数量异常偏少",
                     "仅解析到 " + context(facts).summary().entityCount() + " 个实体，可能为空图或上传错误文件。", "", "", "请确认上传文件是否为正确的模型空间DXF。");
+        }
+    }
+
+    @Rule(name = "标题栏属性完整性检查", priority = 7)
+    public static class TitleAttributeRule extends BaseReviewRule {
+        @Condition
+        public boolean when(Facts facts) {
+            if (!enabled(facts, "TITLE_ATTRIBUTE_REQUIRED") || !hasTitleBlock(facts) || context(facts).summary().entityCount() < 3) {
+                return false;
+            }
+            Map<String, ParsedEntity> attributes = titleAttributesByTag(facts);
+            return REQUIRED_TITLE_ATTRIBUTES.stream().anyMatch(attribute -> !attributes.containsKey(attribute));
+        }
+
+        @Action
+        public void then(Facts facts) {
+            Map<String, ParsedEntity> attributes = titleAttributesByTag(facts);
+            REQUIRED_TITLE_ATTRIBUTES.stream()
+                    .filter(attribute -> !attributes.containsKey(attribute))
+                    .forEach(attribute -> add(facts, "TITLE_ATTRIBUTE_REQUIRED", "标题栏属性缺失：" + attribute,
+                            "标题栏块中缺少 " + attribute + " 属性，后续版本追踪和报告生成可能无法可靠关联。",
+                            "TITLE", "", "建议在标题栏块属性中补充 " + attribute + "。"));
+        }
+    }
+
+    @Rule(name = "标题栏版次一致性检查", priority = 8)
+    public static class VersionTitleConsistencyRule extends BaseReviewRule {
+        @Condition
+        public boolean when(Facts facts) {
+            if (!enabled(facts, "VERSION_TITLE_CONSISTENCY") || !validVersion(context(facts).version().versionNo)) {
+                return false;
+            }
+            ParsedEntity revision = titleAttributesByTag(facts).get("REVISION");
+            return revision != null && !normalizeVersion(revision.textValue).equals(normalizeVersion(context(facts).version().versionNo));
+        }
+
+        @Action
+        public void then(Facts facts) {
+            ParsedEntity revision = titleAttributesByTag(facts).get("REVISION");
+            add(facts, "VERSION_TITLE_CONSISTENCY", "标题栏版次与上传版次不一致",
+                    "标题栏 REVISION 为 " + revision.textValue + "，但系统上传版次为 " + context(facts).version().versionNo + "。",
+                    revision.layerName, revision.id, "建议统一标题栏版次与系统版本记录。");
+        }
+    }
+
+    @Rule(name = "尺寸标注存在性检查", priority = 9)
+    public static class DimensionRequiredRule extends BaseReviewRule {
+        @Condition
+        public boolean when(Facts facts) {
+            return enabled(facts, "DIMENSION_REQUIRED")
+                    && context(facts).summary().entityCount() >= 3
+                    && typeCount(facts, "DIMENSION") == 0;
+        }
+
+        @Action
+        public void then(Facts facts) {
+            add(facts, "DIMENSION_REQUIRED", "缺少尺寸标注",
+                    "当前图纸未解析到 DIMENSION 尺寸标注，结构图纸可能缺少尺寸审查依据。",
+                    "", "", "建议补充关键结构尺寸，或确认尺寸是否以非标准方式表达。");
+        }
+    }
+
+    @Rule(name = "尺寸标注图层规范检查", priority = 10)
+    public static class DimensionLayerRule extends BaseReviewRule {
+        @Condition
+        public boolean when(Facts facts) {
+            return enabled(facts, "DIMENSION_LAYER_STANDARD") && context(facts).entities().stream().anyMatch(this::invalidDimensionLayer);
+        }
+
+        @Action
+        public void then(Facts facts) {
+            context(facts).entities().stream()
+                    .filter(this::invalidDimensionLayer)
+                    .forEach(entity -> add(facts, "DIMENSION_LAYER_STANDARD", "尺寸标注图层不规范：" + entity.layerName,
+                            "DIMENSION 实体应放在 DIM-* 图层，当前位于 " + entity.layerName + "。",
+                            entity.layerName, entity.id, "建议将尺寸标注移动到 DIM-* 图层。"));
+        }
+
+        private boolean invalidDimensionLayer(ParsedEntity entity) {
+            String layer = entity.layerName == null ? "" : entity.layerName;
+            return isType(entity, "DIMENSION") && !layer.startsWith("DIM-");
         }
     }
 }

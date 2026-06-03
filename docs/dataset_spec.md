@@ -100,6 +100,19 @@ Generation and acceptance commands:
 
 The E2E script uploads each DXF, creates a review task, polls until it finishes, checks the generated `ReviewIssue.ruleCode` set, validates parser summary expectations, verifies issue evidence fields such as `layerName` and `entityRef`, and checks the authenticated version file endpoint used by the official preview path.
 
+Current deterministic rule coverage:
+
+- `LAYER_NAME_STANDARD`: nonstandard layer names.
+- `EMPTY_LAYER_CHECK`: declared custom layers without entities.
+- `TITLE_BLOCK_REQUIRED`: missing title block evidence.
+- `VERSION_FORMAT`: non-traceable uploaded version numbers.
+- `TEXT_PLACEHOLDER`: unfinished placeholder text such as `TBD`.
+- `ENTITY_DENSITY`: abnormally sparse drawings.
+- `TITLE_ATTRIBUTE_REQUIRED`: missing title block attributes such as `DRAWING_NO` or `REVISION`.
+- `VERSION_TITLE_CONSISTENCY`: title block revision inconsistent with uploaded version number.
+- `DIMENSION_REQUIRED`: structured drawings without parsed `DIMENSION` entities.
+- `DIMENSION_LAYER_STANDARD`: dimensions placed outside `DIM-*` layers.
+
 ## YOLOv8 Dataset
 
 Use YOLO detection format:

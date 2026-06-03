@@ -139,6 +139,144 @@
     }
   },
   {
+    "id": "missing_title_attribute",
+    "file": "cases/missing_title_attribute.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-MISSING_TITLE_ATTRIBUTE",
+    "title": "Missing Title Attribute",
+    "versionNo": "V1",
+    "expectedRuleCodes": [
+      "TITLE_ATTRIBUTE_REQUIRED"
+    ],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 6,
+      "requiredLayers": [
+        "TITLE",
+        "S-HULL",
+        "DIM-MAIN",
+        "TEXT-NOTE"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ],
+      "requiredEntityTypes": [
+        "DIMENSION",
+        "ATTRIB"
+      ]
+    },
+    "description": "Title block exists, but the inserted block reference omits the REVISION attribute.",
+    "expectedEvidence": {
+      "TITLE_ATTRIBUTE_REQUIRED": {
+        "layerName": "TITLE",
+        "requireEntityRef": false
+      }
+    }
+  },
+  {
+    "id": "version_mismatch",
+    "file": "cases/version_mismatch.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-VERSION_MISMATCH",
+    "title": "Version Mismatch",
+    "versionNo": "V1",
+    "expectedRuleCodes": [
+      "VERSION_TITLE_CONSISTENCY"
+    ],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 6,
+      "requiredLayers": [
+        "TITLE",
+        "S-HULL",
+        "DIM-MAIN",
+        "TEXT-NOTE"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ],
+      "requiredEntityTypes": [
+        "DIMENSION",
+        "ATTRIB"
+      ]
+    },
+    "description": "System version is V1, but the title block REVISION attribute is V2.",
+    "expectedEvidence": {
+      "VERSION_TITLE_CONSISTENCY": {
+        "layerName": "TITLE",
+        "requireEntityRef": true
+      }
+    }
+  },
+  {
+    "id": "missing_dimension",
+    "file": "cases/missing_dimension.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-MISSING_DIMENSION",
+    "title": "Missing Dimension",
+    "versionNo": "V1",
+    "expectedRuleCodes": [
+      "DIMENSION_REQUIRED"
+    ],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 5,
+      "requiredLayers": [
+        "TITLE",
+        "S-HULL",
+        "DIM-MAIN",
+        "TEXT-NOTE"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ],
+      "requiredEntityTypes": [
+        "ATTRIB"
+      ]
+    },
+    "description": "Drawing has enough geometry and title attributes, but no DIMENSION entity.",
+    "expectedEvidence": {
+      "DIMENSION_REQUIRED": {
+        "requireEntityRef": false
+      }
+    }
+  },
+  {
+    "id": "dimension_wrong_layer",
+    "file": "cases/dimension_wrong_layer.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-DIMENSION_WRONG_LAYER",
+    "title": "Dimension Wrong Layer",
+    "versionNo": "V1",
+    "expectedRuleCodes": [
+      "DIMENSION_LAYER_STANDARD"
+    ],
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 6,
+      "requiredLayers": [
+        "TITLE",
+        "S-HULL",
+        "DIM-MAIN",
+        "TEXT-NOTE"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ],
+      "requiredEntityTypes": [
+        "DIMENSION",
+        "ATTRIB"
+      ]
+    },
+    "description": "Contains a DIMENSION entity placed on S-HULL instead of a DIM-* layer.",
+    "expectedEvidence": {
+      "DIMENSION_LAYER_STANDARD": {
+        "layerName": "S-HULL",
+        "requireEntityRef": true
+      }
+    }
+  },
+  {
     "id": "low_entity_density",
     "file": "cases/low_entity_density.dxf",
     "format": "dxf",

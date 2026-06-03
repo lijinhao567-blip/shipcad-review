@@ -69,25 +69,41 @@ def base_doc(*, with_title: bool = True) -> ezdxf.EzDxf:
     return doc
 
 
-def add_title(msp: ezdxf.layouts.Modelspace) -> None:
+def add_title(
+    msp: ezdxf.layouts.Modelspace,
+    *,
+    drawing_no: str = "A22-GOLDEN-001",
+    revision: str = "V1",
+    include_drawing_no: bool = True,
+    include_revision: bool = True,
+) -> None:
     insert = msp.add_blockref("TITLE_BLOCK", (0, 0), dxfattribs={"layer": "TITLE"})
-    insert.add_attrib("DRAWING_NO", "A22-GOLDEN-001", insert=(8, 8), dxfattribs={"layer": "TITLE", "height": 2.5})
-    insert.add_attrib("REVISION", "V1", insert=(8, 5), dxfattribs={"layer": "TITLE", "height": 2.5})
-    msp.add_text("Drawing No A22-GOLDEN-001 Rev V1", dxfattribs={"layer": "TITLE", "height": 2.5}).set_placement((8, 8))
+    if include_drawing_no:
+        insert.add_attrib("DRAWING_NO", drawing_no, insert=(8, 8), dxfattribs={"layer": "TITLE", "height": 2.5})
+    if include_revision:
+        insert.add_attrib("REVISION", revision, insert=(8, 5), dxfattribs={"layer": "TITLE", "height": 2.5})
+    msp.add_text(f"Drawing No {drawing_no} Rev {revision}", dxfattribs={"layer": "TITLE", "height": 2.5}).set_placement((8, 8))
 
 
-def add_standard_geometry(msp: ezdxf.layouts.Modelspace) -> None:
+def add_standard_geometry(
+    msp: ezdxf.layouts.Modelspace,
+    *,
+    include_dimension: bool = True,
+    dimension_layer: str = "DIM-MAIN",
+) -> None:
     msp.add_line((0, 0), (120, 0), dxfattribs={"layer": "S-HULL"})
     msp.add_line((120, 0), (120, 60), dxfattribs={"layer": "S-HULL"})
     msp.add_circle((40, 20), 4, dxfattribs={"layer": "S-HULL"})
     msp.add_text("Main deck clearance 600", dxfattribs={"layer": "DIM-MAIN", "height": 2.0}).set_placement((50, 5))
     msp.add_text("General note checked", dxfattribs={"layer": "TEXT-NOTE", "height": 2.0}).set_placement((15, 40))
+    if not include_dimension:
+        return
     dimension = msp.add_linear_dim(
         base=(0, -8),
         p1=(0, 0),
         p2=(120, 0),
         angle=0,
-        dxfattribs={"layer": "DIM-MAIN"},
+        dxfattribs={"layer": dimension_layer},
     )
     dimension.render()
 
@@ -132,6 +148,38 @@ def build_placeholder_text(path: Path) -> None:
     add_title(msp)
     add_standard_geometry(msp)
     msp.add_text("TBD bracket opening", dxfattribs={"layer": "TEXT-NOTE", "height": 2.0}).set_placement((20, 46))
+    save_deterministic(doc, path)
+
+
+def build_missing_title_attribute(path: Path) -> None:
+    doc = base_doc()
+    msp = doc.modelspace()
+    add_title(msp, include_revision=False)
+    add_standard_geometry(msp)
+    save_deterministic(doc, path)
+
+
+def build_version_mismatch(path: Path) -> None:
+    doc = base_doc()
+    msp = doc.modelspace()
+    add_title(msp, revision="V2")
+    add_standard_geometry(msp)
+    save_deterministic(doc, path)
+
+
+def build_missing_dimension(path: Path) -> None:
+    doc = base_doc()
+    msp = doc.modelspace()
+    add_title(msp)
+    add_standard_geometry(msp, include_dimension=False)
+    save_deterministic(doc, path)
+
+
+def build_dimension_wrong_layer(path: Path) -> None:
+    doc = base_doc()
+    msp = doc.modelspace()
+    add_title(msp)
+    add_standard_geometry(msp, dimension_layer="S-HULL")
     save_deterministic(doc, path)
 
 
@@ -206,6 +254,58 @@ CASES = [
         required_blocks=["TITLE_BLOCK"],
         description="Contains one TBD note that should be reviewed before delivery.",
         expected_evidence={"TEXT_PLACEHOLDER": {"layerName": "TEXT-NOTE", "requireEntityRef": True}},
+    ),
+    Case(
+        case_id="missing_title_attribute",
+        file_name="missing_title_attribute.dxf",
+        version_no="V1",
+        expected_rule_codes=["TITLE_ATTRIBUTE_REQUIRED"],
+        builder=build_missing_title_attribute,
+        min_entity_count=6,
+        required_layers=["TITLE", "S-HULL", "DIM-MAIN", "TEXT-NOTE"],
+        required_blocks=["TITLE_BLOCK"],
+        description="Title block exists, but the inserted block reference omits the REVISION attribute.",
+        required_entity_types=["DIMENSION", "ATTRIB"],
+        expected_evidence={"TITLE_ATTRIBUTE_REQUIRED": {"layerName": "TITLE", "requireEntityRef": False}},
+    ),
+    Case(
+        case_id="version_mismatch",
+        file_name="version_mismatch.dxf",
+        version_no="V1",
+        expected_rule_codes=["VERSION_TITLE_CONSISTENCY"],
+        builder=build_version_mismatch,
+        min_entity_count=6,
+        required_layers=["TITLE", "S-HULL", "DIM-MAIN", "TEXT-NOTE"],
+        required_blocks=["TITLE_BLOCK"],
+        description="System version is V1, but the title block REVISION attribute is V2.",
+        required_entity_types=["DIMENSION", "ATTRIB"],
+        expected_evidence={"VERSION_TITLE_CONSISTENCY": {"layerName": "TITLE", "requireEntityRef": True}},
+    ),
+    Case(
+        case_id="missing_dimension",
+        file_name="missing_dimension.dxf",
+        version_no="V1",
+        expected_rule_codes=["DIMENSION_REQUIRED"],
+        builder=build_missing_dimension,
+        min_entity_count=5,
+        required_layers=["TITLE", "S-HULL", "DIM-MAIN", "TEXT-NOTE"],
+        required_blocks=["TITLE_BLOCK"],
+        description="Drawing has enough geometry and title attributes, but no DIMENSION entity.",
+        required_entity_types=["ATTRIB"],
+        expected_evidence={"DIMENSION_REQUIRED": {"requireEntityRef": False}},
+    ),
+    Case(
+        case_id="dimension_wrong_layer",
+        file_name="dimension_wrong_layer.dxf",
+        version_no="V1",
+        expected_rule_codes=["DIMENSION_LAYER_STANDARD"],
+        builder=build_dimension_wrong_layer,
+        min_entity_count=6,
+        required_layers=["TITLE", "S-HULL", "DIM-MAIN", "TEXT-NOTE"],
+        required_blocks=["TITLE_BLOCK"],
+        description="Contains a DIMENSION entity placed on S-HULL instead of a DIM-* layer.",
+        required_entity_types=["DIMENSION", "ATTRIB"],
+        expected_evidence={"DIMENSION_LAYER_STANDARD": {"layerName": "S-HULL", "requireEntityRef": True}},
     ),
     Case(
         case_id="low_entity_density",

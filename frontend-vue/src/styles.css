@@ -56,6 +56,8 @@ textarea { min-height: 80px; resize: vertical; }
 .issue.selected { outline: 2px solid #dc2626; }
 .issue p { color: var(--muted); }
 .issue .evidence { color: #334155; font-weight: 700; }
+.evidence-list { margin: 8px 0 10px; padding-left: 18px; color: #475467; font-size: 13px; line-height: 1.55; }
+.evidence-list li { overflow-wrap: anywhere; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .preview-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, .75fr); gap: 16px; align-items: start; }
 .preview-panel { min-width: 0; }
@@ -78,7 +80,7 @@ pre { min-height: 300px; padding: 16px; color: #dbeafe; background: #0b1220; bor
 .report-header h2 { margin: 0 0 6px; }
 .report-header span { color: var(--muted); font-size: 13px; }
 .report-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.report-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.report-metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
 .report-metrics div { padding: 14px 18px; border-right: 1px solid var(--line); }
 .report-metrics div:last-child { border-right: 0; }
 .report-metrics span { display: block; color: var(--muted); font-size: 13px; }

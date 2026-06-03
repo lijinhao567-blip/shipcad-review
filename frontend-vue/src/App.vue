@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { api, type Dashboard, type Drawing, type DrawingVersion, type ParsedEntity, type Project, type ReportDocument, type ReviewIssue, type ReviewTask } from './api'
+import { api, type Dashboard, type Drawing, type DrawingVersion, type ParsedEntity, type Project, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask } from './api'
 
 const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfViewerPreview.vue'))
 const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
@@ -62,6 +62,7 @@ const reportBodySections = computed(() => reportSections.value.filter((section) 
 const reportSummary = computed(() => selectedReportVersion.value ? parseSummary(selectedReportVersion.value) : {})
 const reportEntityEvidenceCount = computed(() => selectedReportIssues.value.filter((issue) => issue.entityRef).length)
 const reportLayerEvidenceCount = computed(() => selectedReportIssues.value.filter((issue) => !issue.entityRef && issue.layerName).length)
+const reportStructuredEvidenceCount = computed(() => selectedReportIssues.value.reduce((sum, issue) => sum + (issue.evidences?.length ?? 0), 0))
 const reportHighIssueCount = computed(() => selectedReportIssues.value.filter((issue) => issue.severity === 'HIGH').length)
 
 function versionLabel(version: DrawingVersion): string {
@@ -426,6 +427,17 @@ function issueEvidence(issue: ReviewIssue): string {
   return '版本级问题：需要结合图纸版本或审查任务上下文确认'
 }
 
+function structuredEvidenceItems(issue: ReviewIssue): string[] {
+  if (!issue.evidences?.length) return [issueEvidence(issue)]
+  return issue.evidences.map(formatEvidence)
+}
+
+function formatEvidence(evidence: ReviewEvidence): string {
+  const source = evidence.sourceId || evidence.sourceLabel || '-'
+  const summary = evidence.summary || evidence.payloadJson || '-'
+  return `${evidence.evidenceType} / ${source}: ${summary}`
+}
+
 function barRows(data: Record<string, number> = {}) {
   const max = Math.max(1, ...Object.values(data))
   return Object.entries(data).map(([key, value]) => ({ key, value, width: `${(value / max) * 100}%` }))
@@ -590,6 +602,9 @@ onMounted(() => {
               <strong>{{ issue.title }}</strong>
               <p>{{ issue.ruleCode }} / {{ issue.severity }} / {{ issue.status }} / 图层 {{ issue.layerName || '-' }}</p>
               <p class="evidence">{{ issueEvidence(issue) }}</p>
+              <ul class="evidence-list">
+                <li v-for="item in structuredEvidenceItems(issue)" :key="item">{{ item }}</li>
+              </ul>
               <p>{{ issue.description }}</p>
               <p>建议：{{ issue.suggestion }}</p>
               <div class="actions">
@@ -635,6 +650,7 @@ onMounted(() => {
             <div><span>高风险</span><strong>{{ reportHighIssueCount }}</strong></div>
             <div><span>实体证据</span><strong>{{ reportEntityEvidenceCount }}</strong></div>
             <div><span>图层证据</span><strong>{{ reportLayerEvidenceCount }}</strong></div>
+            <div><span>结构化证据</span><strong>{{ reportStructuredEvidenceCount }}</strong></div>
             <div><span>解析实体</span><strong>{{ summaryNumber('entityCount') }}</strong></div>
           </div>
           <p v-if="reportActionMessage" class="hint">{{ reportActionMessage }}</p>

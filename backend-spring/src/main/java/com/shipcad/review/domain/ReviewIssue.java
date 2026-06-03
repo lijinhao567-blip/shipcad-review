@@ -5,7 +5,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Transient;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 public class ReviewIssue {
@@ -28,4 +31,6 @@ public class ReviewIssue {
     public Instant createdAt;
     public Instant updatedAt;
     public String assignee;
+    @Transient
+    public List<ReviewEvidence> evidences = new ArrayList<>();
 }

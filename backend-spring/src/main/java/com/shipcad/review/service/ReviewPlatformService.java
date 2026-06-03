@@ -10,6 +10,7 @@ import com.shipcad.review.domain.ParsedEntity;
 import com.shipcad.review.domain.Project;
 import com.shipcad.review.domain.RemediationRecord;
 import com.shipcad.review.domain.ReportDocument;
+import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewTask;
 import com.shipcad.review.dto.ApiDtos.DrawingRequest;
@@ -24,6 +25,7 @@ import com.shipcad.review.repo.ParsedEntityRepository;
 import com.shipcad.review.repo.ProjectRepository;
 import com.shipcad.review.repo.RemediationRecordRepository;
 import com.shipcad.review.repo.ReportDocumentRepository;
+import com.shipcad.review.repo.ReviewEvidenceRepository;
 import com.shipcad.review.repo.ReviewIssueRepository;
 import com.shipcad.review.repo.ReviewRuleRepository;
 import com.shipcad.review.repo.ReviewTaskRepository;
@@ -38,6 +40,7 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
@@ -54,6 +57,7 @@ public class ReviewPlatformService {
     private final ReviewRuleRepository rules;
     private final ReviewTaskRepository tasks;
     private final ReviewIssueRepository issues;
+    private final ReviewEvidenceRepository evidences;
     private final RemediationRecordRepository remediations;
     private final ReportDocumentRepository reports;
     private final CadWorkerClient worker;
@@ -73,6 +77,7 @@ public class ReviewPlatformService {
             ReviewRuleRepository rules,
             ReviewTaskRepository tasks,
             ReviewIssueRepository issues,
+            ReviewEvidenceRepository evidences,
             RemediationRecordRepository remediations,
             ReportDocumentRepository reports,
             CadWorkerClient worker,
@@ -91,6 +96,7 @@ public class ReviewPlatformService {
         this.rules = rules;
         this.tasks = tasks;
         this.issues = issues;
+        this.evidences = evidences;
         this.remediations = remediations;
         this.reports = reports;
         this.worker = worker;
@@ -226,6 +232,9 @@ public class ReviewPlatformService {
             List<ParsedEntity> parsedEntities = entities.findByVersionId(task.versionId);
             List<ReviewIssue> generated = ruleEngine.run(task.id, version, summary, parsedEntities, rules.findByEnabledTrue());
             issues.saveAll(generated);
+            evidences.saveAll(generated.stream()
+                    .flatMap(issue -> safeEvidences(issue).stream())
+                    .toList());
 
             task.status = "FINISHED";
             task.finishedAt = Ids.now();
@@ -248,6 +257,23 @@ public class ReviewPlatformService {
         }
     }
 
+    public List<ReviewIssue> listIssues(String taskId, String versionId) {
+        List<ReviewIssue> result;
+        if (taskId != null && !taskId.isBlank()) {
+            result = issues.findByTaskId(taskId);
+        } else if (versionId != null && !versionId.isBlank()) {
+            result = issues.findByVersionId(versionId);
+        } else {
+            result = issues.findAll();
+        }
+        return attachEvidence(result);
+    }
+
+    public List<ReviewEvidence> listIssueEvidence(String issueId) {
+        issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
+        return evidences.findByIssueId(issueId);
+    }
+
     public ReviewIssue updateIssue(String issueId, IssueUpdateRequest request, AppUser actor) {
         ReviewIssue issue = issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
         if (request.status() != null) {
@@ -268,7 +294,7 @@ public class ReviewPlatformService {
         record.createdAt = Ids.now();
         remediations.save(record);
         audit.record(actor.username, "ISSUE_UPDATE", "issue", issueId, request);
-        return issue;
+        return attachEvidence(issue);
     }
 
     public ReportDocument createReport(String taskId, AppUser actor) {
@@ -279,7 +305,7 @@ public class ReviewPlatformService {
         DrawingVersion version = versions.findById(task.versionId).orElseThrow();
         Drawing drawing = drawings.findById(version.drawingId).orElseThrow();
         Project project = projects.findById(drawing.projectId).orElseThrow();
-        List<ReviewIssue> taskIssues = issues.findByTaskId(taskId);
+        List<ReviewIssue> taskIssues = attachEvidence(issues.findByTaskId(taskId));
         WorkerSummary summary = fromJson(version.parseSummaryJson, WorkerSummary.class);
         List<ParsedEntity> parsedEntities = entities.findByVersionId(version.id);
         ReportDocument report = new ReportDocument();
@@ -363,5 +389,25 @@ public class ReviewPlatformService {
         AppUser user = new AppUser();
         user.username = username;
         return user;
+    }
+
+    private ReviewIssue attachEvidence(ReviewIssue issue) {
+        issue.evidences = evidences.findByIssueId(issue.id);
+        return issue;
+    }
+
+    private List<ReviewIssue> attachEvidence(List<ReviewIssue> source) {
+        if (source.isEmpty()) {
+            return source;
+        }
+        List<String> issueIds = source.stream().map(issue -> issue.id).toList();
+        Map<String, List<ReviewEvidence>> evidenceByIssue = evidences.findByIssueIdIn(issueIds).stream()
+                .collect(Collectors.groupingBy(evidence -> evidence.issueId));
+        source.forEach(issue -> issue.evidences = evidenceByIssue.getOrDefault(issue.id, List.of()));
+        return source;
+    }
+
+    private List<ReviewEvidence> safeEvidences(ReviewIssue issue) {
+        return issue.evidences == null ? List.of() : issue.evidences;
     }
 }

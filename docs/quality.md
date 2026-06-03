@@ -2,20 +2,27 @@
 
 ## 必测场景
 
-- Worker：正常DXF和异常DXF解析。
-- DWG：安装 LibreDWG 后，验证 DWG 转 DXF 失败和成功两类路径。
+- Worker：正常 DXF 和异常 DXF 解析。
+- DWG：安装 LibreDWG 后，验证 DWG 转 DXF 的失败和成功路径。
 - Vision Worker：未配置模型时返回明确错误；配置模型后能返回检测框结构。
 - 后端：登录、项目创建、图纸创建、版本上传、异步审查任务、任务失败重试、问题整改、报告生成、版本对比。
-- 前端：构建通过，API调用路径可配置，dxf-viewer 能加载上传DXF并显示图层；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
-- Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字和实体数量异常，并校验 `ReviewIssue.layerName` / `ReviewIssue.entityRef` 等定位证据。
-- 报告：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用；golden E2E 会验证这些内容。
-- 安全：Token鉴权、文件类型限制、20MB限制、审计日志。
+- 前端：构建通过，API 调用路径可配置，dxf-viewer 能加载上传 DXF 并显示图层；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
+- Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字和实体数量异常。
+- 报告：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用；Golden E2E 会验证这些内容。
+- 安全：Token 鉴权、文件类型限制、20MB 限制、审计日志。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
+
+## Evidence Regression Checks
+
+- Every generated `ReviewIssue` should include at least one `RULE_RESULT` evidence row.
+- Rules with expected entity evidence should include `CAD_ENTITY` evidence whose `sourceId` matches `ReviewIssue.entityRef`.
+- Rules with expected layer evidence should include `CAD_LAYER` evidence whose `sourceId` matches `ReviewIssue.layerName`.
+- `tools/run_golden_e2e.py` verifies these evidence checks for the golden DXF dataset.
 
 ## 验收目标
 
-- 一台Windows开发机可启动前端、后端、Worker。
-- 上传 `invalid_ship_section.dxf` 后可通过审查任务队列生成规则问题。
+- 一台 Windows 开发机可启动前端、后端、Worker。
+- 上传 golden DXF 样例后，可通过审查任务队列生成规则问题和结构化证据。
 - 问题状态可以流转到整改中、待复核和关闭。
 - 可导出审查报告。
-- OpenAPI文档可访问。
+- OpenAPI 文档可访问。

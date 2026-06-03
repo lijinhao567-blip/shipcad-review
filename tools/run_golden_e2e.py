@@ -161,6 +161,10 @@ class GoldenE2E:
             entity_ref = issue.get("entityRef") or ""
             if entity_ref and entity_ref not in parsed_entities:
                 raise AssertionError(f"issue {issue['id']} references missing entityRef={entity_ref}")
+            evidence_items = issue.get("evidences") or []
+            evidence_types = {item.get("evidenceType") for item in evidence_items}
+            if "RULE_RESULT" not in evidence_types:
+                raise AssertionError(f"issue {issue['id']} is missing RULE_RESULT evidence")
 
         expected_evidence = case.get("expectedEvidence") or {}
         if not expected_evidence:
@@ -185,6 +189,18 @@ class GoldenE2E:
                 entity = parsed_entities[entity_ref]
                 if expected_layer is not None and entity.get("layerName") != expected_layer:
                     raise AssertionError(f"{rule_code} entityRef layer mismatch: expected {expected_layer}, got {entity.get('layerName')}")
+                self.assert_embedded_evidence(issue, "CAD_ENTITY", entity_ref)
+            elif expected_layer is not None:
+                self.assert_embedded_evidence(issue, "CAD_LAYER", expected_layer)
+
+    def assert_embedded_evidence(self, issue: dict[str, Any], evidence_type: str, source_id: str) -> None:
+        matches = [
+            evidence
+            for evidence in (issue.get("evidences") or [])
+            if evidence.get("evidenceType") == evidence_type and evidence.get("sourceId") == source_id
+        ]
+        if not matches:
+            raise AssertionError(f"{issue['ruleCode']} expected {evidence_type} evidence with sourceId={source_id}")
 
     def assert_parser_expectations(self, version_id: str, expectations: dict[str, Any]) -> None:
         version = next((item for item in self.versions() if item["id"] == version_id), None)

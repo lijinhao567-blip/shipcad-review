@@ -1,6 +1,7 @@
 package com.shipcad.review.api;
 
 import com.shipcad.review.domain.ReportDocument;
+import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewRule;
 import com.shipcad.review.domain.ReviewTask;
@@ -8,7 +9,6 @@ import com.shipcad.review.dto.ApiDtos.IssueUpdateRequest;
 import com.shipcad.review.dto.ApiDtos.ReportRequest;
 import com.shipcad.review.dto.ApiDtos.ReviewTaskRequest;
 import com.shipcad.review.repo.ReportDocumentRepository;
-import com.shipcad.review.repo.ReviewIssueRepository;
 import com.shipcad.review.repo.ReviewRuleRepository;
 import com.shipcad.review.repo.ReviewTaskRepository;
 import com.shipcad.review.service.AuthService;
@@ -29,16 +29,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class ReviewController extends BaseController {
     private final ReviewTaskRepository tasks;
-    private final ReviewIssueRepository issues;
     private final ReviewRuleRepository rules;
     private final ReportDocumentRepository reports;
     private final ReviewPlatformService platform;
 
-    public ReviewController(AuthService auth, ReviewTaskRepository tasks, ReviewIssueRepository issues, ReviewRuleRepository rules,
+    public ReviewController(AuthService auth, ReviewTaskRepository tasks, ReviewRuleRepository rules,
                             ReportDocumentRepository reports, ReviewPlatformService platform) {
         super(auth);
         this.tasks = tasks;
-        this.issues = issues;
         this.rules = rules;
         this.reports = reports;
         this.platform = platform;
@@ -70,13 +68,13 @@ public class ReviewController extends BaseController {
     public List<ReviewIssue> issues(@RequestHeader("Authorization") String authorization, @RequestParam(required = false) String taskId,
                                     @RequestParam(required = false) String versionId) {
         user(authorization);
-        if (taskId != null && !taskId.isBlank()) {
-            return issues.findByTaskId(taskId);
-        }
-        if (versionId != null && !versionId.isBlank()) {
-            return issues.findByVersionId(versionId);
-        }
-        return issues.findAll();
+        return platform.listIssues(taskId, versionId);
+    }
+
+    @GetMapping("/issues/{issueId}/evidences")
+    public List<ReviewEvidence> issueEvidences(@RequestHeader("Authorization") String authorization, @PathVariable String issueId) {
+        user(authorization);
+        return platform.listIssueEvidence(issueId);
     }
 
     @PatchMapping("/issues/{issueId}")

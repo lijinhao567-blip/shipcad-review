@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shipcad.review.domain.Drawing;
 import com.shipcad.review.domain.DrawingVersion;
+import com.shipcad.review.domain.EvidenceType;
 import com.shipcad.review.domain.IssueStatus;
 import com.shipcad.review.domain.ParsedEntity;
 import com.shipcad.review.domain.Project;
+import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.Severity;
 import com.shipcad.review.dto.ApiDtos.WorkerSummary;
@@ -21,6 +23,8 @@ class ReviewReportBuilderTest {
     @Test
     void buildsEvidenceAwareReport() {
         ReviewIssue issue = issue("issue_revision", "VERSION_TITLE_CONSISTENCY", Severity.MEDIUM, "entity_revision");
+        issue.evidences.add(evidence("evidence_rule", issue, EvidenceType.RULE_RESULT, "Rule VERSION_TITLE_CONSISTENCY generated this review issue."));
+        issue.evidences.add(evidence("evidence_entity", issue, EvidenceType.CAD_ENTITY, "CAD entity entity_revision supports this issue."));
         ParsedEntity revision = entity(
                 "entity_revision",
                 "ATTRIB",
@@ -54,6 +58,9 @@ class ReviewReportBuilderTest {
         assertThat(report).contains("tag=REVISION");
         assertThat(report).contains("text=V2");
         assertThat(report).contains("MEDIUM 1");
+        assertThat(report).contains("Evidence chain");
+        assertThat(report).contains("RULE_RESULT");
+        assertThat(report).contains("结构化证据 2 条");
         assertThat(report).contains("实体类型：ATTRIB=1, DIMENSION=1, LINE=2");
     }
 
@@ -123,6 +130,22 @@ class ReviewReportBuilderTest {
         issue.entityRef = entityRef;
         issue.suggestion = "建议统一标题栏版次与系统版本记录。";
         return issue;
+    }
+
+    private ReviewEvidence evidence(String id, ReviewIssue issue, EvidenceType type, String summary) {
+        ReviewEvidence evidence = new ReviewEvidence();
+        evidence.id = id;
+        evidence.issueId = issue.id;
+        evidence.taskId = issue.taskId;
+        evidence.versionId = issue.versionId;
+        evidence.ruleCode = issue.ruleCode;
+        evidence.evidenceType = type;
+        evidence.sourceId = type.name();
+        evidence.sourceLabel = "test";
+        evidence.summary = summary;
+        evidence.payloadJson = "{}";
+        evidence.confidence = 1.0;
+        return evidence;
     }
 
     private ParsedEntity entity(String id, String type, String layer, String text, String block, String rawJson) {

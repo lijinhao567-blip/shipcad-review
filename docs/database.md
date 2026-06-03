@@ -14,9 +14,21 @@
 - `review_rule`：审查规则
 - `review_task`：审查任务，包含 PENDING、RUNNING、FINISHED、FAILED 状态和失败原因
 - `review_issue`：规则命中问题
+- `review_evidence`：审查证据，保存 CAD 图元、CAD 图层、解析摘要、规则结果以及后续 YOLO/OCR/知识图谱证据
 - `remediation_record`：整改记录
 - `audit_log`：审计日志
 - `report_document`：审查报告
+
+## 证据表设计
+
+`review_evidence` 是后续多证据来源的统一落点。当前已由规则引擎自动写入：
+
+- `RULE_RESULT`：规则命中本身的判断证据。
+- `CAD_ENTITY`：能定位到具体 `parsed_entity` 时的 CAD 图元证据。
+- `CAD_LAYER`：图层级问题的 CAD 图层证据。
+- `CAD_SUMMARY`：版本级问题的解析摘要证据。
+
+预留类型包括 `YOLO_SYMBOL`、`OCR_TEXT`、`KNOWLEDGE_CLAUSE`。后续 Vision Worker、OCR Worker 和知识图谱模块接入时，应写入同一张证据表，并由 `review_issue.evidences` 返回给前端和报告生成器。
 
 ## 迁移建议
 

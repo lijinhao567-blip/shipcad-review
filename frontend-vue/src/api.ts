@@ -53,6 +53,22 @@ export type ReviewIssue = {
   layerName: string
   entityRef: string
   suggestion: string
+  evidences?: ReviewEvidence[]
+}
+
+export type ReviewEvidence = {
+  id: string
+  issueId: string
+  taskId: string
+  versionId: string
+  ruleCode: string
+  evidenceType: string
+  sourceId: string
+  sourceLabel: string
+  summary: string
+  payloadJson: string
+  confidence: number
+  createdAt: string
 }
 
 export type ReportDocument = {

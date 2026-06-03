@@ -1,6 +1,7 @@
 package com.shipcad.review.service;
 
 import com.shipcad.review.domain.DrawingVersion;
+import com.shipcad.review.domain.EvidenceType;
 import com.shipcad.review.domain.ParsedEntity;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewRule;
@@ -54,6 +55,11 @@ class RuleEngineTest {
                 .hasSize(1);
         assertThat(issues).filteredOn(issue -> "TEXT_PLACEHOLDER".equals(issue.ruleCode)).singleElement()
                 .satisfies(issue -> assertThat(issue.entityRef).isEqualTo("entity_test"));
+        assertThat(issues).allSatisfy(issue -> {
+            assertThat(issue.evidences).isNotEmpty();
+            assertThat(issue.evidences).extracting(evidence -> evidence.evidenceType)
+                    .contains(EvidenceType.RULE_RESULT);
+        });
     }
 
     @Test
@@ -114,6 +120,8 @@ class RuleEngineTest {
                 .satisfies(issue -> {
                     assertThat(issue.layerName).isEqualTo("S-HULL");
                     assertThat(issue.entityRef).isEqualTo("entity_dimension");
+                    assertThat(issue.evidences).extracting(evidence -> evidence.evidenceType)
+                            .contains(EvidenceType.CAD_ENTITY, EvidenceType.RULE_RESULT);
                 });
     }
 
@@ -167,6 +175,8 @@ class RuleEngineTest {
         assertThat(issues).singleElement().satisfies(issue -> {
             assertThat(issue.ruleCode).isEqualTo("DIMENSION_REQUIRED");
             assertThat(issue.entityRef).isEmpty();
+            assertThat(issue.evidences).extracting(evidence -> evidence.evidenceType)
+                    .contains(EvidenceType.CAD_SUMMARY, EvidenceType.RULE_RESULT);
         });
     }
 

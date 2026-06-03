@@ -6,6 +6,7 @@ import com.shipcad.review.domain.Drawing;
 import com.shipcad.review.domain.DrawingVersion;
 import com.shipcad.review.domain.ParsedEntity;
 import com.shipcad.review.domain.Project;
+import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.Severity;
 import com.shipcad.review.dto.ApiDtos.WorkerSummary;
@@ -89,6 +90,9 @@ public class ReviewReportBuilder {
             if (entity != null) {
                 builder.append("- CAD实体证据：").append(entityDetail(entity)).append("\n");
             }
+            if (issue.evidences != null && !issue.evidences.isEmpty()) {
+                builder.append("- Evidence chain: ").append(evidenceChain(issue)).append("\n");
+            }
             builder.append("\n");
         }
 
@@ -112,9 +116,13 @@ public class ReviewReportBuilder {
         long layerLinked = issues.stream()
                 .filter(issue -> (issue.entityRef == null || issue.entityRef.isBlank()) && issue.layerName != null && !issue.layerName.isBlank())
                 .count();
+        long evidenceCount = issues.stream()
+                .mapToLong(issue -> issue.evidences == null ? 0 : issue.evidences.size())
+                .sum();
         return "本次审查共发现 " + issues.size() + " 个规则命中问题，其中 "
                 + severityText(bySeverity)
-                + "。已关联 CAD 实体证据 " + entityLinked + " 条，图层级证据 " + layerLinked + " 条；建议优先处理 HIGH 和 MEDIUM 问题。";
+                + "。已关联 CAD 实体证据 " + entityLinked + " 条，图层级证据 " + layerLinked
+                + " 条，结构化证据 " + evidenceCount + " 条；建议优先处理 HIGH 和 MEDIUM 问题。";
     }
 
     private String severityText(Map<Severity, Long> counts) {
@@ -177,6 +185,16 @@ public class ReviewReportBuilder {
         appendGeometryValue(builder, geometry, "tag");
         appendGeometryValue(builder, geometry, "measurement");
         return builder.toString();
+    }
+
+    private String evidenceChain(ReviewIssue issue) {
+        return issue.evidences.stream()
+                .map(this::evidenceSummary)
+                .collect(Collectors.joining(" | "));
+    }
+
+    private String evidenceSummary(ReviewEvidence evidence) {
+        return value(evidence.evidenceType) + ": " + shorten(value(evidence.summary), 120);
     }
 
     private void appendGeometryValue(StringBuilder builder, Map<String, Object> geometry, String key) {

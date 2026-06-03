@@ -3,13 +3,16 @@ package com.shipcad.review.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shipcad.review.domain.DrawingVersion;
+import com.shipcad.review.domain.EvidenceType;
 import com.shipcad.review.domain.IssueStatus;
 import com.shipcad.review.domain.ParsedEntity;
+import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewRule;
 import com.shipcad.review.domain.Severity;
 import com.shipcad.review.dto.ApiDtos.WorkerSummary;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -175,7 +178,142 @@ public class RuleEngine {
             issue.createdAt = Ids.now();
             issue.updatedAt = issue.createdAt;
             issue.assignee = "";
+            issue.evidences.add(ruleEvidence(context, issue));
+            if (notBlank(entityRef)) {
+                issue.evidences.add(cadEntityEvidence(context, issue, entityRef));
+            } else if (notBlank(layer)) {
+                issue.evidences.add(cadLayerEvidence(context, issue, layer));
+            } else {
+                issue.evidences.add(cadSummaryEvidence(context, issue));
+            }
             context.issues().add(issue);
+        }
+
+        private ReviewEvidence ruleEvidence(ReviewContext context, ReviewIssue issue) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("ruleCode", issue.ruleCode);
+            payload.put("severity", issue.severity);
+            payload.put("description", issue.description);
+            payload.put("suggestion", issue.suggestion);
+            putIfPresent(payload, "layerName", issue.layerName);
+            putIfPresent(payload, "entityRef", issue.entityRef);
+            return evidence(
+                    context,
+                    issue,
+                    EvidenceType.RULE_RESULT,
+                    issue.ruleCode,
+                    "rule_engine",
+                    "Rule " + issue.ruleCode + " generated this review issue.",
+                    payload
+            );
+        }
+
+        private ReviewEvidence cadEntityEvidence(ReviewContext context, ReviewIssue issue, String entityRef) {
+            ParsedEntity entity = context.entities().stream()
+                    .filter(candidate -> entityRef.equals(candidate.id))
+                    .findFirst()
+                    .orElse(null);
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("entityRef", entityRef);
+            if (entity != null) {
+                putIfPresent(payload, "entityType", entity.entityType);
+                putIfPresent(payload, "layerName", entity.layerName);
+                putIfPresent(payload, "textValue", entity.textValue);
+                putIfPresent(payload, "blockName", entity.blockName);
+                if (entity.x != null) {
+                    payload.put("x", entity.x);
+                }
+                if (entity.y != null) {
+                    payload.put("y", entity.y);
+                }
+            }
+            String summary = entity == null
+                    ? "CAD entity " + entityRef + " was referenced but is not present in current parsed entities."
+                    : "CAD entity " + entityRef + " on layer " + value(entity.layerName) + " supports this issue.";
+            return evidence(context, issue, EvidenceType.CAD_ENTITY, entityRef, "cad_worker.ezdxf", summary, payload);
+        }
+
+        private ReviewEvidence cadLayerEvidence(ReviewContext context, ReviewIssue issue, String layer) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("layerName", layer);
+            Map<String, Integer> layerCounts = context.summary().layerCounts();
+            if (layerCounts != null && layerCounts.containsKey(layer)) {
+                payload.put("entityCountOnLayer", layerCounts.get(layer));
+            }
+            return evidence(
+                    context,
+                    issue,
+                    EvidenceType.CAD_LAYER,
+                    layer,
+                    "cad_worker.ezdxf",
+                    "CAD layer " + layer + " supports this issue.",
+                    payload
+            );
+        }
+
+        private ReviewEvidence cadSummaryEvidence(ReviewContext context, ReviewIssue issue) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("versionId", context.version().id);
+            payload.put("versionNo", context.version().versionNo);
+            payload.put("entityCount", context.summary().entityCount());
+            payload.put("parser", context.summary().parser());
+            payload.put("ezdxfVersion", context.summary().ezdxfVersion());
+            return evidence(
+                    context,
+                    issue,
+                    EvidenceType.CAD_SUMMARY,
+                    context.version().id,
+                    "cad_worker.ezdxf",
+                    "CAD parse summary supports this version-level issue.",
+                    payload
+            );
+        }
+
+        private ReviewEvidence evidence(
+                ReviewContext context,
+                ReviewIssue issue,
+                EvidenceType type,
+                String sourceId,
+                String sourceLabel,
+                String summary,
+                Map<String, Object> payload
+        ) {
+            ReviewEvidence evidence = new ReviewEvidence();
+            evidence.id = Ids.next("evidence");
+            evidence.issueId = issue.id;
+            evidence.taskId = context.taskId();
+            evidence.versionId = context.version().id;
+            evidence.ruleCode = issue.ruleCode;
+            evidence.evidenceType = type;
+            evidence.sourceId = value(sourceId);
+            evidence.sourceLabel = value(sourceLabel);
+            evidence.summary = summary;
+            evidence.payloadJson = toJson(payload);
+            evidence.confidence = 1.0;
+            evidence.createdAt = issue.createdAt;
+            return evidence;
+        }
+
+        private void putIfPresent(Map<String, Object> payload, String key, Object value) {
+            if (value != null && !value.toString().isBlank()) {
+                payload.put(key, value);
+            }
+        }
+
+        private boolean notBlank(String value) {
+            return value != null && !value.isBlank();
+        }
+
+        private String value(Object value) {
+            return value == null ? "" : value.toString();
+        }
+
+        private String toJson(Map<String, Object> payload) {
+            try {
+                return MAPPER.writeValueAsString(payload);
+            } catch (JsonProcessingException e) {
+                return "{}";
+            }
         }
     }
 

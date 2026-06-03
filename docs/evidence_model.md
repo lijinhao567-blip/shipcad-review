@@ -73,18 +73,19 @@ KnowledgeClause
 Evidence
   id
   versionId
-  evidenceType
-  sourceType
-  sourceId
-  summary
-  rawJson
-
-ReviewIssueEvidence
   issueId
-  evidenceId
+  taskId
+  ruleCode
+  evidenceType
+  sourceId
+  sourceLabel
+  summary
+  payloadJson
+  confidence
+  createdAt
 ```
 
-The exact schema can change later. The stable idea is that `ReviewIssue` should be able to cite one or more pieces of evidence.
+Current implementation uses `ReviewEvidence` as the first production schema. `ReviewIssue` returns a transient `evidences` array in API responses, while evidence rows are persisted independently in `review_evidence`.
 
 ## Review Flow
 
@@ -161,7 +162,7 @@ Define the model and keep future integrations aligned.
 
 Promote current `ParsedEntity` outputs into evidence attached to issues.
 
-Current status: CAD parser evidence already drives deterministic rules for layers, text placeholders, title block attributes, title revision consistency, dimension existence, and dimension layer placement. `ReviewIssue.entityRef` points back to the parsed entity when the finding can be tied to a concrete CAD entity.
+Current status: implemented. CAD parser evidence drives deterministic rules for layers, text placeholders, title block attributes, title revision consistency, dimension existence, and dimension layer placement. Each generated issue now stores `RULE_RESULT` plus one CAD evidence row: `CAD_ENTITY`, `CAD_LAYER`, or `CAD_SUMMARY`. `ReviewIssue.entityRef` is retained as a compatibility shortcut and preview locator, but the durable evidence chain is now `ReviewIssue.evidences`.
 
 ### Stage 3: Vision Evidence
 

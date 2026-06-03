@@ -31,6 +31,8 @@
 
 规则引擎消费证据并生成 `ReviewIssue`，AI 基于问题和证据生成解释与报告。详细设计见 `docs/evidence_model.md`。
 
+当前实现中，后端已新增 `ReviewEvidence`/`review_evidence`，现有确定性规则会为每个 `ReviewIssue` 自动保存 `RULE_RESULT` 与 CAD 证据。YOLOv8、OCR 和知识图谱后续不应直接绕过问题闭环，而应继续写入同一证据层。
+
 ## 部署架构
 
 当前提供三类边界：

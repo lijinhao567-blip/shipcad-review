@@ -92,6 +92,9 @@ class GoldenE2E:
     def create_review_task(self, version_id: str) -> dict[str, Any]:
         return self.request("POST", "/api/review-tasks", json={"versionId": version_id}).json()
 
+    def create_report(self, task_id: str) -> dict[str, Any]:
+        return self.request("POST", "/api/reports", json={"taskId": task_id}).json()
+
     def wait_for_task(self, task_id: str) -> dict[str, Any]:
         deadline = time.time() + self.poll_seconds
         last_task: dict[str, Any] | None = None
@@ -137,6 +140,8 @@ class GoldenE2E:
             self.assert_rules(case, expected_rules, actual_rules)
             self.assert_parser_expectations(version["id"], case.get("parserExpectations", {}))
             self.assert_issue_evidence(version["id"], case, actual_issues)
+            report = self.create_report(task["id"])
+            self.assert_report(case, actual_issues, report)
             return CaseResult(case_id, True, expected_rules, actual_rules, "ok")
         except Exception as exc:
             return CaseResult(case_id, False, expected_rules, [], str(exc))
@@ -205,6 +210,26 @@ class GoldenE2E:
         )
         if missing_types:
             raise AssertionError(f"missing parsed entity types: {missing_types}; typeCounts={type_counts}")
+
+    def assert_report(self, case: dict[str, Any], issues: list[dict[str, Any]], report: dict[str, Any]) -> None:
+        content = report.get("content") or ""
+        if "解析证据摘要" not in content:
+            raise AssertionError("report is missing parser evidence summary")
+        if "问题证据详情" not in content:
+            raise AssertionError("report is missing issue evidence details")
+        expected_rules = case.get("expectedRuleCodes") or []
+        if not expected_rules and "未发现当前规则集命中的问题" not in content:
+            raise AssertionError("clean report is missing no-issue summary")
+        for rule_code in expected_rules:
+            if rule_code not in content:
+                raise AssertionError(f"report is missing expected rule code {rule_code}")
+        for issue in issues:
+            entity_ref = issue.get("entityRef") or ""
+            if entity_ref and f"entityRef={entity_ref}" not in content:
+                raise AssertionError(f"report is missing entity evidence {entity_ref}")
+            layer_name = issue.get("layerName") or ""
+            if layer_name and layer_name not in content:
+                raise AssertionError(f"report is missing layer evidence {layer_name}")
 
 
 def load_manifest(path: Path) -> list[dict[str, Any]]:

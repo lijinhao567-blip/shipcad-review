@@ -58,6 +58,7 @@ public class ReviewPlatformService {
     private final ReportDocumentRepository reports;
     private final CadWorkerClient worker;
     private final RuleEngine ruleEngine;
+    private final ReviewReportBuilder reportBuilder;
     private final AuditService audit;
     private final ObjectMapper mapper;
     private final ThreadPoolTaskExecutor reviewTaskExecutor;
@@ -76,6 +77,7 @@ public class ReviewPlatformService {
             ReportDocumentRepository reports,
             CadWorkerClient worker,
             RuleEngine ruleEngine,
+            ReviewReportBuilder reportBuilder,
             AuditService audit,
             ObjectMapper mapper,
             ThreadPoolTaskExecutor reviewTaskExecutor,
@@ -93,6 +95,7 @@ public class ReviewPlatformService {
         this.reports = reports;
         this.worker = worker;
         this.ruleEngine = ruleEngine;
+        this.reportBuilder = reportBuilder;
         this.audit = audit;
         this.mapper = mapper;
         this.reviewTaskExecutor = reviewTaskExecutor;
@@ -277,11 +280,13 @@ public class ReviewPlatformService {
         Drawing drawing = drawings.findById(version.drawingId).orElseThrow();
         Project project = projects.findById(drawing.projectId).orElseThrow();
         List<ReviewIssue> taskIssues = issues.findByTaskId(taskId);
+        WorkerSummary summary = fromJson(version.parseSummaryJson, WorkerSummary.class);
+        List<ParsedEntity> parsedEntities = entities.findByVersionId(version.id);
         ReportDocument report = new ReportDocument();
         report.id = Ids.next("report");
         report.taskId = taskId;
         report.versionId = version.id;
-        report.content = buildReport(project, drawing, version, taskIssues);
+        report.content = reportBuilder.build(project, drawing, version, summary, taskIssues, parsedEntities);
         report.createdAt = Ids.now();
         reports.save(report);
         audit.record(actor.username, "REPORT_CREATE", "report", report.id, Map.of("taskId", taskId));
@@ -322,30 +327,6 @@ public class ReviewPlatformService {
         } catch (JsonProcessingException e) {
             return Map.of();
         }
-    }
-
-    private String buildReport(Project project, Drawing drawing, DrawingVersion version, List<ReviewIssue> taskIssues) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("# ").append(drawing.title).append(" 审查报告\n\n")
-                .append("- 项目：").append(project.name).append("\n")
-                .append("- 图号：").append(drawing.drawingNo).append("\n")
-                .append("- 版次：").append(version.versionNo).append("\n")
-                .append("- 文件：").append(version.fileName).append("\n\n")
-                .append("## AI辅助摘要\n\n")
-                .append("本次审查共发现 ").append(taskIssues.size()).append(" 个规则命中问题。建议优先处理高、中风险问题，完成整改后再归档。\n\n")
-                .append("## 问题清单\n\n")
-                .append("| 序号 | 规则 | 严重等级 | 状态 | 描述 | 建议 |\n")
-                .append("|---:|---|---|---|---|---|\n");
-        for (int i = 0; i < taskIssues.size(); i++) {
-            ReviewIssue issue = taskIssues.get(i);
-            builder.append("| ").append(i + 1).append(" | ")
-                    .append(issue.ruleCode).append(" | ")
-                    .append(issue.severity).append(" | ")
-                    .append(issue.status).append(" | ")
-                    .append(issue.description).append(" | ")
-                    .append(issue.suggestion).append(" |\n");
-        }
-        return builder.toString();
     }
 
     private String sha256(Path file) {

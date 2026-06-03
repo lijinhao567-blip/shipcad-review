@@ -55,6 +55,14 @@ export type ReviewIssue = {
   suggestion: string
 }
 
+export type ReportDocument = {
+  id: string
+  taskId: string
+  versionId: string
+  content: string
+  createdAt: string
+}
+
 export type ParsedEntity = {
   id: string
   versionId: string

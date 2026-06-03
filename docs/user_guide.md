@@ -13,7 +13,7 @@ admin / admin123
 5. 发起审查任务，等待任务从 PENDING/RUNNING 进入 FINISHED；如果进入 FAILED，可查看错误并重试。
 6. 在“问题闭环”中查看 dxf-viewer 正式DXF预览；Canvas诊断视图只在需要排查解析结果时手动打开。
 7. 查看问题清单并完成整改流转。
-8. 生成审查报告。
+8. 生成审查报告。报告页会展示审查摘要、解析证据摘要、问题清单和问题证据详情，并支持复制/下载 Markdown。
 9. 上传 `valid_ship_section.dxf` 作为新版本并做版本对比。
 
 ## YOLOv8 Vision Worker

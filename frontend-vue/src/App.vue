@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { api, type Dashboard, type Drawing, type DrawingVersion, type ParsedEntity, type Project, type ReviewIssue, type ReviewTask } from './api'
+import { api, type Dashboard, type Drawing, type DrawingVersion, type ParsedEntity, type Project, type ReportDocument, type ReviewIssue, type ReviewTask } from './api'
 
 const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfViewerPreview.vue'))
 const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
@@ -19,8 +19,24 @@ const selectedIssueId = ref('')
 const showCanvasDiagnostics = ref(false)
 const compare = reactive({ leftId: '', rightId: '' })
 const output = ref('')
+const reportDocument = ref<ReportDocument | null>(null)
+const reportContent = ref('')
+const reportActionMessage = ref('')
 let previewFileRequestId = 0
 let previewFileVersionId = ''
+
+type ReportBlock =
+  | { type: 'paragraph'; text: string }
+  | { type: 'list'; items: string[] }
+  | { type: 'table'; headers: string[]; rows: string[][] }
+  | { type: 'subheading'; text: string }
+
+type ReportSection = {
+  title: string
+  level: number
+  blocks: ReportBlock[]
+  rawLines: string[]
+}
 
 const dashboard = ref<Dashboard | null>(null)
 const projects = ref<Project[]>([])
@@ -37,6 +53,16 @@ const previewVersion = computed(() => versions.value.find((item) => item.id === 
 const isDxfPreview = computed(() => previewVersion.value?.fileName.toLowerCase().endsWith('.dxf') ?? false)
 const entityById = computed(() => new Map(entities.value.map((entity) => [entity.id, entity])))
 const selectedIssue = computed(() => issues.value.find((issue) => issue.id === selectedIssueId.value))
+const selectedReportTask = computed(() => tasks.value.find((task) => task.id === selectedTask.value))
+const selectedReportVersion = computed(() => versions.value.find((version) => version.id === selectedReportTask.value?.versionId))
+const selectedReportIssues = computed(() => issues.value.filter((issue) => issue.taskId === selectedTask.value))
+const reportSections = computed(() => parseReportSections(reportContent.value))
+const reportTitle = computed(() => reportSections.value.find((section) => section.level === 1)?.title ?? '审查报告')
+const reportBodySections = computed(() => reportSections.value.filter((section) => section.level === 2))
+const reportSummary = computed(() => selectedReportVersion.value ? parseSummary(selectedReportVersion.value) : {})
+const reportEntityEvidenceCount = computed(() => selectedReportIssues.value.filter((issue) => issue.entityRef).length)
+const reportLayerEvidenceCount = computed(() => selectedReportIssues.value.filter((issue) => !issue.entityRef && issue.layerName).length)
+const reportHighIssueCount = computed(() => selectedReportIssues.value.filter((issue) => issue.severity === 'HIGH').length)
 
 function versionLabel(version: DrawingVersion): string {
   const drawing = drawings.value.find((item) => item.id === version.drawingId)
@@ -49,6 +75,123 @@ function parseSummary(version: DrawingVersion): Record<string, unknown> {
   } catch {
     return {}
   }
+}
+
+function summaryNumber(key: string): number {
+  const value = reportSummary.value[key]
+  return typeof value === 'number' ? value : 0
+}
+
+function parseReportSections(markdown: string): ReportSection[] {
+  const sections: Array<ReportSection & { pendingLines: string[] }> = []
+  let current: (ReportSection & { pendingLines: string[] }) | null = null
+  for (const line of markdown.split(/\r?\n/)) {
+    const heading = /^(#{1,2})\s+(.+)$/.exec(line)
+    if (heading) {
+      current = { title: heading[2].trim(), level: heading[1].length, rawLines: [], pendingLines: [], blocks: [] }
+      sections.push(current)
+      continue
+    }
+    if (current) {
+      current.rawLines.push(line)
+      current.pendingLines.push(line)
+    }
+  }
+  return sections.map((section) => ({
+    title: section.title,
+    level: section.level,
+    rawLines: section.rawLines,
+    blocks: parseReportBlocks(section.pendingLines)
+  }))
+}
+
+function parseReportBlocks(lines: string[]): ReportBlock[] {
+  const blocks: ReportBlock[] = []
+  let index = 0
+  while (index < lines.length) {
+    const line = lines[index]
+    if (!line.trim()) {
+      index += 1
+      continue
+    }
+    if (line.startsWith('### ')) {
+      blocks.push({ type: 'subheading', text: line.replace(/^###\s+/, '').trim() })
+      index += 1
+      continue
+    }
+    if (line.trim().startsWith('|')) {
+      const tableLines: string[] = []
+      while (index < lines.length && lines[index].trim().startsWith('|')) {
+        tableLines.push(lines[index])
+        index += 1
+      }
+      const table = parseReportTable(tableLines)
+      if (table) blocks.push(table)
+      continue
+    }
+    if (line.trim().startsWith('- ')) {
+      const items: string[] = []
+      while (index < lines.length && lines[index].trim().startsWith('- ')) {
+        items.push(formatReportText(lines[index].trim().slice(2)))
+        index += 1
+      }
+      blocks.push({ type: 'list', items })
+      continue
+    }
+    const paragraph: string[] = []
+    while (
+      index < lines.length
+      && lines[index].trim()
+      && !lines[index].startsWith('### ')
+      && !lines[index].trim().startsWith('|')
+      && !lines[index].trim().startsWith('- ')
+    ) {
+      paragraph.push(lines[index].trim())
+      index += 1
+    }
+    blocks.push({ type: 'paragraph', text: formatReportText(paragraph.join(' ')) })
+  }
+  return blocks
+}
+
+function parseReportTable(lines: string[]): ReportBlock | null {
+  if (lines.length < 2) return null
+  const headers = splitMarkdownRow(lines[0])
+  const rows = lines.slice(isTableDivider(lines[1]) ? 2 : 1).map(splitMarkdownRow)
+  return { type: 'table', headers, rows }
+}
+
+function splitMarkdownRow(line: string): string[] {
+  let value = line.trim()
+  if (value.startsWith('|')) value = value.slice(1)
+  if (value.endsWith('|')) value = value.slice(0, -1)
+  const cells: string[] = []
+  let current = ''
+  let escaped = false
+  for (const char of value) {
+    if (char === '|' && !escaped) {
+      cells.push(formatReportText(current.trim()))
+      current = ''
+      continue
+    }
+    if (char === '\\' && !escaped) {
+      escaped = true
+      current += char
+      continue
+    }
+    escaped = false
+    current += char
+  }
+  cells.push(formatReportText(current.trim()))
+  return cells
+}
+
+function isTableDivider(line: string): boolean {
+  return /^\|?[\s:-]+\|[\s|:-]*$/.test(line.trim())
+}
+
+function formatReportText(value: string): string {
+  return value.replace(/\\\|/g, '|').replace(/<br\s*\/?>/gi, '\n')
 }
 
 function taskLabel(task: ReviewTask): string {
@@ -200,14 +343,62 @@ async function updateIssue(issue: ReviewIssue, status: string) {
 }
 
 async function createReport() {
-  const report = await api.request<{ content: string }>('/api/reports', { method: 'POST', body: JSON.stringify({ taskId: selectedTask.value }) })
-  output.value = report.content
+  const report = await api.request<ReportDocument>('/api/reports', { method: 'POST', body: JSON.stringify({ taskId: selectedTask.value }) })
+  reportDocument.value = report
+  reportContent.value = report.content
+  reportActionMessage.value = ''
+  output.value = ''
   await refreshAll()
 }
 
 async function compareVersions() {
   const result = await api.request(`/api/versions/compare?leftId=${compare.leftId}&rightId=${compare.rightId}`)
   output.value = JSON.stringify(result, null, 2)
+  reportActionMessage.value = ''
+}
+
+async function copyReport() {
+  if (!reportContent.value) return
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(reportContent.value)
+    } else if (!copyReportWithTextarea(reportContent.value)) {
+      throw new Error('当前浏览器不允许写入剪贴板')
+    }
+    reportActionMessage.value = '报告 Markdown 已复制'
+  } catch (reason) {
+    if (copyReportWithTextarea(reportContent.value)) {
+      reportActionMessage.value = '报告 Markdown 已复制'
+      return
+    }
+    reportActionMessage.value = `复制失败：${messageOf(reason)}`
+  }
+}
+
+function downloadReport() {
+  if (!reportContent.value) return
+  const name = `${reportDocument.value?.id ?? 'shipcad-review-report'}.md`
+  const blob = new Blob([reportContent.value], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = name
+  anchor.click()
+  URL.revokeObjectURL(url)
+  reportActionMessage.value = `已下载 ${name}`
+}
+
+function copyReportWithTextarea(value: string): boolean {
+  const textarea = document.createElement('textarea')
+  textarea.value = value
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const copied = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  return copied
 }
 
 function selectIssue(issue: ReviewIssue) {
@@ -425,7 +616,66 @@ onMounted(() => {
             <button>对比</button>
           </form>
         </div>
-        <pre>{{ output }}</pre>
+
+        <article v-if="reportContent" class="report-document">
+          <header class="report-header">
+            <div>
+              <p class="eyebrow">Evidence-aware report</p>
+              <h2>{{ reportTitle }}</h2>
+              <span>{{ selectedReportTask ? taskLabel(selectedReportTask) : '未选择任务' }}</span>
+            </div>
+            <div class="report-actions">
+              <button type="button" class="secondary" @click="copyReport">复制Markdown</button>
+              <button type="button" @click="downloadReport">下载.md</button>
+            </div>
+          </header>
+
+          <div class="report-metrics">
+            <div><span>问题数</span><strong>{{ selectedReportIssues.length }}</strong></div>
+            <div><span>高风险</span><strong>{{ reportHighIssueCount }}</strong></div>
+            <div><span>实体证据</span><strong>{{ reportEntityEvidenceCount }}</strong></div>
+            <div><span>图层证据</span><strong>{{ reportLayerEvidenceCount }}</strong></div>
+            <div><span>解析实体</span><strong>{{ summaryNumber('entityCount') }}</strong></div>
+          </div>
+          <p v-if="reportActionMessage" class="hint">{{ reportActionMessage }}</p>
+
+          <section v-for="section in reportBodySections" :key="section.title" class="report-section">
+            <h3>{{ section.title }}</h3>
+            <template v-for="(block, index) in section.blocks" :key="`${section.title}-${index}`">
+              <p v-if="block.type === 'paragraph'" class="report-paragraph">{{ block.text }}</p>
+              <h4 v-else-if="block.type === 'subheading'">{{ block.text }}</h4>
+              <ul v-else-if="block.type === 'list'" class="report-list">
+                <li v-for="item in block.items" :key="item">{{ item }}</li>
+              </ul>
+              <div v-else class="report-table-wrap">
+                <table class="report-table">
+                  <thead>
+                    <tr><th v-for="header in block.headers" :key="header">{{ header }}</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, rowIndex) in block.rows" :key="rowIndex">
+                      <td v-for="(cell, cellIndex) in row" :key="cellIndex">{{ cell }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </section>
+
+          <details class="raw-report">
+            <summary>查看原始 Markdown</summary>
+            <pre>{{ reportContent }}</pre>
+          </details>
+        </article>
+        <div v-else class="panel empty-report">
+          <h2>尚未生成报告</h2>
+          <p>选择一个已完成的审查任务后生成报告。系统会把规则、图层、实体引用和解析摘要整理成可追溯审查材料。</p>
+        </div>
+
+        <div v-if="output" class="panel">
+          <h2>版本对比结果</h2>
+          <pre>{{ output }}</pre>
+        </div>
       </section>
     </section>
   </main>

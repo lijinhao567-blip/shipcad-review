@@ -6,6 +6,8 @@ CAD Worker parses CAD files and returns normalized drawing entities for the back
 
 DXF is parsed directly with `ezdxf`.
 
+Current normalized evidence includes layers, text entities, block references, block attributes, dimensions, basic geometry, entity counts, layer counts, empty layers, title-block names, and drawing bounds.
+
 ## DWG
 
 DWG support uses GNU LibreDWG command-line tools:

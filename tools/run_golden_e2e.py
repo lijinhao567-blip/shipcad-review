@@ -197,6 +197,14 @@ class GoldenE2E:
         missing_blocks = sorted(set(expectations.get("requiredBlocks") or []) - blocks)
         if missing_blocks:
             raise AssertionError(f"missing parsed blocks: {missing_blocks}")
+        type_counts = summary.get("typeCounts") or {}
+        missing_types = sorted(
+            entity_type
+            for entity_type in (expectations.get("requiredEntityTypes") or [])
+            if type_counts.get(entity_type, 0) <= 0
+        )
+        if missing_types:
+            raise AssertionError(f"missing parsed entity types: {missing_types}; typeCounts={type_counts}")
 
 
 def load_manifest(path: Path) -> list[dict[str, Any]]:

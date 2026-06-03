@@ -549,7 +549,7 @@ $SPLINESEGS
   9
 $HANDSEED
   5
-41
+59
   9
 $SURFTAB1
  70
@@ -1323,9 +1323,9 @@ ISM
   0
 CLASS
   1
-ACDBPLACEHOLDER
+LAYOUT
   2
-AcDbPlaceHolder
+AcDbLayout
   3
 ObjectDBX Classes
  90
@@ -1339,9 +1339,9 @@ ObjectDBX Classes
   0
 CLASS
   1
-LAYOUT
+ACDBPLACEHOLDER
   2
-AcDbLayout
+AcDbPlaceHolder
   3
 ObjectDBX Classes
  90
@@ -1797,7 +1797,7 @@ ACAD
   0
 APPID
   5
-3E
+56
 330
 3
 100
@@ -1811,7 +1811,7 @@ HATCHBACKGROUNDCOLOR
   0
 APPID
   5
-3F
+57
 330
 3
 100
@@ -1987,7 +1987,7 @@ BLOCK_RECORD
 100
 AcDbSymbolTable
  70
-3
+5
   0
 BLOCK_RECORD
   5
@@ -2040,6 +2040,46 @@ AcDbSymbolTableRecord
 AcDbBlockTableRecord
   2
 TITLE_BLOCK
+340
+0
+ 70
+0
+280
+1
+281
+0
+  0
+BLOCK_RECORD
+  5
+43
+330
+9
+100
+AcDbSymbolTableRecord
+100
+AcDbBlockTableRecord
+  2
+*D1
+340
+0
+ 70
+0
+280
+1
+281
+0
+  0
+BLOCK_RECORD
+  5
+48
+330
+9
+100
+AcDbSymbolTableRecord
+100
+AcDbBlockTableRecord
+  2
+_CLOSEDFILLED
 340
 0
  70
@@ -2147,7 +2187,7 @@ AcDbBlockBegin
   2
 TITLE_BLOCK
  70
-0
+2
  10
 0.0
  20
@@ -2159,11 +2199,411 @@ TITLE_BLOCK
   1
 
   0
+ATTDEF
+  5
+36
+330
+33
+100
+AcDbEntity
+  8
+TITLE
+100
+AcDbText
+ 10
+0.0
+ 20
+0.0
+ 30
+0.0
+ 40
+2.5
+  1
+
+100
+AcDbAttributeDefinition
+  3
+
+  2
+DRAWING_NO
+ 70
+0
+  0
+ATTDEF
+  5
+37
+330
+33
+100
+AcDbEntity
+  8
+TITLE
+100
+AcDbText
+ 10
+0.0
+ 20
+-4.0
+ 30
+0.0
+ 40
+2.5
+  1
+
+100
+AcDbAttributeDefinition
+  3
+
+  2
+REVISION
+ 70
+0
+  0
 ENDBLK
   5
 35
 330
 33
+100
+AcDbEntity
+  8
+0
+100
+AcDbBlockEnd
+  0
+BLOCK
+  5
+44
+330
+43
+100
+AcDbEntity
+  8
+0
+100
+AcDbBlockBegin
+  2
+*D1
+ 70
+1
+ 10
+0.0
+ 20
+0.0
+ 30
+0.0
+  3
+*D1
+  1
+
+  0
+LINE
+  5
+46
+330
+43
+100
+AcDbEntity
+  8
+0
+100
+AcDbLine
+ 10
+0.0
+ 20
+0.0
+ 30
+0.0
+ 11
+0.0
+ 21
+-8.0
+ 31
+0.0
+  0
+LINE
+  5
+47
+330
+43
+100
+AcDbEntity
+  8
+0
+100
+AcDbLine
+ 10
+120.0
+ 20
+0.0
+ 30
+0.0
+ 11
+120.0
+ 21
+-8.0
+ 31
+0.0
+  0
+INSERT
+  5
+4C
+330
+43
+100
+AcDbEntity
+  8
+DIM-MAIN
+100
+AcDbBlockReference
+  2
+_CLOSEDFILLED
+ 10
+0.0
+ 20
+-8.0
+ 30
+0.0
+ 41
+0.25
+ 42
+0.25
+ 50
+180.0
+  0
+INSERT
+  5
+4E
+330
+43
+100
+AcDbEntity
+  8
+DIM-MAIN
+100
+AcDbBlockReference
+  2
+_CLOSEDFILLED
+ 10
+120.0
+ 20
+-8.0
+ 30
+0.0
+ 41
+0.25
+ 42
+0.25
+  0
+LINE
+  5
+50
+330
+43
+100
+AcDbEntity
+  8
+0
+100
+AcDbLine
+ 10
+0.25
+ 20
+-8.0
+ 30
+0.0
+ 11
+58.5
+ 21
+-8.0
+ 31
+0.0
+  0
+LINE
+  5
+51
+330
+43
+100
+AcDbEntity
+  8
+0
+100
+AcDbLine
+ 10
+61.5
+ 20
+-8.0
+ 30
+0.0
+ 11
+119.75
+ 21
+-8.0
+ 31
+0.0
+  0
+MTEXT
+  5
+52
+330
+43
+100
+AcDbEntity
+  8
+DIM-MAIN
+100
+AcDbMText
+ 10
+60.0
+ 20
+-8.0
+ 30
+0.0
+ 40
+1.0
+ 71
+5
+  1
+120
+  0
+POINT
+  5
+53
+330
+43
+100
+AcDbEntity
+  8
+Defpoints
+100
+AcDbPoint
+ 10
+0.0
+ 20
+-8.0
+ 30
+0.0
+  0
+POINT
+  5
+54
+330
+43
+100
+AcDbEntity
+  8
+Defpoints
+100
+AcDbPoint
+ 10
+0.0
+ 20
+0.0
+ 30
+0.0
+  0
+POINT
+  5
+55
+330
+43
+100
+AcDbEntity
+  8
+Defpoints
+100
+AcDbPoint
+ 10
+120.0
+ 20
+0.0
+ 30
+0.0
+  0
+ENDBLK
+  5
+45
+330
+43
+100
+AcDbEntity
+  8
+0
+100
+AcDbBlockEnd
+  0
+BLOCK
+  5
+49
+330
+48
+100
+AcDbEntity
+  8
+0
+100
+AcDbBlockBegin
+  2
+_CLOSEDFILLED
+ 70
+0
+ 10
+0.0
+ 20
+0.0
+ 30
+0.0
+  3
+_CLOSEDFILLED
+  1
+
+  0
+SOLID
+  5
+4B
+330
+48
+100
+AcDbEntity
+  8
+0
+  6
+BYBLOCK
+ 62
+0
+100
+AcDbTrace
+ 10
+-1.0
+ 20
+0.16439898372402537
+ 30
+0.0
+ 11
+0.0
+ 21
+0.0
+ 31
+0.0
+ 12
+-1.0
+ 22
+-0.16439898372402537
+ 32
+0.0
+ 13
+-1.0
+ 23
+-0.16439898372402537
+ 33
+0.0
+  0
+ENDBLK
+  5
+4A
+330
+48
 100
 AcDbEntity
   8
@@ -2179,7 +2619,7 @@ ENTITIES
   0
 INSERT
   5
-36
+38
 330
 17
 100
@@ -2188,6 +2628,8 @@ AcDbEntity
 TITLE
 100
 AcDbBlockReference
+ 66
+1
   2
 TITLE_BLOCK
  10
@@ -2197,9 +2639,75 @@ TITLE_BLOCK
  30
 0.0
   0
+ATTRIB
+  5
+3A
+330
+17
+100
+AcDbEntity
+  8
+TITLE
+100
+AcDbText
+ 10
+8.0
+ 20
+8.0
+ 30
+0.0
+ 40
+2.5
+  1
+A22-GOLDEN-001
+100
+AcDbAttribute
+  2
+DRAWING_NO
+ 70
+0
+  0
+ATTRIB
+  5
+3B
+330
+17
+100
+AcDbEntity
+  8
+TITLE
+100
+AcDbText
+ 10
+8.0
+ 20
+5.0
+ 30
+0.0
+ 40
+2.5
+  1
+V1
+100
+AcDbAttribute
+  2
+REVISION
+ 70
+0
+  0
+SEQEND
+  5
+39
+330
+38
+100
+AcDbEntity
+  8
+TITLE
+  0
 TEXT
   5
-38
+3C
 330
 17
 100
@@ -2229,7 +2737,7 @@ AcDbText
   0
 LINE
   5
-39
+3D
 330
 17
 100
@@ -2253,7 +2761,7 @@ AcDbLine
   0
 LINE
   5
-3A
+3E
 330
 17
 100
@@ -2277,7 +2785,7 @@ AcDbLine
   0
 CIRCLE
   5
-3B
+3F
 330
 17
 100
@@ -2297,7 +2805,7 @@ AcDbCircle
   0
 TEXT
   5
-3C
+40
 330
 17
 100
@@ -2327,7 +2835,7 @@ AcDbText
   0
 TEXT
   5
-3D
+41
 330
 17
 100
@@ -2354,6 +2862,60 @@ General note checked
 0.0
 100
 AcDbText
+  0
+DIMENSION
+  5
+42
+330
+17
+100
+AcDbEntity
+  8
+DIM-MAIN
+100
+AcDbDimension
+280
+0
+  2
+*D1
+  3
+Standard
+ 10
+0.0
+ 20
+-8.0
+ 30
+0.0
+ 11
+60.0
+ 21
+-8.0
+ 31
+0.0
+ 70
+32
+ 71
+5
+  1
+<>
+100
+AcDbAlignedDimension
+ 13
+0.0
+ 23
+0.0
+ 33
+0.0
+ 14
+120.0
+ 24
+0.0
+ 34
+0.0
+ 50
+0.0
+100
+AcDbRotatedDimension
   0
 ENDSEC
   0
@@ -3345,7 +3907,7 @@ CREATED_BY_EZDXF
   3
 WRITTEN_BY_EZDXF
 350
-40
+58
   0
 DICTIONARYVAR
   5
@@ -3361,7 +3923,7 @@ DictionaryVariables
   0
 DICTIONARYVAR
   5
-40
+58
 330
 2D
 100

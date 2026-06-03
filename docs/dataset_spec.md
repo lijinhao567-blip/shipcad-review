@@ -43,10 +43,11 @@ datasets/
   {
     "file": "valid_title_block.dxf",
     "format": "dxf",
-    "expected": {
+    "parserExpectations": {
       "minEntityCount": 1,
-      "layers": ["S-STRUCTURE", "S-TITLE"],
-      "blocks": ["TITLE_BLOCK"]
+      "requiredLayers": ["S-STRUCTURE", "S-TITLE"],
+      "requiredBlocks": ["TITLE_BLOCK"],
+      "requiredEntityTypes": ["INSERT", "ATTRIB", "DIMENSION"]
     }
   }
 ]
@@ -75,6 +76,13 @@ datasets/
 ```
 
 The system should not identify samples by file name. File names only help tests locate input files. The actual result must come from CAD parsing and rule execution.
+
+For `datasets/rules/expected.json`, parser expectations use these machine-checkable keys:
+
+- `minEntityCount`: minimum parsed entity count after expanding supported nested evidence such as block attributes.
+- `requiredLayers`: layer names that must appear in the parsed DXF layer table.
+- `requiredBlocks`: block names that must appear in parsed block references or related attributes.
+- `requiredEntityTypes`: entity types such as `DIMENSION` or `ATTRIB` that must appear in the parsed summary.
 
 Current rule golden dataset:
 

@@ -18,6 +18,10 @@
       ],
       "requiredBlocks": [
         "TITLE_BLOCK"
+      ],
+      "requiredEntityTypes": [
+        "DIMENSION",
+        "ATTRIB"
       ]
     },
     "description": "Baseline DXF with accepted layers, title block, enough entities, and no placeholder text."
@@ -40,7 +44,8 @@
       ],
       "requiredBlocks": [
         "TITLE_BLOCK"
-      ]
+      ],
+      "requiredEntityTypes": []
     },
     "description": "Contains one custom layer that violates the configured layer prefix convention.",
     "expectedEvidence": {
@@ -68,7 +73,8 @@
       ],
       "requiredBlocks": [
         "TITLE_BLOCK"
-      ]
+      ],
+      "requiredEntityTypes": []
     },
     "description": "Declares a non-system layer with no entities.",
     "expectedEvidence": {
@@ -96,7 +102,10 @@
         "DIM-MAIN",
         "TEXT-NOTE"
       ],
-      "requiredBlocks": []
+      "requiredBlocks": [],
+      "requiredEntityTypes": [
+        "DIMENSION"
+      ]
     },
     "description": "Has drawing geometry but no title block or title keywords."
   },
@@ -118,7 +127,8 @@
       ],
       "requiredBlocks": [
         "TITLE_BLOCK"
-      ]
+      ],
+      "requiredEntityTypes": []
     },
     "description": "Contains one TBD note that should be reviewed before delivery.",
     "expectedEvidence": {
@@ -147,7 +157,8 @@
       ],
       "requiredBlocks": [
         "TITLE_BLOCK"
-      ]
+      ],
+      "requiredEntityTypes": []
     },
     "description": "Title block exists, but the drawing has too few model-space entities."
   },
@@ -172,6 +183,10 @@
       ],
       "requiredBlocks": [
         "TITLE_BLOCK"
+      ],
+      "requiredEntityTypes": [
+        "DIMENSION",
+        "ATTRIB"
       ]
     },
     "description": "Geometry is valid, but the uploaded version number is not traceable."

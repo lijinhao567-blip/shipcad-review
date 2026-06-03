@@ -29,6 +29,7 @@ class Case:
     required_layers: list[str]
     required_blocks: list[str]
     description: str
+    required_entity_types: list[str] = field(default_factory=list)
     expected_evidence: dict[str, dict[str, object]] = field(default_factory=dict)
 
 
@@ -62,12 +63,16 @@ def base_doc(*, with_title: bool = True) -> ezdxf.EzDxf:
     for layer in layers:
         ensure_layer(doc, layer)
     if with_title:
-        doc.blocks.new("TITLE_BLOCK")
+        title_block = doc.blocks.new("TITLE_BLOCK")
+        title_block.add_attdef("DRAWING_NO", (0, 0), dxfattribs={"layer": "TITLE", "height": 2.5})
+        title_block.add_attdef("REVISION", (0, -4), dxfattribs={"layer": "TITLE", "height": 2.5})
     return doc
 
 
 def add_title(msp: ezdxf.layouts.Modelspace) -> None:
-    msp.add_blockref("TITLE_BLOCK", (0, 0), dxfattribs={"layer": "TITLE"})
+    insert = msp.add_blockref("TITLE_BLOCK", (0, 0), dxfattribs={"layer": "TITLE"})
+    insert.add_attrib("DRAWING_NO", "A22-GOLDEN-001", insert=(8, 8), dxfattribs={"layer": "TITLE", "height": 2.5})
+    insert.add_attrib("REVISION", "V1", insert=(8, 5), dxfattribs={"layer": "TITLE", "height": 2.5})
     msp.add_text("Drawing No A22-GOLDEN-001 Rev V1", dxfattribs={"layer": "TITLE", "height": 2.5}).set_placement((8, 8))
 
 
@@ -77,6 +82,14 @@ def add_standard_geometry(msp: ezdxf.layouts.Modelspace) -> None:
     msp.add_circle((40, 20), 4, dxfattribs={"layer": "S-HULL"})
     msp.add_text("Main deck clearance 600", dxfattribs={"layer": "DIM-MAIN", "height": 2.0}).set_placement((50, 5))
     msp.add_text("General note checked", dxfattribs={"layer": "TEXT-NOTE", "height": 2.0}).set_placement((15, 40))
+    dimension = msp.add_linear_dim(
+        base=(0, -8),
+        p1=(0, 0),
+        p2=(120, 0),
+        angle=0,
+        dxfattribs={"layer": "DIM-MAIN"},
+    )
+    dimension.render()
 
 
 def build_compliant(path: Path) -> None:
@@ -144,6 +157,7 @@ CASES = [
         required_layers=["TITLE", "S-HULL", "DIM-MAIN", "TEXT-NOTE"],
         required_blocks=["TITLE_BLOCK"],
         description="Baseline DXF with accepted layers, title block, enough entities, and no placeholder text.",
+        required_entity_types=["DIMENSION", "ATTRIB"],
     ),
     Case(
         case_id="invalid_layer_name",
@@ -179,6 +193,7 @@ CASES = [
         required_layers=["S-HULL", "DIM-MAIN", "TEXT-NOTE"],
         required_blocks=[],
         description="Has drawing geometry but no title block or title keywords.",
+        required_entity_types=["DIMENSION"],
     ),
     Case(
         case_id="placeholder_text",
@@ -213,6 +228,7 @@ CASES = [
         required_layers=["TITLE", "S-HULL", "DIM-MAIN", "TEXT-NOTE"],
         required_blocks=["TITLE_BLOCK"],
         description="Geometry is valid, but the uploaded version number is not traceable.",
+        required_entity_types=["DIMENSION", "ATTRIB"],
     ),
 ]
 
@@ -233,6 +249,7 @@ def build_manifest() -> list[dict[str, object]]:
                     "minEntityCount": case.min_entity_count,
                     "requiredLayers": case.required_layers,
                     "requiredBlocks": case.required_blocks,
+                    "requiredEntityTypes": case.required_entity_types,
                 },
                 "description": case.description,
             }

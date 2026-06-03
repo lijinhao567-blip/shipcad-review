@@ -58,6 +58,9 @@ textarea { min-height: 80px; resize: vertical; }
 .issue .evidence { color: #334155; font-weight: 700; }
 .evidence-list { margin: 8px 0 10px; padding-left: 18px; color: #475467; font-size: 13px; line-height: 1.55; }
 .evidence-list li { overflow-wrap: anywhere; }
+.ai-explanation { margin: 10px 0 12px; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: #f8fafc; }
+.ai-explanation strong { display: block; margin-bottom: 6px; color: #172033; }
+.ai-explanation p { margin: 4px 0; color: #475467; font-size: 13px; line-height: 1.55; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .preview-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, .75fr); gap: 16px; align-items: start; }
 .preview-panel { min-width: 0; }

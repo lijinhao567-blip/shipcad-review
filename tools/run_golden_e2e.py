@@ -167,6 +167,9 @@ class GoldenE2E:
                 raise AssertionError(f"issue {issue['id']} is missing RULE_RESULT evidence")
             if "KNOWLEDGE_CLAUSE" not in evidence_types:
                 raise AssertionError(f"issue {issue['id']} is missing KNOWLEDGE_CLAUSE evidence")
+            explanation = issue.get("aiExplanation") or {}
+            if not explanation.get("summary") or not explanation.get("reason") or not explanation.get("basis"):
+                raise AssertionError(f"issue {issue['id']} is missing AI evidence explanation")
 
         expected_evidence = case.get("expectedEvidence") or {}
         if not expected_evidence:
@@ -248,6 +251,8 @@ class GoldenE2E:
             layer_name = issue.get("layerName") or ""
             if layer_name and layer_name not in content:
                 raise AssertionError(f"report is missing layer evidence {layer_name}")
+        if issues and "AI辅助解释" not in content:
+            raise AssertionError("report is missing AI evidence explanations")
 
 
 def load_manifest(path: Path) -> list[dict[str, Any]]:

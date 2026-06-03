@@ -65,6 +65,7 @@ public class ReviewPlatformService {
     private final CadWorkerClient worker;
     private final RuleEngine ruleEngine;
     private final ReviewReportBuilder reportBuilder;
+    private final AiGateway aiGateway;
     private final AuditService audit;
     private final ObjectMapper mapper;
     private final ThreadPoolTaskExecutor reviewTaskExecutor;
@@ -86,6 +87,7 @@ public class ReviewPlatformService {
             CadWorkerClient worker,
             RuleEngine ruleEngine,
             ReviewReportBuilder reportBuilder,
+            AiGateway aiGateway,
             AuditService audit,
             ObjectMapper mapper,
             ThreadPoolTaskExecutor reviewTaskExecutor,
@@ -106,6 +108,7 @@ public class ReviewPlatformService {
         this.worker = worker;
         this.ruleEngine = ruleEngine;
         this.reportBuilder = reportBuilder;
+        this.aiGateway = aiGateway;
         this.audit = audit;
         this.mapper = mapper;
         this.reviewTaskExecutor = reviewTaskExecutor;
@@ -278,6 +281,11 @@ public class ReviewPlatformService {
         return evidences.findByIssueId(issueId);
     }
 
+    public com.shipcad.review.domain.AiExplanation explainIssue(String issueId) {
+        ReviewIssue issue = issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
+        return aiGateway.explain(attachEvidence(issue));
+    }
+
     public ReviewIssue updateIssue(String issueId, IssueUpdateRequest request, AppUser actor) {
         ReviewIssue issue = issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
         if (request.status() != null) {
@@ -397,6 +405,7 @@ public class ReviewPlatformService {
 
     private ReviewIssue attachEvidence(ReviewIssue issue) {
         issue.evidences = evidences.findByIssueId(issue.id);
+        issue.aiExplanation = aiGateway.explain(issue);
         return issue;
     }
 
@@ -407,7 +416,10 @@ public class ReviewPlatformService {
         List<String> issueIds = source.stream().map(issue -> issue.id).toList();
         Map<String, List<ReviewEvidence>> evidenceByIssue = evidences.findByIssueIdIn(issueIds).stream()
                 .collect(Collectors.groupingBy(evidence -> evidence.issueId));
-        source.forEach(issue -> issue.evidences = evidenceByIssue.getOrDefault(issue.id, List.of()));
+        source.forEach(issue -> {
+            issue.evidences = evidenceByIssue.getOrDefault(issue.id, List.of());
+            issue.aiExplanation = aiGateway.explain(issue);
+        });
         return source;
     }
 

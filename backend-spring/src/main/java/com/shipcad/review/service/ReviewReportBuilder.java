@@ -90,6 +90,13 @@ public class ReviewReportBuilder {
             if (entity != null) {
                 builder.append("- CAD实体证据：").append(entityDetail(entity)).append("\n");
             }
+            if (issue.aiExplanation != null) {
+                builder.append("- AI辅助解释：").append(value(issue.aiExplanation.summary)).append("\n")
+                        .append("- AI证据原因：").append(value(issue.aiExplanation.reason)).append("\n")
+                        .append("- AI依据说明：").append(value(issue.aiExplanation.basis)).append("\n")
+                        .append("- AI整改建议：").append(value(issue.aiExplanation.recommendation)).append("\n")
+                        .append("- AI复核关注：").append(value(issue.aiExplanation.reviewFocus)).append("\n");
+            }
             if (issue.evidences != null && !issue.evidences.isEmpty()) {
                 builder.append("- Evidence chain: ").append(evidenceChain(issue)).append("\n");
             }

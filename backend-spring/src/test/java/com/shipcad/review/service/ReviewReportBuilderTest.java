@@ -3,6 +3,7 @@ package com.shipcad.review.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shipcad.review.domain.AiExplanation;
 import com.shipcad.review.domain.Drawing;
 import com.shipcad.review.domain.DrawingVersion;
 import com.shipcad.review.domain.EvidenceType;
@@ -26,6 +27,7 @@ class ReviewReportBuilderTest {
         issue.evidences.add(evidence("evidence_rule", issue, EvidenceType.RULE_RESULT, "Rule VERSION_TITLE_CONSISTENCY generated this review issue."));
         issue.evidences.add(evidence("evidence_entity", issue, EvidenceType.CAD_ENTITY, "CAD entity entity_revision supports this issue."));
         issue.evidences.add(evidence("evidence_clause", issue, EvidenceType.KNOWLEDGE_CLAUSE, "版次可追溯依据: 标题栏版次应与系统上传版次一致。"));
+        issue.aiExplanation = explanation();
         ParsedEntity revision = entity(
                 "entity_revision",
                 "ATTRIB",
@@ -60,6 +62,8 @@ class ReviewReportBuilderTest {
         assertThat(report).contains("text=V2");
         assertThat(report).contains("MEDIUM 1");
         assertThat(report).contains("Evidence chain");
+        assertThat(report).contains("AI辅助解释");
+        assertThat(report).contains("规则 VERSION_TITLE_CONSISTENCY 命中");
         assertThat(report).contains("RULE_RESULT");
         assertThat(report).contains("KNOWLEDGE_CLAUSE");
         assertThat(report).contains("结构化证据 3 条");
@@ -132,6 +136,17 @@ class ReviewReportBuilderTest {
         issue.entityRef = entityRef;
         issue.suggestion = "建议统一标题栏版次与系统版本记录。";
         return issue;
+    }
+
+    private AiExplanation explanation() {
+        AiExplanation explanation = new AiExplanation();
+        explanation.model = "local-evidence-summarizer-v1";
+        explanation.summary = "规则 VERSION_TITLE_CONSISTENCY 命中：标题栏版次与上传版次不一致";
+        explanation.reason = "规则命中，CAD 证据指向标题栏 REVISION 属性。";
+        explanation.basis = "依据条款：版次可追溯依据。";
+        explanation.recommendation = "统一标题栏版次与系统版本记录。";
+        explanation.reviewFocus = "建议在本轮整改中处理。";
+        return explanation;
     }
 
     private ReviewEvidence evidence(String id, ReviewIssue issue, EvidenceType type, String summary) {

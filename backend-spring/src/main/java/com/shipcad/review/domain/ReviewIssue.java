@@ -33,4 +33,6 @@ public class ReviewIssue {
     public String assignee;
     @Transient
     public List<ReviewEvidence> evidences = new ArrayList<>();
+    @Transient
+    public AiExplanation aiExplanation;
 }

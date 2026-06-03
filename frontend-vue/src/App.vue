@@ -620,6 +620,14 @@ onMounted(() => {
               </ul>
               <p>{{ issue.description }}</p>
               <p>建议：{{ issue.suggestion }}</p>
+              <div v-if="issue.aiExplanation" class="ai-explanation">
+                <strong>AI辅助解释</strong>
+                <p>{{ issue.aiExplanation.summary }}</p>
+                <p>{{ issue.aiExplanation.reason }}</p>
+                <p>{{ issue.aiExplanation.basis }}</p>
+                <p>{{ issue.aiExplanation.recommendation }}</p>
+                <p>{{ issue.aiExplanation.reviewFocus }}</p>
+              </div>
               <div class="actions">
                 <button @click.stop="updateIssue(issue, 'IN_PROGRESS')">整改中</button>
                 <button @click.stop="updateIssue(issue, 'READY_FOR_REVIEW')">待复核</button>

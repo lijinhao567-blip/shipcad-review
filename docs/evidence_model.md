@@ -183,3 +183,5 @@ Current status: minimal implementation complete. `knowledge_clause` stores inter
 ### Stage 6: AI Explanation
 
 Generate explanations from issue plus evidence, not from the drawing alone.
+
+Current status: minimal implementation complete. `AiGateway` generates `AiExplanation` from `ReviewIssue.evidences` using a deterministic local summarizer. It is exposed through `ReviewIssue.aiExplanation` and `/api/issues/{issueId}/ai-explanation`. Future LLM integration should replace the gateway implementation while preserving the evidence-only input contract.

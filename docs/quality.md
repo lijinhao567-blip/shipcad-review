@@ -18,6 +18,7 @@
 - Rules with expected entity evidence should include `CAD_ENTITY` evidence whose `sourceId` matches `ReviewIssue.entityRef`.
 - Rules with expected layer evidence should include `CAD_LAYER` evidence whose `sourceId` matches `ReviewIssue.layerName`.
 - Default seeded rules should include `KNOWLEDGE_CLAUSE` evidence so each issue has a traceable rule basis.
+- Every generated issue returned by `/api/issues` should include `aiExplanation` with summary, reason, and basis generated from the evidence chain.
 - `tools/run_golden_e2e.py` verifies these evidence checks for the golden DXF dataset.
 
 ## 验收目标
@@ -25,5 +26,5 @@
 - 一台 Windows 开发机可启动前端、后端、Worker。
 - 上传 golden DXF 样例后，可通过审查任务队列生成规则问题、CAD 证据和知识条款证据。
 - 问题状态可以流转到整改中、待复核和关闭。
-- 可导出包含 evidence chain 的审查报告。
+- 可导出包含 evidence chain 和 AI 辅助解释的审查报告。
 - OpenAPI 文档可访问。

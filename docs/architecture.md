@@ -10,7 +10,7 @@
 - Spring Boot API：鉴权、主数据管理、文件管理、异步审查任务、Easy Rules规则审查、整改流转、审计日志和OpenAPI。
 - Python CAD Worker：基于 ezdxf 解析 DXF 文件；安装 LibreDWG 后，通过 `dwg2dxf` 转换 DWG 并复用 DXF 解析链路。
 - Python Vision Worker：基于 Ultralytics YOLOv8 识别图纸渲染图中的符号目标，输出类别、置信度和检测框。
-- AI Gateway：第一阶段采用可审计的摘要生成器，后续可替换为本地大模型或OpenAI兼容接口，并连接符号识别结果与知识图谱。
+- AI Gateway：当前采用可审计的本地 evidence summarizer，只基于 `ReviewIssue` 与 evidence chain 生成解释；后续可替换为本地大模型或 OpenAI 兼容接口。
 
 ## 数据架构
 
@@ -48,3 +48,5 @@
 ## 当前知识证据状态
 
 当前已实现知识图谱路线的最小工程骨架：后端新增 `KnowledgeClause`/`knowledge_clause`，默认规则通过 `review_rule.knowledge_clause_code` 绑定内部审查依据，规则命中时会生成 `KNOWLEDGE_CLAUSE` evidence。后续接入 Neo4j、Apache Jena 或企业规范库时，应通过适配层替换或丰富 `KnowledgeClause` 来源，而不是绕过 `ReviewIssue` 和 `review_evidence`。
+
+当前 AI Gateway 已实现最小 evidence-only 解释链路：`ReviewIssue.evidences` 会生成 `AiExplanation`，前端和报告均可展示。后续模型化时，必须保持“证据输入、解释输出、不可凭空新增结论”的边界。

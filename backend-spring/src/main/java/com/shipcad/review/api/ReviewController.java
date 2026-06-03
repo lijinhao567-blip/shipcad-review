@@ -1,6 +1,7 @@
 package com.shipcad.review.api;
 
 import com.shipcad.review.domain.ReportDocument;
+import com.shipcad.review.domain.AiExplanation;
 import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewRule;
@@ -75,6 +76,12 @@ public class ReviewController extends BaseController {
     public List<ReviewEvidence> issueEvidences(@RequestHeader("Authorization") String authorization, @PathVariable String issueId) {
         user(authorization);
         return platform.listIssueEvidence(issueId);
+    }
+
+    @GetMapping("/issues/{issueId}/ai-explanation")
+    public AiExplanation issueAiExplanation(@RequestHeader("Authorization") String authorization, @PathVariable String issueId) {
+        user(authorization);
+        return platform.explainIssue(issueId);
     }
 
     @PatchMapping("/issues/{issueId}")

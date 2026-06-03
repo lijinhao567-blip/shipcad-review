@@ -54,6 +54,17 @@ export type ReviewIssue = {
   entityRef: string
   suggestion: string
   evidences?: ReviewEvidence[]
+  aiExplanation?: AiExplanation
+}
+
+export type AiExplanation = {
+  model: string
+  summary: string
+  reason: string
+  basis: string
+  recommendation: string
+  reviewFocus: string
+  evidenceRefs: string[]
 }
 
 export type ReviewEvidence = {

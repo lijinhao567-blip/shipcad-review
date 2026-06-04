@@ -7,6 +7,7 @@ const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/Dxf
 
 const tab = ref<'dashboard' | 'projects' | 'issues' | 'reports' | 'status'>('dashboard')
 const loginState = reactive({ username: 'admin', password: 'admin123', label: '未登录' })
+const authenticated = ref(Boolean(api.token))
 const projectForm = reactive({ name: 'A22船舶审图试点', shipNo: 'S-2026-001', owner: '设计院审图组', description: 'DXF优先的AI辅助审图试点项目' })
 const drawingForm = reactive({ projectId: '', drawingNo: 'A22-SEC-001', title: '船体分段结构图', discipline: '船体结构' })
 const uploadForm = reactive({ drawingId: '', versionNo: 'V1', file: null as File | null })
@@ -64,6 +65,14 @@ type EvidenceGroup = {
   items: string[]
 }
 
+type WorkflowStep = {
+  key: string
+  label: string
+  detail: string
+  state: 'done' | 'current' | 'blocked'
+  disabled: boolean
+}
+
 const dashboard = ref<Dashboard | null>(null)
 const projects = ref<Project[]>([])
 const drawings = ref<Drawing[]>([])
@@ -74,7 +83,16 @@ const entities = ref<ParsedEntity[]>([])
 const versionEvidences = ref<ReviewEvidence[]>([])
 const loading = ref(false)
 
-const selectedDrawingVersions = computed(() => versions.value)
+const selectedProject = computed(() => projects.value.find((item) => item.id === drawingForm.projectId) ?? projects.value[0])
+const selectedProjectDrawings = computed(() => selectedProject.value ? drawings.value.filter((item) => item.projectId === selectedProject.value?.id) : drawings.value)
+const selectedDrawing = computed(() => drawings.value.find((item) => item.id === uploadForm.drawingId) ?? selectedProjectDrawings.value[0])
+const selectedDrawingVersions = computed(() => selectedDrawing.value ? versions.value.filter((item) => item.drawingId === selectedDrawing.value?.id) : versions.value)
+const currentVersion = computed(() =>
+  versions.value.find((item) => item.id === selectedReviewVersion.value)
+  ?? versions.value.find((item) => item.id === previewVersionId.value)
+  ?? selectedDrawingVersions.value[0]
+  ?? versions.value[0]
+)
 const previewIssues = computed(() => issues.value.filter((issue) => !previewVersionId.value || issue.versionId === previewVersionId.value))
 const previewVersion = computed(() => versions.value.find((item) => item.id === previewVersionId.value))
 const isDxfPreview = computed(() => previewVersion.value?.fileName.toLowerCase().endsWith('.dxf') ?? false)
@@ -87,7 +105,12 @@ const selectedReportVersion = computed(() => versions.value.find((version) => ve
 const selectedReportIssues = computed(() => issues.value.filter((issue) => issue.taskId === selectedTask.value))
 const selectedTaskDetail = computed(() => tasks.value.find((task) => task.id === selectedTaskDetailId.value))
 const selectedTaskDetailIssues = computed(() => issues.value.filter((issue) => issue.taskId === selectedTaskDetailId.value))
+const selectedTaskDetailOpenIssueCount = computed(() => selectedTaskDetailIssues.value.filter((issue) => issue.status !== 'CLOSED').length)
 const selectedTaskDetailEvidenceCount = computed(() => selectedTaskDetailIssues.value.reduce((sum, issue) => sum + (issue.evidences?.length ?? 0), 0))
+const reportCandidateTask = computed(() => {
+  if (selectedReportTask.value?.status === 'FINISHED') return selectedReportTask.value
+  return tasks.value.find((task) => task.status === 'FINISHED')
+})
 const systemHealthItems = computed(() => {
   const health = systemHealth.value
   if (!health) return []
@@ -105,6 +128,66 @@ const systemHealthItems = computed(() => {
     healthItem('cad', 'CAD Worker', health.workers?.cad, true),
     healthItem('vision', 'Vision Worker', health.workers?.vision, false),
     healthItem('ocr', 'OCR Worker', health.workers?.ocr, false)
+  ]
+})
+const workflowSteps = computed<WorkflowStep[]>(() => {
+  const systemReady = Boolean(systemHealth.value)
+  const projectReady = Boolean(selectedProject.value && selectedDrawing.value)
+  const versionReady = Boolean(currentVersion.value)
+  const reviewReady = Boolean(selectedTaskDetail.value)
+  const taskComplete = selectedTaskDetail.value?.status === 'FINISHED'
+  const issueReady = reviewReady && (taskComplete || selectedTaskDetail.value?.status === 'FAILED')
+  const reportReady = Boolean(reportContent.value)
+  return [
+    {
+      key: 'status',
+      label: '系统',
+      detail: systemHealth.value ? healthStatusLabel(systemHealth.value.status) : '待检查',
+      state: systemReady ? 'done' : 'current',
+      disabled: false
+    },
+    {
+      key: 'login',
+      label: '登录',
+      detail: authenticated.value ? loginState.label.replace(/^已登录：/, '') : '未登录',
+      state: authenticated.value ? 'done' : systemReady ? 'current' : 'blocked',
+      disabled: false
+    },
+    {
+      key: 'project',
+      label: '项目图纸',
+      detail: projectReady ? `${selectedProject.value?.name} / ${selectedDrawing.value?.drawingNo}` : '待创建',
+      state: projectReady ? 'done' : authenticated.value ? 'current' : 'blocked',
+      disabled: !authenticated.value
+    },
+    {
+      key: 'version',
+      label: '版本',
+      detail: currentVersion.value ? `${currentVersion.value.versionNo} / ${currentVersion.value.parseStatus}` : '待上传',
+      state: versionReady ? 'done' : projectReady ? 'current' : 'blocked',
+      disabled: !projectReady
+    },
+    {
+      key: 'review',
+      label: '审查',
+      detail: selectedTaskDetail.value ? `${taskStageLabel(selectedTaskDetail.value)} / ${selectedTaskDetail.value.issueCount}项` : '待发起',
+      state: reviewReady ? 'done' : versionReady ? 'current' : 'blocked',
+      disabled: !versionReady
+    },
+    {
+      key: 'issues',
+      label: '问题',
+      detail: issueReady ? `${selectedTaskDetailIssues.value.length}项 / ${selectedTaskDetailOpenIssueCount.value}未关闭` : '待生成',
+      state: issueReady ? 'done' : reviewReady ? 'current' : 'blocked',
+      disabled: !reviewReady
+    },
+    {
+      key: 'reports',
+      label: '报告',
+      detail: reportReady ? '已生成' : reportCandidateTask.value ? '可生成' : '待任务',
+      state: reportReady ? 'done' : reportCandidateTask.value ? 'current' : 'blocked',
+      disabled: !reportCandidateTask.value && !reportReady
+    }
   ]
 })
 const reportSections = computed(() => parseReportSections(reportContent.value))
@@ -360,6 +443,62 @@ function taskStepClass(step: ReviewTaskStep): string {
   return `task-step ${step.status.toLowerCase()}`
 }
 
+function workflowStepClass(step: WorkflowStep): string {
+  return `workflow-step ${step.state}`
+}
+
+function activateWorkflowStep(key: string) {
+  if (key === 'status') {
+    tab.value = 'status'
+    return
+  }
+  if (key === 'login') {
+    tab.value = 'dashboard'
+    return
+  }
+  if (key === 'project' || key === 'version') {
+    tab.value = 'projects'
+    return
+  }
+  if (key === 'review' || key === 'issues') {
+    if (currentVersion.value) {
+      selectedReviewVersion.value = currentVersion.value.id
+      previewVersionId.value = currentVersion.value.id
+    }
+    tab.value = 'issues'
+    return
+  }
+  if (key === 'reports') {
+    if (reportCandidateTask.value) selectedTask.value = reportCandidateTask.value.id
+    tab.value = 'reports'
+  }
+}
+
+function selectProject(project: Project) {
+  drawingForm.projectId = project.id
+  const drawing = drawings.value.find((item) => item.projectId === project.id)
+  if (drawing) selectDrawing(drawing)
+}
+
+function selectDrawing(drawing: Drawing) {
+  uploadForm.drawingId = drawing.id
+  drawingForm.projectId = drawing.projectId
+  const version = versions.value.find((item) => item.drawingId === drawing.id)
+  if (version) selectVersion(version)
+}
+
+function selectVersion(version: DrawingVersion) {
+  uploadForm.drawingId = version.drawingId
+  selectedReviewVersion.value = version.id
+  previewVersionId.value = version.id
+  if (!compare.leftId) compare.leftId = version.id
+}
+
+function shortId(value?: string): string {
+  if (!value) return '-'
+  return value.length > 12 ? value.slice(0, 12) : value
+}
+
 async function refreshAll() {
   await refreshSystemHealth()
   if (!api.token) return
@@ -379,12 +518,26 @@ async function refreshAll() {
     versions.value = v
     tasks.value = t
     issues.value = i
-    drawingForm.projectId ||= p[0]?.id ?? ''
-    uploadForm.drawingId ||= dr[0]?.id ?? ''
-    selectedReviewVersion.value ||= v[0]?.id ?? ''
-    previewVersionId.value ||= v[0]?.id ?? ''
-    selectedTask.value ||= t[0]?.id ?? ''
-    selectedTaskDetailId.value ||= t[0]?.id ?? ''
+    if (!drawingForm.projectId || !p.some((project) => project.id === drawingForm.projectId)) {
+      drawingForm.projectId = p[0]?.id ?? ''
+    }
+    const availableDrawings = dr.filter((drawing) => !drawingForm.projectId || drawing.projectId === drawingForm.projectId)
+    if (!uploadForm.drawingId || !dr.some((drawing) => drawing.id === uploadForm.drawingId)) {
+      uploadForm.drawingId = availableDrawings[0]?.id ?? dr[0]?.id ?? ''
+    }
+    const availableVersions = v.filter((version) => !uploadForm.drawingId || version.drawingId === uploadForm.drawingId)
+    if (!selectedReviewVersion.value || !v.some((version) => version.id === selectedReviewVersion.value)) {
+      selectedReviewVersion.value = availableVersions[0]?.id ?? v[0]?.id ?? ''
+    }
+    if (!previewVersionId.value || !v.some((version) => version.id === previewVersionId.value)) {
+      previewVersionId.value = selectedReviewVersion.value || availableVersions[0]?.id || v[0]?.id || ''
+    }
+    if (!selectedTask.value || !t.some((task) => task.id === selectedTask.value)) {
+      selectedTask.value = t[0]?.id ?? ''
+    }
+    if (!selectedTaskDetailId.value || !t.some((task) => task.id === selectedTaskDetailId.value)) {
+      selectedTaskDetailId.value = selectedTask.value || t[0]?.id || ''
+    }
     compare.leftId ||= v[0]?.id ?? ''
     compare.rightId ||= v[1]?.id ?? v[0]?.id ?? ''
     await refreshPreview()
@@ -477,17 +630,20 @@ async function refreshPreview(resetDiagnostics = false) {
 
 async function login() {
   const result = await api.login(loginState.username, loginState.password)
+  authenticated.value = true
   loginState.label = `已登录：${result.user.displayName}`
   await refreshAll()
 }
 
 async function createProject() {
-  await api.request('/api/projects', { method: 'POST', body: JSON.stringify(projectForm) })
+  const project = await api.request<Project>('/api/projects', { method: 'POST', body: JSON.stringify(projectForm) })
+  drawingForm.projectId = project.id
   await refreshAll()
 }
 
 async function createDrawing() {
-  await api.request('/api/drawings', { method: 'POST', body: JSON.stringify(drawingForm) })
+  const drawing = await api.request<Drawing>('/api/drawings', { method: 'POST', body: JSON.stringify(drawingForm) })
+  uploadForm.drawingId = drawing.id
   await refreshAll()
 }
 
@@ -500,6 +656,7 @@ async function uploadVersion() {
   const version = await api.request<DrawingVersion>('/api/versions/upload', { method: 'POST', body })
   previewVersionId.value = version.id
   selectedReviewVersion.value = version.id
+  compare.leftId ||= version.id
   await refreshAll()
 }
 
@@ -647,6 +804,7 @@ async function createReport() {
   reportContent.value = report.content
   reportActionMessage.value = ''
   output.value = ''
+  tab.value = 'reports'
   await refreshAll()
 }
 
@@ -811,8 +969,12 @@ onBeforeUnmount(releasePreviewFileUrl)
 onMounted(() => {
   refreshSystemHealth().catch(() => undefined)
   if (api.token) {
+    authenticated.value = true
     loginState.label = '已读取本地登录状态'
-    refreshAll().catch(() => localStorage.removeItem('shipcad_token'))
+    refreshAll().catch(() => {
+      authenticated.value = false
+      localStorage.removeItem('shipcad_token')
+    })
   }
 })
 </script>
@@ -845,6 +1007,35 @@ onMounted(() => {
       <div class="topline">
         <strong>{{ loading ? '同步中...' : '商业化MVP工作台' }}</strong>
         <button @click="refreshAll">刷新</button>
+      </div>
+
+      <div class="workflow-panel">
+        <div class="workflow-head">
+          <div>
+            <p class="eyebrow">Review flow</p>
+            <h2>审图流程</h2>
+          </div>
+          <div class="context-strip">
+            <span>项目 {{ shortId(selectedProject?.id) }}</span>
+            <span>图纸 {{ selectedDrawing?.drawingNo ?? '-' }}</span>
+            <span>版本 {{ currentVersion?.versionNo ?? '-' }}</span>
+            <span>任务 {{ selectedTaskDetail ? taskStageLabel(selectedTaskDetail) : '-' }}</span>
+          </div>
+        </div>
+        <div class="workflow-steps">
+          <button
+            v-for="(step, index) in workflowSteps"
+            :key="step.key"
+            type="button"
+            :class="workflowStepClass(step)"
+            :disabled="step.disabled"
+            @click="activateWorkflowStep(step.key)"
+          >
+            <span>{{ index + 1 }}</span>
+            <strong>{{ step.label }}</strong>
+            <small>{{ step.detail }}</small>
+          </button>
+        </div>
       </div>
 
       <section v-if="tab === 'status'">
@@ -909,7 +1100,7 @@ onMounted(() => {
           </form>
           <form class="panel" @submit.prevent="createDrawing">
             <h2>创建图纸</h2>
-            <label>项目<select v-model="drawingForm.projectId"><option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
+            <label>项目<select v-model="drawingForm.projectId"><option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }} / {{ shortId(p.id) }}</option></select></label>
             <label>图号<input v-model="drawingForm.drawingNo" /></label>
             <label>图名<input v-model="drawingForm.title" /></label>
             <label>专业<input v-model="drawingForm.discipline" /></label>
@@ -923,9 +1114,39 @@ onMounted(() => {
           <input type="file" accept=".dxf,.dwg" @change="uploadForm.file = ($event.target as HTMLInputElement).files?.[0] ?? null" />
           <button>上传版本</button>
         </form>
-        <div class="grid two">
-          <div class="panel"><h2>项目</h2><div v-for="p in projects" :key="p.id" class="item"><strong>{{ p.name }}</strong><p>{{ p.shipNo }} / {{ p.owner }}</p></div></div>
-          <div class="panel"><h2>图纸版本</h2><div v-for="v in selectedDrawingVersions" :key="v.id" class="item"><strong>{{ versionLabel(v) }}</strong><p>{{ v.fileName }} / {{ v.parseStatus }} / 实体 {{ parseSummary(v).entityCount ?? 0 }}</p></div></div>
+        <div class="grid three">
+          <div class="panel">
+            <h2>项目</h2>
+            <div v-for="p in projects" :key="p.id" class="item" :class="{ selected: selectedProject?.id === p.id }">
+              <strong>{{ p.name }}</strong>
+              <p>{{ p.shipNo }} / {{ p.owner }}</p>
+              <div class="item-meta"><span>项目号 {{ shortId(p.id) }}</span><button type="button" class="secondary" @click="selectProject(p)">设为当前</button></div>
+            </div>
+          </div>
+          <div class="panel">
+            <h2>图纸</h2>
+            <div v-for="d in selectedProjectDrawings" :key="d.id" class="item" :class="{ selected: selectedDrawing?.id === d.id }">
+              <strong>{{ d.drawingNo }} {{ d.title }}</strong>
+              <p>{{ d.discipline }} / 项目 {{ shortId(d.projectId) }}</p>
+              <div class="item-meta"><span>记录号 {{ shortId(d.id) }}</span><button type="button" class="secondary" @click="selectDrawing(d)">设为当前</button></div>
+            </div>
+            <div v-if="!selectedProjectDrawings.length" class="empty-state">
+              <strong>暂无图纸</strong>
+              <p>当前项目还没有图纸记录。</p>
+            </div>
+          </div>
+          <div class="panel">
+            <h2>图纸版本</h2>
+            <div v-for="v in selectedDrawingVersions" :key="v.id" class="item" :class="{ selected: currentVersion?.id === v.id }">
+              <strong>{{ versionLabel(v) }}</strong>
+              <p>{{ v.fileName }} / {{ v.parseStatus }} / 实体 {{ parseSummary(v).entityCount ?? 0 }}</p>
+              <div class="item-meta"><span>记录号 {{ shortId(v.id) }}</span><button type="button" class="secondary" @click="selectVersion(v)">设为当前</button></div>
+            </div>
+            <div v-if="!selectedDrawingVersions.length" class="empty-state">
+              <strong>暂无版本</strong>
+              <p>当前图纸还没有上传 CAD 版本。</p>
+            </div>
+          </div>
         </div>
       </section>
 

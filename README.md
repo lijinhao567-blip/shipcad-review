@@ -21,6 +21,40 @@
 
 工具已统一放在当前项目 `.tools` 目录，Python 依赖放在 `.venv`。
 
+推荐使用开发脚本启动核心链路：
+
+```powershell
+# 启动 CAD Worker、Spring Boot 后端和 Vue 前端
+.\deploy\start-dev.ps1
+
+# 启动时同时拉起 Vision/OCR Worker
+.\deploy\start-dev.ps1 -WithVision -WithOcr
+
+# 如果只需要跑后端验收，不启动前端
+.\deploy\start-dev.ps1 -NoFrontend
+```
+
+常用运维脚本：
+
+```powershell
+# 检查后端、OpenAPI、CAD Worker、前端和可选 Worker 健康状态
+.\deploy\test-health.ps1
+.\deploy\test-health.ps1 -IncludeVision -IncludeOcr
+
+# 跑完整 golden dataset 演示验收
+.\deploy\run-demo.ps1
+
+# 跑 golden dataset + mock Vision/OCR 多模态验收
+.\deploy\run-demo.ps1 -Multimodal
+
+# 停止由 start-dev.ps1 启动的开发服务
+.\deploy\stop-dev.ps1
+```
+
+`start-dev.ps1` 会把运行状态和日志写入 `.run/`，该目录仅用于本地运行，不进入仓库。
+
+手动启动方式如下：
+
 ```powershell
 # 1. 启动 CAD Worker，用于 DXF / DWG 解析
 .\.venv\Scripts\python.exe -m uvicorn cad_worker.app.main:app --host 127.0.0.1 --port 9000
@@ -51,6 +85,11 @@ npm run dev
 - Vision Worker：http://127.0.0.1:9100/docs
 - OCR Worker：http://127.0.0.1:9200/docs
 
+健康检查：
+
+- 核心健康接口：http://127.0.0.1:8080/api/health
+- PowerShell 检查：`.\deploy\test-health.ps1`
+
 默认账号：
 
 ```text
@@ -72,6 +111,8 @@ Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 
 ```powershell
 .\.venv\Scripts\python.exe tools\run_golden_e2e.py --keep-going
+# 或
+.\deploy\run-demo.ps1
 ```
 
 Multimodal evidence E2E needs the backend and CAD Worker running. By default it starts deterministic mock Vision/OCR workers on `127.0.0.1:9100` and `127.0.0.1:9200`, so it can validate review-task orchestration for CAD rendering, YOLO evidence, OCR evidence, rule consumption, and report output without real YOLO weights or Tesseract:
@@ -80,7 +121,12 @@ Multimodal evidence E2E needs the backend and CAD Worker running. By default it 
 .\.venv\Scripts\python.exe tools\run_multimodal_evidence_e2e.py
 ```
 
-If Windows blocks `9100/9200`, start the backend with matching `SHIPCAD_VISION_URL` and `SHIPCAD_OCR_URL`, then pass `--vision-port` and `--ocr-port` to the script.
+If Windows blocks `9100/9200`, start the backend with matching ports and pass the same ports to the script:
+
+```powershell
+.\deploy\start-dev.ps1 -NoFrontend -VisionPort 9110 -OcrPort 9210
+.\deploy\run-demo.ps1 -Multimodal -VisionPort 9110 -OcrPort 9210
+```
 
 ## 当前已实现能力
 

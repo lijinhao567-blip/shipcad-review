@@ -6,6 +6,13 @@ admin / admin123
 
 ## 演示流程
 
+推荐先用开发脚本启动系统并确认健康状态：
+
+```powershell
+.\deploy\start-dev.ps1
+.\deploy\test-health.ps1
+```
+
 1. 启动 CAD Worker、Spring Boot 后端和 Vue 前端；需要符号识别时额外启动 Vision Worker，需要文字识别时额外启动 OCR Worker。
 2. 登录系统。
 3. 创建项目和图纸。
@@ -15,6 +22,18 @@ admin / admin123
 7. 查看问题清单并完成整改流转。
 8. 生成审查报告。报告页会展示审查摘要、解析证据摘要、问题清单和问题证据详情，并支持复制/下载 Markdown。
 9. 上传 `valid_ship_section.dxf` 作为新版本并做版本对比。
+
+也可以直接运行演示验收脚本：
+
+```powershell
+.\deploy\run-demo.ps1
+```
+
+该脚本会检查核心服务健康状态，然后执行 golden dataset 端到端验收。需要关闭脚本启动的服务时运行：
+
+```powershell
+.\deploy\stop-dev.ps1
+```
 
 ## YOLOv8 Vision Worker
 

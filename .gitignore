@@ -1,6 +1,7 @@
 .tools/
 .venv/
 .npm-cache/
+.run/
 data/
 node_modules/
 dist/

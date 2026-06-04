@@ -14,6 +14,7 @@
 - OCR evidence：配置 Tesseract 后，`POST /api/versions/{versionId}/ocr-recognize` 和 `POST /api/versions/{versionId}/ocr-recognize-rendered` 应能保存 `OCR_TEXT` evidence；未安装 OCR 引擎时应返回明确错误，不能伪造识别文本。
 - 安全：Token 鉴权、文件类型限制、20MB 限制、审计日志。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
+- 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`deploy/test-health.ps1` 应能检查后端、数据库、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环。
 
 ## Evidence Regression Checks
 

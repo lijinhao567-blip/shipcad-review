@@ -23,6 +23,8 @@
 - Every generated issue returned by `/api/issues` should include `aiExplanation` with summary, reason, and basis generated from the evidence chain.
 - Version-level visual detections should be stored as `YOLO_SYMBOL` evidence and remain separate from `ReviewIssue` until rules explicitly consume them.
 - Version-level OCR regions should be stored as `OCR_TEXT` evidence and remain separate from `ReviewIssue` until rules explicitly consume them.
+- `OCR_PLACEHOLDER_TEXT` should generate an issue-level `OCR_TEXT` evidence reference with `sourceEvidenceId` when OCR text contains unfinished placeholders.
+- `YOLO_TITLE_BLOCK_CAD_MISSING` should generate an issue-level `YOLO_SYMBOL` evidence reference with `sourceEvidenceId` when visual title-block evidence conflicts with CAD structured parsing.
 - `tools/run_golden_e2e.py` verifies these evidence checks for the golden DXF dataset.
 
 ## 验收目标

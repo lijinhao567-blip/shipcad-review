@@ -89,6 +89,8 @@ Evidence
 
 Current implementation uses `ReviewEvidence` as the first production schema. `ReviewIssue` returns a transient `evidences` array in API responses, while evidence rows are persisted independently in `review_evidence`. `KnowledgeClause` is also implemented as the minimal rule-basis store before a full graph database is introduced.
 
+Current review tasks now load version-level `YOLO_SYMBOL` and `OCR_TEXT` evidence into `RuleEngine`. Rules that consume these evidence rows generate issue-level evidence references containing `sourceEvidenceId`, so the original OCR/YOLO output remains intact while the issue chain stays auditable.
+
 ## Review Flow
 
 ```text
@@ -172,11 +174,15 @@ Store YOLO detections from Vision Worker and display them as overlays.
 
 Current status: first ingestion layer implemented. `vision_worker` exposes `/detect` for PNG/JPG images and returns YOLOv8 detections with class, confidence, bounding box, image size, and engine metadata. The backend exposes `POST /api/versions/{versionId}/vision-detect` to run detection and persists each detection as version-level `YOLO_SYMBOL` `ReviewEvidence`. The frontend can trigger this manually from the preview workspace and list the generated visual evidence. This stage does not yet include trained ship-symbol weights, automatic DXF-to-image rendering, issue generation from visual evidence, or overlay rendering on top of the official DXF preview.
 
+Rule consumption status: implemented for `YOLO_TITLE_BLOCK_CAD_MISSING`. If YOLO detects `title_block` but CAD structured parsing does not find a title block, the system creates a `ReviewIssue` with `RULE_RESULT`, `YOLO_SYMBOL`, and optional `KNOWLEDGE_CLAUSE` evidence.
+
 ### Stage 4: OCR Evidence
 
 Store recognized text regions and allow rules to query them.
 
 Current status: first ingestion layer implemented. `ocr_worker` exposes `/ocr` for PNG/JPG images and returns text regions with recognized text, confidence, bounding box, image size, OCR engine, and language metadata. The backend exposes `POST /api/versions/{versionId}/ocr-recognize` and persists each region as version-level `OCR_TEXT` `ReviewEvidence`. The frontend can trigger OCR manually from the preview workspace and list the generated text evidence. This stage does not yet include automatic DXF-to-image rendering, OCR overlay rendering, or rules that consume OCR evidence to generate issues.
+
+Rule consumption status: implemented for `OCR_PLACEHOLDER_TEXT`. If OCR evidence text contains `TBD`, `TODO`, `XXX`, `待定`, or `未定`, the system creates a `ReviewIssue` with `RULE_RESULT`, `OCR_TEXT`, and optional `KNOWLEDGE_CLAUSE` evidence.
 
 ### Stage 5: Knowledge Evidence
 

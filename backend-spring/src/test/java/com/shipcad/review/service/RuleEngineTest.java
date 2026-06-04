@@ -4,6 +4,7 @@ import com.shipcad.review.domain.DrawingVersion;
 import com.shipcad.review.domain.EvidenceType;
 import com.shipcad.review.domain.KnowledgeClause;
 import com.shipcad.review.domain.ParsedEntity;
+import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewRule;
 import com.shipcad.review.domain.Severity;
@@ -247,6 +248,80 @@ class RuleEngineTest {
         assertThat(issues).isEmpty();
     }
 
+    @Test
+    void consumesOcrPlaceholderEvidence() {
+        DrawingVersion version = version("version_ocr_placeholder", "V1");
+        ReviewRule rule = rule("OCR_PLACEHOLDER_TEXT", Severity.MEDIUM);
+        rule.knowledgeClauseCode = "BASIS_OCR_TEXT_EVIDENCE";
+        ReviewEvidence ocr = evidence(
+                "evidence_ocr_tbd",
+                EvidenceType.OCR_TEXT,
+                "ocr:text#0",
+                "ocr_worker.tesseract",
+                "{\"text\":\"TBD bracket detail\",\"confidence\":0.91,\"xyxy\":[10,20,80,34],\"engine\":\"tesseract\"}"
+        );
+
+        List<ReviewIssue> issues = new RuleEngine().run(
+                "task_ocr_placeholder",
+                version,
+                summary(5, Map.of("LINE", 5), List.of("S-HULL"), List.of("TITLE_BLOCK")),
+                List.of(),
+                List.of(rule),
+                List.of(clause("BASIS_OCR_TEXT_EVIDENCE", "OCR文字证据审查依据")),
+                List.of(ocr)
+        );
+
+        assertThat(issues).singleElement().satisfies(issue -> {
+            assertThat(issue.ruleCode).isEqualTo("OCR_PLACEHOLDER_TEXT");
+            assertThat(issue.description).contains("TBD bracket detail");
+            assertThat(issue.evidences).extracting(evidence -> evidence.evidenceType)
+                    .contains(EvidenceType.RULE_RESULT, EvidenceType.OCR_TEXT, EvidenceType.KNOWLEDGE_CLAUSE);
+            assertThat(issue.evidences).filteredOn(evidence -> evidence.evidenceType == EvidenceType.OCR_TEXT)
+                    .singleElement()
+                    .satisfies(evidence -> {
+                        assertThat(evidence.sourceId).isEqualTo("ocr:text#0");
+                        assertThat(evidence.payloadJson).contains("\"sourceEvidenceId\":\"evidence_ocr_tbd\"");
+                        assertThat(evidence.payloadJson).contains("\"text\":\"TBD bracket detail\"");
+                    });
+        });
+    }
+
+    @Test
+    void crossChecksYoloTitleBlockAgainstCadParsing() {
+        DrawingVersion version = version("version_yolo_title", "V1");
+        ReviewEvidence titleBlock = evidence(
+                "evidence_yolo_title",
+                EvidenceType.YOLO_SYMBOL,
+                "symbol:title_block#0",
+                "vision_worker.yolov8",
+                "{\"className\":\"title_block\",\"confidence\":0.88,\"xyxy\":[100,200,600,380],\"engine\":\"ultralytics-yolov8\"}"
+        );
+
+        List<ReviewIssue> issues = new RuleEngine().run(
+                "task_yolo_title",
+                version,
+                summary(5, Map.of("LINE", 5), List.of("S-HULL"), List.of()),
+                List.of(),
+                List.of(
+                        rule("TITLE_BLOCK_REQUIRED", Severity.HIGH),
+                        rule("YOLO_TITLE_BLOCK_CAD_MISSING", Severity.MEDIUM)
+                ),
+                List.of(),
+                List.of(titleBlock)
+        );
+
+        assertThat(issues).extracting(issue -> issue.ruleCode)
+                .containsExactly("YOLO_TITLE_BLOCK_CAD_MISSING");
+        assertThat(issues).singleElement().satisfies(issue -> {
+            assertThat(issue.description).contains("title_block");
+            assertThat(issue.evidences).extracting(evidence -> evidence.evidenceType)
+                    .contains(EvidenceType.RULE_RESULT, EvidenceType.YOLO_SYMBOL);
+            assertThat(issue.evidences).filteredOn(evidence -> evidence.evidenceType == EvidenceType.YOLO_SYMBOL)
+                    .singleElement()
+                    .satisfies(evidence -> assertThat(evidence.payloadJson).contains("\"sourceEvidenceId\":\"evidence_yolo_title\""));
+        });
+    }
+
     private DrawingVersion version(String id, String versionNo) {
         DrawingVersion version = new DrawingVersion();
         version.id = id;
@@ -293,6 +368,23 @@ class RuleEngineTest {
         rule.severity = severity;
         rule.enabled = true;
         return rule;
+    }
+
+    private ReviewEvidence evidence(String id, EvidenceType type, String sourceId, String sourceLabel, String payloadJson) {
+        ReviewEvidence evidence = new ReviewEvidence();
+        evidence.id = id;
+        evidence.issueId = null;
+        evidence.taskId = null;
+        evidence.versionId = "version_test";
+        evidence.ruleCode = type == EvidenceType.OCR_TEXT ? "OCR_RECOGNITION" : "VISION_DETECTION";
+        evidence.evidenceType = type;
+        evidence.sourceId = sourceId;
+        evidence.sourceLabel = sourceLabel;
+        evidence.summary = sourceLabel + " evidence";
+        evidence.payloadJson = payloadJson;
+        evidence.confidence = 0.9;
+        evidence.createdAt = Ids.now();
+        return evidence;
     }
 
     private KnowledgeClause clause(String code, String title) {

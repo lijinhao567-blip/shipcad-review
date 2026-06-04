@@ -60,6 +60,10 @@ public class DataInitializer {
                 "项目内部审查依据：TBD、TODO、XXX、待定、未定等占位内容表示设计表达尚未完成，不应进入正式审查或交付报告。",
                 "MVP_INTERNAL_RULE_BASIS", "text,completeness",
                 "将占位文本替换为正式设计说明或明确删除。");
+        addClauseIfMissing("BASIS_OCR_TEXT_EVIDENCE", "OCR文字证据审查依据",
+                "项目内部审查依据：OCR识别结果可作为CAD结构化文本之外的补充证据，用于发现截图或非标准文本实体中的占位内容。",
+                "MVP_INTERNAL_RULE_BASIS", "ocr,text,evidence",
+                "复核OCR定位区域，将占位文本替换为正式设计说明。");
         addClauseIfMissing("BASIS_ENTITY_DENSITY", "实体数量合理性依据",
                 "项目内部审查依据：结构图纸通常应包含足够的几何实体、标注和标题信息；实体数量异常偏少时，应优先排除空图、错传或解析失败。",
                 "MVP_INTERNAL_RULE_BASIS", "cad,parse,quality",
@@ -68,6 +72,10 @@ public class DataInitializer {
                 "项目内部审查依据：结构图纸应保留关键尺寸标注，且尺寸实体应放置在约定的尺寸图层，以便审图人员快速定位和复核。",
                 "MVP_INTERNAL_RULE_BASIS", "dimension,layer,review",
                 "补充关键结构尺寸，并将 DIMENSION 实体移动到 DIM-* 图层。");
+        addClauseIfMissing("BASIS_VISUAL_CAD_CROSS_CHECK", "视觉证据与CAD解析交叉校验依据",
+                "项目内部审查依据：视觉识别与CAD结构化解析结果不一致时，应暴露为复核提示，避免单一证据源遗漏标题栏、符号或关键标注。",
+                "MVP_INTERNAL_RULE_BASIS", "vision,cad,cross-check",
+                "复核视觉检测区域、CAD块命名和DXF导出方式，必要时完善解析适配。");
 
         addRuleIfMissing("LAYER_NAME_STANDARD", "图层命名规范检查", "检查图层是否使用推荐前缀。", Severity.MEDIUM, "BASIS_LAYER_NAMING");
         addRuleIfMissing("EMPTY_LAYER_CHECK", "空图层检查", "发现没有任何实体的非系统图层。", Severity.LOW, "BASIS_EMPTY_LAYER");
@@ -79,6 +87,8 @@ public class DataInitializer {
         addRuleIfMissing("VERSION_TITLE_CONSISTENCY", "标题栏版次一致性检查", "检查标题栏版次是否与系统上传版次一致。", Severity.MEDIUM, "BASIS_VERSION_TRACEABILITY");
         addRuleIfMissing("DIMENSION_REQUIRED", "尺寸标注存在性检查", "检查结构图纸是否包含尺寸标注。", Severity.MEDIUM, "BASIS_DIMENSION_EVIDENCE");
         addRuleIfMissing("DIMENSION_LAYER_STANDARD", "尺寸标注图层规范检查", "检查尺寸标注是否位于 DIM-* 图层。", Severity.MEDIUM, "BASIS_DIMENSION_EVIDENCE");
+        addRuleIfMissing("OCR_PLACEHOLDER_TEXT", "OCR占位文本检查", "检查OCR文字证据中是否存在 TBD、待定、XXX 等未完成标注。", Severity.MEDIUM, "BASIS_OCR_TEXT_EVIDENCE");
+        addRuleIfMissing("YOLO_TITLE_BLOCK_CAD_MISSING", "视觉标题栏与CAD解析交叉校验", "检查YOLO识别到标题栏但CAD解析未提取标题栏块的证据冲突。", Severity.MEDIUM, "BASIS_VISUAL_CAD_CROSS_CHECK");
     }
 
     private void addClauseIfMissing(String code, String title, String content, String source, String tags, String remediationHint) {

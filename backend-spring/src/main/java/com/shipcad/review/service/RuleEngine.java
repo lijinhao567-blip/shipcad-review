@@ -43,11 +43,24 @@ public class RuleEngine {
     }
 
     public List<ReviewIssue> run(String taskId, DrawingVersion version, WorkerSummary summary, List<ParsedEntity> entities, List<ReviewRule> rules, List<KnowledgeClause> clauses) {
+        return run(taskId, version, summary, entities, rules, clauses, List.of());
+    }
+
+    public List<ReviewIssue> run(
+            String taskId,
+            DrawingVersion version,
+            WorkerSummary summary,
+            List<ParsedEntity> entities,
+            List<ReviewRule> rules,
+            List<KnowledgeClause> clauses,
+            List<ReviewEvidence> versionEvidences
+    ) {
         ReviewContext context = new ReviewContext(
                 taskId,
                 version,
                 summary,
                 entities,
+                versionEvidences == null ? List.of() : versionEvidences,
                 rules.stream().filter(rule -> rule.enabled).collect(Collectors.toMap(rule -> rule.code, rule -> rule)),
                 clauses.stream()
                         .filter(clause -> clause.code != null && !clause.code.isBlank())
@@ -68,6 +81,8 @@ public class RuleEngine {
         easyRules.register(new VersionTitleConsistencyRule());
         easyRules.register(new DimensionRequiredRule());
         easyRules.register(new DimensionLayerRule());
+        easyRules.register(new OcrPlaceholderTextRule());
+        easyRules.register(new YoloTitleBlockCrossCheckRule());
 
         RulesEngine engine = new DefaultRulesEngine();
         engine.fire(easyRules, facts);
@@ -79,6 +94,7 @@ public class RuleEngine {
             DrawingVersion version,
             WorkerSummary summary,
             List<ParsedEntity> entities,
+            List<ReviewEvidence> versionEvidences,
             Map<String, ReviewRule> enabledRules,
             Map<String, KnowledgeClause> knowledgeClauses,
             List<ReviewIssue> issues
@@ -144,8 +160,47 @@ public class RuleEngine {
             return VERSION_PATTERN.matcher(normalizeVersion(value)).matches();
         }
 
+        protected List<ReviewEvidence> versionEvidences(Facts facts, EvidenceType type) {
+            return context(facts).versionEvidences().stream()
+                    .filter(evidence -> type.equals(evidence.evidenceType))
+                    .toList();
+        }
+
+        protected List<ReviewEvidence> yoloClassEvidences(Facts facts, String className) {
+            return versionEvidences(facts, EvidenceType.YOLO_SYMBOL).stream()
+                    .filter(evidence -> className.equalsIgnoreCase(payloadString(evidence, "className")))
+                    .toList();
+        }
+
+        protected boolean hasYoloClass(Facts facts, String className) {
+            return !yoloClassEvidences(facts, className).isEmpty();
+        }
+
+        protected String payloadString(ReviewEvidence evidence, String key) {
+            Object value = payload(evidence).get(key);
+            return value == null ? "" : value.toString();
+        }
+
+        protected boolean hasPlaceholderText(String text) {
+            String value = text == null ? "" : text;
+            String upper = value.toUpperCase(Locale.ROOT);
+            return PLACEHOLDERS.stream().anyMatch(flag -> upper.contains(flag) || value.contains(flag));
+        }
+
         private boolean containsIgnoreCase(String value, String part) {
             return value != null && value.toUpperCase(Locale.ROOT).contains(part.toUpperCase(Locale.ROOT));
+        }
+
+        @SuppressWarnings("unchecked")
+        protected Map<String, Object> payload(ReviewEvidence evidence) {
+            if (evidence.payloadJson == null || evidence.payloadJson.isBlank()) {
+                return Map.of();
+            }
+            try {
+                return MAPPER.readValue(evidence.payloadJson, Map.class);
+            } catch (JsonProcessingException ignored) {
+                return Map.of();
+            }
         }
 
         @SuppressWarnings("unchecked")
@@ -167,6 +222,10 @@ public class RuleEngine {
         }
 
         protected void add(Facts facts, String code, String title, String description, String layer, String entityRef, String suggestion) {
+            add(facts, code, title, description, layer, entityRef, suggestion, null);
+        }
+
+        protected void add(Facts facts, String code, String title, String description, String layer, String entityRef, String suggestion, ReviewEvidence sourceEvidence) {
             ReviewContext context = context(facts);
             ReviewRule rule = context.enabledRules().get(code);
             if (rule == null) {
@@ -188,7 +247,9 @@ public class RuleEngine {
             issue.updatedAt = issue.createdAt;
             issue.assignee = "";
             issue.evidences.add(ruleEvidence(context, issue));
-            if (notBlank(entityRef)) {
+            if (sourceEvidence != null) {
+                issue.evidences.add(versionEvidenceReference(context, issue, sourceEvidence));
+            } else if (notBlank(entityRef)) {
                 issue.evidences.add(cadEntityEvidence(context, issue, entityRef));
             } else if (notBlank(layer)) {
                 issue.evidences.add(cadLayerEvidence(context, issue, layer));
@@ -280,6 +341,29 @@ public class RuleEngine {
                     "CAD parse summary supports this version-level issue.",
                     payload
             );
+        }
+
+        private ReviewEvidence versionEvidenceReference(ReviewContext context, ReviewIssue issue, ReviewEvidence source) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("sourceEvidenceId", source.id);
+            payload.put("sourceEvidenceType", source.evidenceType);
+            payload.put("sourceRuleCode", source.ruleCode);
+            payload.put("sourceId", source.sourceId);
+            payload.put("sourceLabel", source.sourceLabel);
+            payload.put("sourcePayload", payload(source));
+            ReviewEvidence evidence = evidence(
+                    context,
+                    issue,
+                    source.evidenceType,
+                    value(source.sourceId).isBlank() ? source.id : source.sourceId,
+                    value(source.sourceLabel),
+                    value(source.summary).isBlank()
+                            ? "Version-level " + source.evidenceType + " evidence supports this issue."
+                            : source.summary,
+                    payload
+            );
+            evidence.confidence = source.confidence == null ? 1.0 : source.confidence;
+            return evidence;
         }
 
         private ReviewEvidence knowledgeClauseEvidence(ReviewContext context, ReviewIssue issue, ReviewRule rule) {
@@ -414,7 +498,10 @@ public class RuleEngine {
             }
             String texts = String.join(" ", safe(context(facts).summary().texts()));
             String blocks = String.join(" ", safe(context(facts).summary().blocks()));
-            return !blocks.toUpperCase(Locale.ROOT).contains("TITLE") && !texts.contains("图号") && !texts.contains("版次");
+            return !hasYoloClass(facts, "title_block")
+                    && !blocks.toUpperCase(Locale.ROOT).contains("TITLE")
+                    && !texts.contains("图号")
+                    && !texts.contains("版次");
         }
 
         @Action
@@ -452,9 +539,7 @@ public class RuleEngine {
         }
 
         private boolean hasPlaceholder(ParsedEntity entity) {
-            String text = entity.textValue == null ? "" : entity.textValue;
-            String upper = text.toUpperCase(Locale.ROOT);
-            return PLACEHOLDERS.stream().anyMatch(flag -> upper.contains(flag) || text.contains(flag));
+            return hasPlaceholderText(entity.textValue);
         }
     }
 
@@ -550,6 +635,50 @@ public class RuleEngine {
         private boolean invalidDimensionLayer(ParsedEntity entity) {
             String layer = entity.layerName == null ? "" : entity.layerName;
             return isType(entity, "DIMENSION") && !layer.startsWith("DIM-");
+        }
+    }
+
+    @Rule(name = "OCR占位文本检查", priority = 11)
+    public static class OcrPlaceholderTextRule extends BaseReviewRule {
+        @Condition
+        public boolean when(Facts facts) {
+            return enabled(facts, "OCR_PLACEHOLDER_TEXT")
+                    && versionEvidences(facts, EvidenceType.OCR_TEXT).stream().anyMatch(this::hasPlaceholder);
+        }
+
+        @Action
+        public void then(Facts facts) {
+            versionEvidences(facts, EvidenceType.OCR_TEXT).stream()
+                    .filter(this::hasPlaceholder)
+                    .forEach(evidence -> {
+                        String text = payloadString(evidence, "text");
+                        add(facts, "OCR_PLACEHOLDER_TEXT", "OCR识别到未完成占位文本",
+                                "OCR文字证据包含占位内容：" + text,
+                                "", "", "请结合图纸截图位置复核该文字，并在提交审查前替换为正式设计说明。", evidence);
+                    });
+        }
+
+        private boolean hasPlaceholder(ReviewEvidence evidence) {
+            return hasPlaceholderText(payloadString(evidence, "text"));
+        }
+    }
+
+    @Rule(name = "YOLO标题栏与CAD结构化解析交叉校验", priority = 12)
+    public static class YoloTitleBlockCrossCheckRule extends BaseReviewRule {
+        @Condition
+        public boolean when(Facts facts) {
+            return enabled(facts, "YOLO_TITLE_BLOCK_CAD_MISSING")
+                    && !hasTitleBlock(facts)
+                    && hasYoloClass(facts, "title_block");
+        }
+
+        @Action
+        public void then(Facts facts) {
+            yoloClassEvidences(facts, "title_block").forEach(evidence ->
+                    add(facts, "YOLO_TITLE_BLOCK_CAD_MISSING", "视觉识别到标题栏但CAD解析未提取标题栏块",
+                            "YOLO视觉证据识别到 title_block，但CAD结构化解析摘要中未发现标题栏块，可能存在块命名不规范、导出方式异常或解析遗漏。",
+                            "", "", "请复核标题栏块命名和DXF导出方式，必要时补充标准标题栏块或调整解析适配。", evidence)
+            );
         }
     }
 }

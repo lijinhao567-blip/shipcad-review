@@ -301,7 +301,18 @@ public class ReviewPlatformService {
             }
             WorkerSummary summary = fromJson(version.parseSummaryJson, WorkerSummary.class);
             List<ParsedEntity> parsedEntities = entities.findByVersionId(task.versionId);
-            List<ReviewIssue> generated = ruleEngine.run(task.id, version, summary, parsedEntities, rules.findByEnabledTrue(), knowledgeClauses.findAll());
+            List<ReviewEvidence> versionEvidences = evidences.findByVersionId(task.versionId).stream()
+                    .filter(evidence -> evidence.issueId == null || evidence.issueId.isBlank())
+                    .toList();
+            List<ReviewIssue> generated = ruleEngine.run(
+                    task.id,
+                    version,
+                    summary,
+                    parsedEntities,
+                    rules.findByEnabledTrue(),
+                    knowledgeClauses.findAll(),
+                    versionEvidences
+            );
             issues.saveAll(generated);
             evidences.saveAll(generated.stream()
                     .flatMap(issue -> safeEvidences(issue).stream())

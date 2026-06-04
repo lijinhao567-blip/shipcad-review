@@ -112,6 +112,8 @@ Current deterministic rule coverage:
 - `VERSION_TITLE_CONSISTENCY`: title block revision inconsistent with uploaded version number.
 - `DIMENSION_REQUIRED`: structured drawings without parsed `DIMENSION` entities.
 - `DIMENSION_LAYER_STANDARD`: dimensions placed outside `DIM-*` layers.
+- `OCR_PLACEHOLDER_TEXT`: OCR text evidence contains unfinished placeholders such as `TBD`, `TODO`, `XXX`, `待定`, or `未定`.
+- `YOLO_TITLE_BLOCK_CAD_MISSING`: YOLO detects a visual title block while CAD structured parsing does not extract a title block.
 
 ## YOLOv8 Dataset
 
@@ -139,11 +141,11 @@ Coordinates are normalized to image width and height.
 
 Recommended first symbol classes are defined in `docs/yolov8_symbol_taxonomy.md`.
 
-The current backend can ingest model outputs as `YOLO_SYMBOL` evidence through `POST /api/versions/{versionId}/vision-detect`, but the vision dataset is not part of the deterministic golden E2E dataset yet. Do not store private ship drawings, private labels, or model weights in the repository.
+The current backend can ingest model outputs as `YOLO_SYMBOL` evidence through `POST /api/versions/{versionId}/vision-detect`. `YOLO_TITLE_BLOCK_CAD_MISSING` can consume this evidence when it is already stored, but the vision dataset is not part of the deterministic golden E2E dataset yet. Do not store private ship drawings, private labels, or model weights in the repository.
 
 ## OCR Dataset
 
-OCR evidence currently uses rendered PNG/JPG images and stores recognized text as `OCR_TEXT` evidence through `POST /api/versions/{versionId}/ocr-recognize`. OCR samples should be kept separate from deterministic DXF rule samples until rules explicitly consume OCR output.
+OCR evidence currently uses rendered PNG/JPG images and stores recognized text as `OCR_TEXT` evidence through `POST /api/versions/{versionId}/ocr-recognize`. `OCR_PLACEHOLDER_TEXT` can consume this evidence when it is already stored. OCR samples should stay separate from deterministic DXF rule samples until the OCR regression dataset is defined.
 
 Recommended future structure:
 

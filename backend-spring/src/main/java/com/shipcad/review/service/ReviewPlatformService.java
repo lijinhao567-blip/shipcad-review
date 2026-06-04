@@ -58,6 +58,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ReviewPlatformService {
+    private static final int DEFAULT_RENDER_WIDTH = 1600;
+    private static final int DEFAULT_RENDER_HEIGHT = 1200;
+
     private final ProjectRepository projects;
     private final DrawingRepository drawings;
     private final DrawingVersionRepository versions;
@@ -214,12 +217,43 @@ public class ReviewPlatformService {
     }
 
     @Transactional
+    public Path renderVersionImage(String versionId, boolean force, AppUser actor) throws IOException {
+        DrawingVersion version = versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        Path target = renderedImagePath(versionId);
+        if (!force && Files.isRegularFile(target) && Files.size(target) > 0) {
+            return target;
+        }
+        byte[] png = worker.render(Path.of(version.filePath), DEFAULT_RENDER_WIDTH, DEFAULT_RENDER_HEIGHT);
+        if (png == null || png.length == 0) {
+            throw new IllegalStateException("CAD Worker returned an empty rendered image");
+        }
+        Files.createDirectories(target.getParent());
+        Files.write(target, png);
+        audit.record(actor.username, "VERSION_RENDER", "version", versionId, Map.of(
+                "imagePath", target.toString(),
+                "width", DEFAULT_RENDER_WIDTH,
+                "height", DEFAULT_RENDER_HEIGHT
+        ));
+        return target;
+    }
+
+    @Transactional
     public List<ReviewEvidence> runVisionDetection(String versionId, MultipartFile file, double confidence, AppUser actor) throws IOException {
         versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
-        if (confidence <= 0 || confidence > 1) {
-            throw new IllegalArgumentException("视觉检测置信度必须在0到1之间");
-        }
+        validateVisionConfidence(confidence);
         Path image = storeVisionImage(versionId, file);
+        return runVisionDetectionOnImage(versionId, image, confidence, actor, "VISION_DETECT", "uploaded-image");
+    }
+
+    @Transactional
+    public List<ReviewEvidence> runVisionDetectionFromRenderedImage(String versionId, double confidence, boolean forceRender, AppUser actor) throws IOException {
+        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        validateVisionConfidence(confidence);
+        Path image = renderVersionImage(versionId, forceRender, actor);
+        return runVisionDetectionOnImage(versionId, image, confidence, actor, "VISION_DETECT_RENDERED", "rendered-version-image");
+    }
+
+    private List<ReviewEvidence> runVisionDetectionOnImage(String versionId, Path image, double confidence, AppUser actor, String auditAction, String inputSource) {
         VisionDetectionResponse response = visionWorker.detect(image, confidence);
         List<VisionDetection> detections = response == null || response.detections() == null ? List.of() : response.detections();
         List<ReviewEvidence> generated = new ArrayList<>();
@@ -231,20 +265,31 @@ public class ReviewPlatformService {
         Map<String, Object> detail = new HashMap<>();
         detail.put("versionId", versionId);
         detail.put("imagePath", image.toString());
+        detail.put("inputSource", inputSource);
         detail.put("confidenceThreshold", confidence);
         detail.put("detectionCount", generated.size());
         detail.put("engine", response == null ? "" : response.engine());
-        audit.record(actor.username, "VISION_DETECT", "version", versionId, detail);
+        audit.record(actor.username, auditAction, "version", versionId, detail);
         return generated;
     }
 
     @Transactional
     public List<ReviewEvidence> runOcrRecognition(String versionId, MultipartFile file, double confidence, AppUser actor) throws IOException {
         versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
-        if (confidence < 0 || confidence > 1) {
-            throw new IllegalArgumentException("OCR置信度必须在0到1之间");
-        }
+        validateOcrConfidence(confidence);
         Path image = storeOcrImage(versionId, file);
+        return runOcrRecognitionOnImage(versionId, image, confidence, actor, "OCR_RECOGNIZE", "uploaded-image");
+    }
+
+    @Transactional
+    public List<ReviewEvidence> runOcrRecognitionFromRenderedImage(String versionId, double confidence, boolean forceRender, AppUser actor) throws IOException {
+        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        validateOcrConfidence(confidence);
+        Path image = renderVersionImage(versionId, forceRender, actor);
+        return runOcrRecognitionOnImage(versionId, image, confidence, actor, "OCR_RECOGNIZE_RENDERED", "rendered-version-image");
+    }
+
+    private List<ReviewEvidence> runOcrRecognitionOnImage(String versionId, Path image, double confidence, AppUser actor, String auditAction, String inputSource) {
         OcrResponse response = ocrWorker.recognize(image, confidence);
         List<OcrRegion> regions = response == null || response.regions() == null ? List.of() : response.regions();
         List<ReviewEvidence> generated = new ArrayList<>();
@@ -256,11 +301,12 @@ public class ReviewPlatformService {
         Map<String, Object> detail = new HashMap<>();
         detail.put("versionId", versionId);
         detail.put("imagePath", image.toString());
+        detail.put("inputSource", inputSource);
         detail.put("confidenceThreshold", confidence);
         detail.put("regionCount", generated.size());
         detail.put("engine", response == null ? "" : response.engine());
         detail.put("language", response == null ? "" : response.language());
-        audit.record(actor.username, "OCR_RECOGNIZE", "version", versionId, detail);
+        audit.record(actor.username, auditAction, "version", versionId, detail);
         return generated;
     }
 
@@ -503,6 +549,22 @@ public class ReviewPlatformService {
 
     private Path storeOcrImage(String versionId, MultipartFile file) throws IOException {
         return storeEvidenceImage(versionId, file, "ocr", "ocr", "ocr-image.png", "OCR识别");
+    }
+
+    private Path renderedImagePath(String versionId) {
+        return storageRoot.resolve("rendered").resolve(versionId).resolve("render.png").toAbsolutePath().normalize();
+    }
+
+    private void validateVisionConfidence(double confidence) {
+        if (confidence <= 0 || confidence > 1) {
+            throw new IllegalArgumentException("视觉检测置信度必须在0到1之间");
+        }
+    }
+
+    private void validateOcrConfidence(double confidence) {
+        if (confidence < 0 || confidence > 1) {
+            throw new IllegalArgumentException("OCR置信度必须在0到1之间");
+        }
     }
 
     private Path storeEvidenceImage(String versionId, MultipartFile file, String folderName, String idPrefix, String fallbackName, String label) throws IOException {

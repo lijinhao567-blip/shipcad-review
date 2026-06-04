@@ -6,7 +6,7 @@
 
 - 前端：Vue 3 + TypeScript + Vite + dxf-viewer WebGL正式预览，Canvas仅作诊断视图
 - 后端：Spring Boot 3 + Spring Data JPA + OpenAPI
-- CAD Worker：Python + FastAPI + ezdxf + LibreDWG 命令行适配
+- CAD Worker：Python + FastAPI + ezdxf + matplotlib 渲染 + LibreDWG 命令行适配
 - Vision Worker：Python + FastAPI + Ultralytics YOLOv8
 - OCR Worker：Python + FastAPI + Tesseract OCR
 - 规则引擎：Easy Rules
@@ -15,7 +15,7 @@
 
 ## 架构边界
 
-当前仓库已经按前端、后端、CAD Worker、Vision Worker、OCR Worker 拆分。上传文件先生成版本记录，审查任务进入后端任务队列，再由后台线程调用 CAD Worker 解析并执行规则审查。DWG 解析通过 LibreDWG `dwg2dxf` 适配，YOLOv8 识别通过独立 Vision Worker 接入，OCR 文字识别通过独立 OCR Worker 接入；训练数据、模型权重和真实图纸不进入仓库。
+当前仓库已经按前端、后端、CAD Worker、Vision Worker、OCR Worker 拆分。上传文件先生成版本记录，审查任务进入后端任务队列，再由后台线程调用 CAD Worker 解析并执行规则审查。CAD Worker 可将图纸版本渲染为 PNG，供 YOLOv8 和 OCR 自动采集视觉/文字证据。DWG 解析通过 LibreDWG `dwg2dxf` 适配，YOLOv8 识别通过独立 Vision Worker 接入，OCR 文字识别通过独立 OCR Worker 接入；训练数据、模型权重和真实图纸不进入仓库。
 
 ## 本地启动
 
@@ -74,7 +74,7 @@ Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 .\.venv\Scripts\python.exe tools\run_golden_e2e.py --keep-going
 ```
 
-Multimodal evidence E2E needs the backend and CAD Worker running. By default it starts deterministic mock Vision/OCR workers on `127.0.0.1:9100` and `127.0.0.1:9200`, so it can validate the official `vision-detect` and `ocr-recognize` API flow without real YOLO weights or Tesseract:
+Multimodal evidence E2E needs the backend and CAD Worker running. By default it starts deterministic mock Vision/OCR workers on `127.0.0.1:9100` and `127.0.0.1:9200`, so it can validate CAD rendering plus the official `vision-detect-rendered` and `ocr-recognize-rendered` API flow without real YOLO weights or Tesseract:
 
 ```powershell
 .\.venv\Scripts\python.exe tools\run_multimodal_evidence_e2e.py
@@ -86,11 +86,12 @@ If Windows blocks `9100/9200`, start the backend with matching `SHIPCAD_VISION_U
 
 - DXF 上传、异步解析和实体几何提取
 - DWG 上传入口和 LibreDWG 转 DXF 解析适配，需要本机安装 `dwg2dxf`
+- CAD Worker 图纸渲染：支持将 DXF/DWG 版本渲染为 PNG，并缓存到 `data/rendered/{versionId}`
 - 审查任务队列：支持 PENDING、RUNNING、FINISHED、FAILED 状态和失败重试
 - dxf-viewer DXF正式预览，支持图层查看；Canvas仅用于人工诊断解析实体
 - 问题定位高亮：按问题关联图元或图层高亮显示
-- YOLOv8 Vision Worker 骨架：支持上传渲染图并返回符号检测框，需配置模型权重
-- OCR Worker 骨架：支持上传渲染图并返回文字区域，需安装 Tesseract OCR
+- YOLOv8 Vision Worker 骨架：支持使用版本渲染图或手动上传图像生成符号检测框，需配置模型权重
+- OCR Worker 骨架：支持使用版本渲染图或手动上传图像生成文字区域，需安装 Tesseract OCR
 - Easy Rules 规则审查：图层命名、空图层、标题栏、版次格式、占位文本、实体数量、OCR占位文本、YOLO/CAD标题栏交叉校验
 - 问题整改闭环、审查报告、统计看板和版本对比
 

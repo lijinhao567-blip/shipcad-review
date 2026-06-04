@@ -380,6 +380,29 @@ async function runVisionDetection() {
   }
 }
 
+async function runVisionDetectionRendered() {
+  if (!previewVersionId.value) {
+    visionMessage.value = '请选择图纸版本'
+    return
+  }
+  const confidence = Number(visionForm.confidence)
+  if (!Number.isFinite(confidence) || confidence <= 0 || confidence > 1) {
+    visionMessage.value = '置信度必须在0到1之间'
+    return
+  }
+  visionDetecting.value = true
+  visionMessage.value = ''
+  try {
+    const generated = await api.request<ReviewEvidence[]>(`/api/versions/${previewVersionId.value}/vision-detect-rendered?confidence=${confidence}`, { method: 'POST' })
+    await refreshVersionEvidences()
+    visionMessage.value = `基于版本渲染图的视觉检测完成：生成 ${generated.length} 条 YOLO_SYMBOL 证据`
+  } catch (reason) {
+    visionMessage.value = `基于版本渲染图的视觉检测失败：${messageOf(reason)}`
+  } finally {
+    visionDetecting.value = false
+  }
+}
+
 async function runOcrRecognition() {
   if (!previewVersionId.value) {
     ocrMessage.value = '请选择图纸版本'
@@ -404,6 +427,29 @@ async function runOcrRecognition() {
     ocrMessage.value = `OCR识别完成：生成 ${generated.length} 条 OCR_TEXT 证据`
   } catch (reason) {
     ocrMessage.value = `OCR识别失败：${messageOf(reason)}`
+  } finally {
+    ocrRecognizing.value = false
+  }
+}
+
+async function runOcrRecognitionRendered() {
+  if (!previewVersionId.value) {
+    ocrMessage.value = '请选择图纸版本'
+    return
+  }
+  const confidence = Number(ocrForm.confidence)
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+    ocrMessage.value = '置信度必须在0到1之间'
+    return
+  }
+  ocrRecognizing.value = true
+  ocrMessage.value = ''
+  try {
+    const generated = await api.request<ReviewEvidence[]>(`/api/versions/${previewVersionId.value}/ocr-recognize-rendered?confidence=${confidence}`, { method: 'POST' })
+    await refreshVersionEvidences()
+    ocrMessage.value = `基于版本渲染图的OCR识别完成：生成 ${generated.length} 条 OCR_TEXT 证据`
+  } catch (reason) {
+    ocrMessage.value = `基于版本渲染图的OCR识别失败：${messageOf(reason)}`
   } finally {
     ocrRecognizing.value = false
   }
@@ -696,12 +742,13 @@ onMounted(() => {
             <form class="vision-panel" @submit.prevent="runVisionDetection">
               <div class="diagnostic-title">
                 <strong>YOLOv8视觉证据</strong>
-                <span>上传PNG/JPG图像后生成版本级符号识别证据。</span>
+                <span>可直接使用当前版本渲染图，也可上传PNG/JPG图像做人工对照。</span>
               </div>
               <div class="vision-grid">
                 <label>图像<input type="file" accept=".png,.jpg,.jpeg" @change="visionForm.file = ($event.target as HTMLInputElement).files?.[0] ?? null" /></label>
                 <label>置信度<input v-model.number="visionForm.confidence" type="number" min="0.01" max="1" step="0.01" /></label>
-                <button type="submit" :disabled="visionDetecting || !visionForm.file">{{ visionDetecting ? '检测中' : '视觉检测' }}</button>
+                <button type="button" :disabled="visionDetecting || !previewVersionId" @click="runVisionDetectionRendered">{{ visionDetecting ? '检测中' : '版本渲染图检测' }}</button>
+                <button type="submit" class="secondary" :disabled="visionDetecting || !visionForm.file">{{ visionDetecting ? '检测中' : '上传图检测' }}</button>
               </div>
               <p v-if="visionMessage" class="hint">{{ visionMessage }}</p>
               <div v-if="previewVisionEvidences.length" class="vision-evidence-list">
@@ -714,12 +761,13 @@ onMounted(() => {
             <form class="ocr-panel" @submit.prevent="runOcrRecognition">
               <div class="diagnostic-title">
                 <strong>OCR文字证据</strong>
-                <span>上传PNG/JPG图像后生成版本级文字识别证据。</span>
+                <span>可直接使用当前版本渲染图，也可上传PNG/JPG图像做人工对照。</span>
               </div>
               <div class="ocr-grid">
                 <label>图像<input type="file" accept=".png,.jpg,.jpeg" @change="ocrForm.file = ($event.target as HTMLInputElement).files?.[0] ?? null" /></label>
                 <label>置信度<input v-model.number="ocrForm.confidence" type="number" min="0" max="1" step="0.01" /></label>
-                <button type="submit" :disabled="ocrRecognizing || !ocrForm.file">{{ ocrRecognizing ? '识别中' : 'OCR识别' }}</button>
+                <button type="button" :disabled="ocrRecognizing || !previewVersionId" @click="runOcrRecognitionRendered">{{ ocrRecognizing ? '识别中' : '版本渲染图识别' }}</button>
+                <button type="submit" class="secondary" :disabled="ocrRecognizing || !ocrForm.file">{{ ocrRecognizing ? '识别中' : '上传图识别' }}</button>
               </div>
               <p v-if="ocrMessage" class="hint">{{ ocrMessage }}</p>
               <div v-if="previewOcrEvidences.length" class="ocr-evidence-list">

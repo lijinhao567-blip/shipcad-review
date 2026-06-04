@@ -74,7 +74,7 @@ textarea { min-height: 80px; resize: vertical; }
 .preview-state p { max-width: 560px; margin: 8px auto 0; color: var(--muted); }
 .preview-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 .vision-panel, .ocr-panel { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fff; }
-.vision-grid, .ocr-grid { display: grid; grid-template-columns: minmax(220px, 1fr) 120px auto; gap: 10px; align-items: end; }
+.vision-grid, .ocr-grid { display: grid; grid-template-columns: minmax(220px, 1fr) 120px auto auto; gap: 10px; align-items: end; }
 .vision-grid label, .ocr-grid label { margin-bottom: 0; }
 .vision-evidence-list, .ocr-evidence-list { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
 .vision-evidence-list strong, .ocr-evidence-list strong { display: block; margin-bottom: 6px; }

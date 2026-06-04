@@ -27,4 +27,15 @@ public class CadWorkerClient {
                 .retrieve()
                 .body(WorkerParseResponse.class);
     }
+
+    public byte[] render(Path file, int width, int height) {
+        LinkedMultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", new FileSystemResource(file));
+        return restClient.post()
+                .uri(uri -> uri.path("/render").queryParam("width", width).queryParam("height", height).build())
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(body)
+                .retrieve()
+                .body(byte[].class);
+    }
 }

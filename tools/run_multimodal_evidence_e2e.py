@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import sys
 import threading
@@ -17,9 +16,6 @@ import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DXF = ROOT / "datasets" / "rules" / "cases" / "missing_title_block.dxf"
-PNG_1X1 = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
-)
 REQUIRED_RULES = {"OCR_PLACEHOLDER_TEXT", "YOLO_TITLE_BLOCK_CAD_MISSING"}
 
 
@@ -208,17 +204,15 @@ class MultimodalEvidenceE2E:
         return response.json()
 
     def run_vision_detection(self, version_id: str) -> list[dict[str, Any]]:
-        return self.post_png(f"/api/versions/{version_id}/vision-detect?confidence=0.25", "mock-title-block.png").json()
+        return self.request("POST", f"/api/versions/{version_id}/vision-detect-rendered?confidence=0.25").json()
 
     def run_ocr_recognition(self, version_id: str) -> list[dict[str, Any]]:
-        return self.post_png(f"/api/versions/{version_id}/ocr-recognize?confidence=0.5", "mock-ocr-placeholder.png").json()
+        return self.request("POST", f"/api/versions/{version_id}/ocr-recognize-rendered?confidence=0.5").json()
 
-    def post_png(self, path: str, file_name: str) -> httpx.Response:
-        return self.request(
-            "POST",
-            path,
-            files={"file": (file_name, PNG_1X1, "image/png")},
-        )
+    def rendered_image_check(self, version_id: str) -> None:
+        response = self.request("GET", f"/api/versions/{version_id}/rendered-image")
+        if not response.content.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise AssertionError("rendered-image endpoint did not return PNG content")
 
     def create_review_task(self, version_id: str) -> dict[str, Any]:
         return self.request("POST", "/api/review-tasks", json={"versionId": version_id}).json()
@@ -249,6 +243,7 @@ class MultimodalEvidenceE2E:
         project = self.create_project()
         drawing = self.create_drawing(project["id"])
         version = self.upload_version(drawing["id"], dxf_path)
+        self.rendered_image_check(version["id"])
 
         yolo_version_evidence = self.run_vision_detection(version["id"])
         ocr_version_evidence = self.run_ocr_recognition(version["id"])
@@ -331,7 +326,7 @@ def make_mock_worker(name: str, host: str, port: int, handler: type[BaseHTTPRequ
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run an end-to-end check for YOLO/OCR version evidence being consumed by review rules. "
+            "Run an end-to-end check for rendered CAD images, YOLO/OCR version evidence, and review rule consumption. "
             "The backend and CAD worker must already be running."
         )
     )

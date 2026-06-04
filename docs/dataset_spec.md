@@ -101,7 +101,7 @@ Generation and acceptance commands:
 
 The E2E script uploads each DXF, creates a review task, polls until it finishes, checks the generated `ReviewIssue.ruleCode` set, validates parser summary expectations, verifies issue evidence fields such as `layerName` and `entityRef`, creates an evidence-aware report, checks that report content cites the expected rules/evidence, and checks the authenticated version file endpoint used by the official preview path.
 
-`tools/run_multimodal_evidence_e2e.py` is the deterministic live API regression for OCR/YOLO evidence. It uses the missing-title-block DXF fixture plus mock Vision/OCR workers to verify `vision-detect`, `ocr-recognize`, version evidence endpoints, rule consumption, issue-level `sourceEvidenceId`, AI explanations, and report output.
+`tools/run_multimodal_evidence_e2e.py` is the deterministic live API regression for OCR/YOLO evidence. It uses the missing-title-block DXF fixture plus mock Vision/OCR workers to verify CAD rendering, `vision-detect-rendered`, `ocr-recognize-rendered`, version evidence endpoints, rule consumption, issue-level `sourceEvidenceId`, AI explanations, and report output.
 
 Current deterministic rule coverage:
 
@@ -144,11 +144,11 @@ Coordinates are normalized to image width and height.
 
 Recommended first symbol classes are defined in `docs/yolov8_symbol_taxonomy.md`.
 
-The current backend can ingest model outputs as `YOLO_SYMBOL` evidence through `POST /api/versions/{versionId}/vision-detect`. `YOLO_TITLE_BLOCK_CAD_MISSING` can consume this evidence when it is already stored. The deterministic multimodal E2E script covers the API and rule chain with mock detections; real model accuracy still requires a separate labeled vision dataset. Do not store private ship drawings, private labels, or model weights in the repository.
+The current backend can ingest model outputs as `YOLO_SYMBOL` evidence through `POST /api/versions/{versionId}/vision-detect` for manual diagnostic images and `POST /api/versions/{versionId}/vision-detect-rendered` for automatic detection on the CAD-rendered version image. `YOLO_TITLE_BLOCK_CAD_MISSING` can consume this evidence when it is already stored. The deterministic multimodal E2E script covers the rendered-image API and rule chain with mock detections; real model accuracy still requires a separate labeled vision dataset. Do not store private ship drawings, private labels, or model weights in the repository.
 
 ## OCR Dataset
 
-OCR evidence currently uses rendered PNG/JPG images and stores recognized text as `OCR_TEXT` evidence through `POST /api/versions/{versionId}/ocr-recognize`. `OCR_PLACEHOLDER_TEXT` can consume this evidence when it is already stored. The deterministic multimodal E2E script covers the API and rule chain with mock OCR regions; real OCR accuracy still requires a separate OCR regression dataset.
+OCR evidence currently uses rendered PNG/JPG images and stores recognized text as `OCR_TEXT` evidence through `POST /api/versions/{versionId}/ocr-recognize` for manual diagnostic images and `POST /api/versions/{versionId}/ocr-recognize-rendered` for automatic OCR on the CAD-rendered version image. `OCR_PLACEHOLDER_TEXT` can consume this evidence when it is already stored. The deterministic multimodal E2E script covers the rendered-image API and rule chain with mock OCR regions; real OCR accuracy still requires a separate OCR regression dataset.
 
 Recommended future structure:
 

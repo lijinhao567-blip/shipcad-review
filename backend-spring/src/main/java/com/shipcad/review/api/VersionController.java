@@ -88,6 +88,16 @@ public class VersionController extends BaseController {
         return platform.runVisionDetection(versionId, file, confidence, user(authorization));
     }
 
+    @PostMapping("/{versionId}/vision-detect-rendered")
+    public List<ReviewEvidence> visionDetectRendered(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable String versionId,
+            @RequestParam(defaultValue = "0.25") double confidence,
+            @RequestParam(defaultValue = "false") boolean forceRender
+    ) throws IOException {
+        return platform.runVisionDetectionFromRenderedImage(versionId, confidence, forceRender, user(authorization));
+    }
+
     @PostMapping("/{versionId}/ocr-recognize")
     public List<ReviewEvidence> ocrRecognize(
             @RequestHeader("Authorization") String authorization,
@@ -98,6 +108,16 @@ public class VersionController extends BaseController {
         return platform.runOcrRecognition(versionId, file, confidence, user(authorization));
     }
 
+    @PostMapping("/{versionId}/ocr-recognize-rendered")
+    public List<ReviewEvidence> ocrRecognizeRendered(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable String versionId,
+            @RequestParam(defaultValue = "0.5") double confidence,
+            @RequestParam(defaultValue = "false") boolean forceRender
+    ) throws IOException {
+        return platform.runOcrRecognitionFromRenderedImage(versionId, confidence, forceRender, user(authorization));
+    }
+
     @GetMapping("/{versionId}/evidences")
     public List<ReviewEvidence> evidences(
             @RequestHeader("Authorization") String authorization,
@@ -106,6 +126,25 @@ public class VersionController extends BaseController {
     ) {
         user(authorization);
         return platform.listVersionEvidence(versionId, type);
+    }
+
+    @GetMapping("/{versionId}/rendered-image")
+    public ResponseEntity<Resource> renderedImage(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable String versionId,
+            @RequestParam(defaultValue = "false") boolean force
+    ) throws IOException {
+        Path path = platform.renderVersionImage(versionId, force, user(authorization));
+        if (!Files.isRegularFile(path) || !Files.isReadable(path)) {
+            throw new IllegalArgumentException("渲染图不可读取");
+        }
+        ContentDisposition disposition = ContentDisposition.inline()
+                .filename(versionId + ".png", StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(new UrlResource(path.toUri()));
     }
 
     @GetMapping("/{versionId}/file")

@@ -20,13 +20,13 @@ admin / admin123
 
 Vision Worker 当前提供独立接口，用于后续图纸符号识别。运行前需要准备模型权重并设置 `YOLO_MODEL_PATH`。模型权重和真实训练数据不进入仓库。
 
-启动 Vision Worker 后，可在“问题闭环”的预览工作区上传 PNG/JPG 图像并触发视觉检测。后端会把检测结果保存为当前版本的 `YOLO_SYMBOL` 证据。已实现规则 `YOLO_TITLE_BLOCK_CAD_MISSING` 会在视觉识别到标题栏但 CAD 解析未提取标题栏块时生成审查问题；其他符号类规则仍需后续扩展。
+启动 Vision Worker 后，可在“问题闭环”的预览工作区点击“版本渲染图检测”，系统会先通过 CAD Worker 生成当前版本 PNG，再触发视觉检测；也可以上传 PNG/JPG 图像做人工对照。后端会把检测结果保存为当前版本的 `YOLO_SYMBOL` 证据。已实现规则 `YOLO_TITLE_BLOCK_CAD_MISSING` 会在视觉识别到标题栏但 CAD 解析未提取标题栏块时生成审查问题；其他符号类规则仍需后续扩展。
 
 ## OCR Worker
 
 OCR Worker 当前提供独立接口，用于后续图纸文字识别。运行前需要安装 Tesseract OCR；中文图纸文字需要额外安装 `chi_sim` 语言数据并设置 `OCR_LANG=eng+chi_sim`。
 
-启动 OCR Worker 后，可在“问题闭环”的预览工作区上传 PNG/JPG 图像并触发 OCR 识别。后端会把识别结果保存为当前版本的 `OCR_TEXT` 证据。已实现规则 `OCR_PLACEHOLDER_TEXT` 会在 OCR 文字包含 `TBD`、`TODO`、`XXX`、`待定`、`未定` 等占位内容时生成审查问题；其他 OCR 规则仍需后续扩展。
+启动 OCR Worker 后，可在“问题闭环”的预览工作区点击“版本渲染图识别”，系统会先通过 CAD Worker 生成当前版本 PNG，再触发 OCR 识别；也可以上传 PNG/JPG 图像做人工对照。后端会把识别结果保存为当前版本的 `OCR_TEXT` 证据。已实现规则 `OCR_PLACEHOLDER_TEXT` 会在 OCR 文字包含 `TBD`、`TODO`、`XXX`、`待定`、`未定` 等占位内容时生成审查问题；其他 OCR 规则仍需后续扩展。
 
 ## Multimodal Evidence Acceptance
 
@@ -36,4 +36,4 @@ After the backend and CAD Worker are running, use the deterministic multimodal E
 .\.venv\Scripts\python.exe tools\run_multimodal_evidence_e2e.py
 ```
 
-The script starts mock Vision/OCR workers by default, uploads a DXF fixture, creates `YOLO_SYMBOL` and `OCR_TEXT` version evidence through the official endpoints, runs a review task, checks issue-level `sourceEvidenceId` references, and verifies that the report contains the multimodal evidence. Real model quality still needs separate labeled datasets.
+The script starts mock Vision/OCR workers by default, uploads a DXF fixture, renders the version to PNG, creates `YOLO_SYMBOL` and `OCR_TEXT` version evidence through the rendered-image endpoints, runs a review task, checks issue-level `sourceEvidenceId` references, and verifies that the report contains the multimodal evidence. Real model quality still needs separate labeled datasets.

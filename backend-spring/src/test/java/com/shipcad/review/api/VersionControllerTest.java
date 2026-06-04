@@ -46,4 +46,26 @@ class VersionControllerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().exists()).isTrue();
     }
+
+    @Test
+    void renderedImageReturnsPngResource() throws Exception {
+        AuthService auth = mock(AuthService.class);
+        DrawingVersionRepository versions = mock(DrawingVersionRepository.class);
+        ParsedEntityRepository entities = mock(ParsedEntityRepository.class);
+        ReviewPlatformService platform = mock(ReviewPlatformService.class);
+        VersionController controller = new VersionController(auth, versions, entities, platform);
+
+        Path file = tempDir.resolve("render.png");
+        Files.write(file, new byte[]{(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'});
+        AppUser actor = new AppUser();
+
+        when(auth.requireUser("Bearer token")).thenReturn(actor);
+        when(platform.renderVersionImage("version-1", false, actor)).thenReturn(file);
+
+        ResponseEntity<Resource> response = controller.renderedImage("Bearer token", "version-1", false);
+
+        assertThat(response.getHeaders().getContentType().toString()).isEqualTo("image/png");
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().exists()).isTrue();
+    }
 }

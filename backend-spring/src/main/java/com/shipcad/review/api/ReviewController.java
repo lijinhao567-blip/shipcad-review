@@ -57,7 +57,7 @@ public class ReviewController extends BaseController {
 
     @PostMapping("/review-tasks")
     public ReviewTask createTask(@RequestHeader("Authorization") String authorization, @Valid @RequestBody ReviewTaskRequest request) {
-        return platform.createReviewTask(request.versionId(), user(authorization));
+        return platform.createReviewTask(request, user(authorization));
     }
 
     @PostMapping("/review-tasks/{taskId}/retry")

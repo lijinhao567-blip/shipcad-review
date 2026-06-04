@@ -13,7 +13,7 @@
 - `parsed_entity`：DXF 图元摘要。
 - `review_rule`：审查规则；`knowledge_clause_code` 用于绑定规则依据条款。
 - `knowledge_clause`：规则依据、规范条款或内部审查知识条目。
-- `review_task`：审查任务，包含 PENDING、RUNNING、FINISHED、FAILED 状态和失败原因。
+- `review_task`：审查任务，包含 PENDING、RUNNING、FINISHED、FAILED 状态、失败原因和可选自动 Vision/OCR 证据采集配置。
 - `review_issue`：规则命中问题。
 - `review_evidence`：审查证据，保存 CAD 图元、CAD 图层、解析摘要、规则结果、知识条款以及后续 YOLO/OCR 证据。
 - `remediation_record`：整改记录。
@@ -43,7 +43,7 @@
 - `CAD_SUMMARY`：版本级问题的解析摘要证据。
 - `KNOWLEDGE_CLAUSE`：规则绑定的依据条款证据。
 
-`YOLO_SYMBOL` 已作为版本级视觉证据接入，`OCR_TEXT` 已作为版本级文字证据接入。后续 Vision Worker、OCR Worker 和知识图谱模块接入时，应继续写入同一张证据表；已生成问题的证据由 `review_issue.evidences` 返回，版本级证据由版本 evidence 接口返回。规则消费版本级 evidence 时，会生成新的 issue-level evidence 引用，并在 `payloadJson.sourceEvidenceId` 中指向原始证据。
+`YOLO_SYMBOL` 已作为视觉证据接入，`OCR_TEXT` 已作为文字证据接入。手动生成的版本级证据 `task_id` 为空，可被后续审查任务复用；审查任务自动采集的证据会写入当前 `review_task.id`，规则引擎只消费手动版本级证据和当前任务自动证据，避免重复审查时历史自动证据造成重复问题。后续 Vision Worker、OCR Worker 和知识图谱模块接入时，应继续写入同一张证据表；已生成问题的证据由 `review_issue.evidences` 返回，版本级证据由版本 evidence 接口返回。规则消费 evidence 时，会生成新的 issue-level evidence 引用，并在 `payloadJson.sourceEvidenceId` 中指向原始证据。
 
 ## 迁移建议
 

@@ -39,6 +39,11 @@ export type ReviewTask = {
   startedAt: string | null
   finishedAt: string | null
   errorMessage: string | null
+  autoVision?: boolean
+  autoOcr?: boolean
+  forceRender?: boolean
+  visionConfidence?: number
+  ocrConfidence?: number
 }
 
 export type ReviewIssue = {

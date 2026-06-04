@@ -24,7 +24,14 @@ public final class ApiDtos {
     public record DrawingRequest(@NotBlank String projectId, @NotBlank String drawingNo, @NotBlank String title, String discipline) {
     }
 
-    public record ReviewTaskRequest(@NotBlank String versionId) {
+    public record ReviewTaskRequest(
+            @NotBlank String versionId,
+            Boolean autoVision,
+            Boolean autoOcr,
+            Boolean forceRender,
+            Double visionConfidence,
+            Double ocrConfidence
+    ) {
     }
 
     public record IssueUpdateRequest(IssueStatus status, String assignee, String note) {

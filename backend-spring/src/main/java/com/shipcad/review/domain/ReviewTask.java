@@ -14,4 +14,9 @@ public class ReviewTask {
     public Instant finishedAt;
     public int issueCount;
     public String errorMessage;
+    public Boolean autoVision;
+    public Boolean autoOcr;
+    public Boolean forceRender;
+    public Double visionConfidence;
+    public Double ocrConfidence;
 }

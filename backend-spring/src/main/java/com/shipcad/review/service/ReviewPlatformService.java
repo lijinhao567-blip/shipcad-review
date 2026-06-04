@@ -19,6 +19,7 @@ import com.shipcad.review.dto.ApiDtos.IssueUpdateRequest;
 import com.shipcad.review.dto.ApiDtos.OcrRegion;
 import com.shipcad.review.dto.ApiDtos.OcrResponse;
 import com.shipcad.review.dto.ApiDtos.ProjectRequest;
+import com.shipcad.review.dto.ApiDtos.ReviewTaskRequest;
 import com.shipcad.review.dto.ApiDtos.VisionDetection;
 import com.shipcad.review.dto.ApiDtos.VisionDetectionResponse;
 import com.shipcad.review.dto.ApiDtos.WorkerEntity;
@@ -242,7 +243,7 @@ public class ReviewPlatformService {
         versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
         validateVisionConfidence(confidence);
         Path image = storeVisionImage(versionId, file);
-        return runVisionDetectionOnImage(versionId, image, confidence, actor, "VISION_DETECT", "uploaded-image");
+        return runVisionDetectionOnImage(versionId, null, image, confidence, actor, "VISION_DETECT", "uploaded-image");
     }
 
     @Transactional
@@ -250,20 +251,21 @@ public class ReviewPlatformService {
         versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
         validateVisionConfidence(confidence);
         Path image = renderVersionImage(versionId, forceRender, actor);
-        return runVisionDetectionOnImage(versionId, image, confidence, actor, "VISION_DETECT_RENDERED", "rendered-version-image");
+        return runVisionDetectionOnImage(versionId, null, image, confidence, actor, "VISION_DETECT_RENDERED", "rendered-version-image");
     }
 
-    private List<ReviewEvidence> runVisionDetectionOnImage(String versionId, Path image, double confidence, AppUser actor, String auditAction, String inputSource) {
+    private List<ReviewEvidence> runVisionDetectionOnImage(String versionId, String taskId, Path image, double confidence, AppUser actor, String auditAction, String inputSource) {
         VisionDetectionResponse response = visionWorker.detect(image, confidence);
         List<VisionDetection> detections = response == null || response.detections() == null ? List.of() : response.detections();
         List<ReviewEvidence> generated = new ArrayList<>();
         for (int index = 0; index < detections.size(); index += 1) {
-            generated.add(visionEvidence(versionId, image, response, detections.get(index), index));
+            generated.add(visionEvidence(versionId, taskId, image, response, detections.get(index), index, inputSource));
         }
         evidences.saveAll(generated);
 
         Map<String, Object> detail = new HashMap<>();
         detail.put("versionId", versionId);
+        detail.put("taskId", taskId == null ? "" : taskId);
         detail.put("imagePath", image.toString());
         detail.put("inputSource", inputSource);
         detail.put("confidenceThreshold", confidence);
@@ -278,7 +280,7 @@ public class ReviewPlatformService {
         versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
         validateOcrConfidence(confidence);
         Path image = storeOcrImage(versionId, file);
-        return runOcrRecognitionOnImage(versionId, image, confidence, actor, "OCR_RECOGNIZE", "uploaded-image");
+        return runOcrRecognitionOnImage(versionId, null, image, confidence, actor, "OCR_RECOGNIZE", "uploaded-image");
     }
 
     @Transactional
@@ -286,20 +288,21 @@ public class ReviewPlatformService {
         versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
         validateOcrConfidence(confidence);
         Path image = renderVersionImage(versionId, forceRender, actor);
-        return runOcrRecognitionOnImage(versionId, image, confidence, actor, "OCR_RECOGNIZE_RENDERED", "rendered-version-image");
+        return runOcrRecognitionOnImage(versionId, null, image, confidence, actor, "OCR_RECOGNIZE_RENDERED", "rendered-version-image");
     }
 
-    private List<ReviewEvidence> runOcrRecognitionOnImage(String versionId, Path image, double confidence, AppUser actor, String auditAction, String inputSource) {
+    private List<ReviewEvidence> runOcrRecognitionOnImage(String versionId, String taskId, Path image, double confidence, AppUser actor, String auditAction, String inputSource) {
         OcrResponse response = ocrWorker.recognize(image, confidence);
         List<OcrRegion> regions = response == null || response.regions() == null ? List.of() : response.regions();
         List<ReviewEvidence> generated = new ArrayList<>();
         for (int index = 0; index < regions.size(); index += 1) {
-            generated.add(ocrEvidence(versionId, image, response, regions.get(index), index));
+            generated.add(ocrEvidence(versionId, taskId, image, response, regions.get(index), index, inputSource));
         }
         evidences.saveAll(generated);
 
         Map<String, Object> detail = new HashMap<>();
         detail.put("versionId", versionId);
+        detail.put("taskId", taskId == null ? "" : taskId);
         detail.put("imagePath", image.toString());
         detail.put("inputSource", inputSource);
         detail.put("confidenceThreshold", confidence);
@@ -310,16 +313,51 @@ public class ReviewPlatformService {
         return generated;
     }
 
+    public ReviewTask createReviewTask(ReviewTaskRequest request, AppUser actor) {
+        return createReviewTask(
+                request.versionId(),
+                bool(request.autoVision()),
+                bool(request.autoOcr()),
+                bool(request.forceRender()),
+                confidenceOrDefault(request.visionConfidence(), 0.25),
+                confidenceOrDefault(request.ocrConfidence(), 0.5),
+                actor
+        );
+    }
+
     public ReviewTask createReviewTask(String versionId, AppUser actor) {
+        return createReviewTask(versionId, false, false, false, 0.25, 0.5, actor);
+    }
+
+    private ReviewTask createReviewTask(String versionId, boolean autoVision, boolean autoOcr, boolean forceRender,
+                                        double visionConfidence, double ocrConfidence, AppUser actor) {
         versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        if (autoVision) {
+            validateVisionConfidence(visionConfidence);
+        }
+        if (autoOcr) {
+            validateOcrConfidence(ocrConfidence);
+        }
         ReviewTask task = new ReviewTask();
         task.id = Ids.next("task");
         task.versionId = versionId;
         task.status = "PENDING";
         task.startedAt = Ids.now();
         task.errorMessage = "";
+        task.autoVision = autoVision;
+        task.autoOcr = autoOcr;
+        task.forceRender = forceRender;
+        task.visionConfidence = visionConfidence;
+        task.ocrConfidence = ocrConfidence;
         tasks.save(task);
-        audit.record(actor.username, "REVIEW_QUEUED", "task", task.id, Map.of("versionId", versionId));
+        audit.record(actor.username, "REVIEW_QUEUED", "task", task.id, Map.of(
+                "versionId", versionId,
+                "autoVision", autoVision,
+                "autoOcr", autoOcr,
+                "forceRender", forceRender,
+                "visionConfidence", visionConfidence,
+                "ocrConfidence", ocrConfidence
+        ));
 
         String actorUsername = actor.username;
         reviewTaskExecutor.execute(() ->
@@ -330,7 +368,15 @@ public class ReviewPlatformService {
 
     public ReviewTask retryReviewTask(String taskId, AppUser actor) {
         ReviewTask oldTask = tasks.findById(taskId).orElseThrow(() -> new IllegalArgumentException("审查任务不存在"));
-        return createReviewTask(oldTask.versionId, actor);
+        return createReviewTask(
+                oldTask.versionId,
+                bool(oldTask.autoVision),
+                bool(oldTask.autoOcr),
+                bool(oldTask.forceRender),
+                confidenceOrDefault(oldTask.visionConfidence, 0.25),
+                confidenceOrDefault(oldTask.ocrConfidence, 0.5),
+                actor
+        );
     }
 
     private void runQueuedReviewTask(String taskId, String actorUsername) {
@@ -345,10 +391,12 @@ public class ReviewPlatformService {
             if (!"SUCCESS".equals(version.parseStatus)) {
                 version = parseVersion(task.versionId, systemActor(actorUsername));
             }
+            collectAutomaticEvidence(task, systemActor(actorUsername));
             WorkerSummary summary = fromJson(version.parseSummaryJson, WorkerSummary.class);
             List<ParsedEntity> parsedEntities = entities.findByVersionId(task.versionId);
             List<ReviewEvidence> versionEvidences = evidences.findByVersionId(task.versionId).stream()
                     .filter(evidence -> evidence.issueId == null || evidence.issueId.isBlank())
+                    .filter(evidence -> evidence.taskId == null || evidence.taskId.isBlank() || task.id.equals(evidence.taskId))
                     .toList();
             List<ReviewIssue> generated = ruleEngine.run(
                     task.id,
@@ -382,6 +430,35 @@ public class ReviewPlatformService {
             task.errorMessage = message;
             tasks.save(task);
             audit.record(actorUsername, "REVIEW_FAILED", "task", task.id, Map.of("versionId", task.versionId, "error", message));
+        }
+    }
+
+    private void collectAutomaticEvidence(ReviewTask task, AppUser actor) throws IOException {
+        if (!bool(task.autoVision) && !bool(task.autoOcr)) {
+            return;
+        }
+        Path image = renderVersionImage(task.versionId, bool(task.forceRender), actor);
+        if (bool(task.autoVision)) {
+            runVisionDetectionOnImage(
+                    task.versionId,
+                    task.id,
+                    image,
+                    confidenceOrDefault(task.visionConfidence, 0.25),
+                    actor,
+                    "REVIEW_AUTO_VISION_DETECT",
+                    "review-rendered-version-image"
+            );
+        }
+        if (bool(task.autoOcr)) {
+            runOcrRecognitionOnImage(
+                    task.versionId,
+                    task.id,
+                    image,
+                    confidenceOrDefault(task.ocrConfidence, 0.5),
+                    actor,
+                    "REVIEW_AUTO_OCR_RECOGNIZE",
+                    "review-rendered-version-image"
+            );
         }
     }
 
@@ -485,10 +562,12 @@ public class ReviewPlatformService {
         return fromJson(version.parseSummaryJson, WorkerSummary.class);
     }
 
-    private ReviewEvidence visionEvidence(String versionId, Path image, VisionDetectionResponse response, VisionDetection detection, int index) {
+    private ReviewEvidence visionEvidence(String versionId, String taskId, Path image, VisionDetectionResponse response, VisionDetection detection, int index, String inputSource) {
         String className = detection.className() == null || detection.className().isBlank() ? "unknown" : detection.className();
         String confidenceText = detection.confidence() == null ? "-" : String.format(Locale.ROOT, "%.2f", detection.confidence());
         Map<String, Object> payload = new HashMap<>();
+        payload.put("taskId", taskId);
+        payload.put("inputSource", inputSource);
         payload.put("classId", detection.classId());
         payload.put("className", className);
         payload.put("confidence", detection.confidence());
@@ -501,7 +580,7 @@ public class ReviewPlatformService {
         ReviewEvidence evidence = new ReviewEvidence();
         evidence.id = Ids.next("evidence");
         evidence.issueId = null;
-        evidence.taskId = null;
+        evidence.taskId = taskId;
         evidence.versionId = versionId;
         evidence.ruleCode = "VISION_DETECTION";
         evidence.evidenceType = EvidenceType.YOLO_SYMBOL;
@@ -514,10 +593,12 @@ public class ReviewPlatformService {
         return evidence;
     }
 
-    private ReviewEvidence ocrEvidence(String versionId, Path image, OcrResponse response, OcrRegion region, int index) {
+    private ReviewEvidence ocrEvidence(String versionId, String taskId, Path image, OcrResponse response, OcrRegion region, int index, String inputSource) {
         String text = region.text() == null ? "" : region.text();
         String confidenceText = region.confidence() == null ? "-" : String.format(Locale.ROOT, "%.2f", region.confidence());
         Map<String, Object> payload = new HashMap<>();
+        payload.put("taskId", taskId);
+        payload.put("inputSource", inputSource);
         payload.put("text", text);
         payload.put("confidence", region.confidence());
         payload.put("xyxy", region.xyxy());
@@ -530,7 +611,7 @@ public class ReviewPlatformService {
         ReviewEvidence evidence = new ReviewEvidence();
         evidence.id = Ids.next("evidence");
         evidence.issueId = null;
-        evidence.taskId = null;
+        evidence.taskId = taskId;
         evidence.versionId = versionId;
         evidence.ruleCode = "OCR_RECOGNITION";
         evidence.evidenceType = EvidenceType.OCR_TEXT;
@@ -565,6 +646,14 @@ public class ReviewPlatformService {
         if (confidence < 0 || confidence > 1) {
             throw new IllegalArgumentException("OCR置信度必须在0到1之间");
         }
+    }
+
+    private boolean bool(Boolean value) {
+        return Boolean.TRUE.equals(value);
+    }
+
+    private double confidenceOrDefault(Double value, double fallback) {
+        return value == null ? fallback : value;
     }
 
     private Path storeEvidenceImage(String versionId, MultipartFile file, String folderName, String idPrefix, String fallbackName, String label) throws IOException {

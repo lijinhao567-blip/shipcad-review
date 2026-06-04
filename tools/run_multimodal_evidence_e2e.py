@@ -203,19 +203,24 @@ class MultimodalEvidenceE2E:
             )
         return response.json()
 
-    def run_vision_detection(self, version_id: str) -> list[dict[str, Any]]:
-        return self.request("POST", f"/api/versions/{version_id}/vision-detect-rendered?confidence=0.25").json()
-
-    def run_ocr_recognition(self, version_id: str) -> list[dict[str, Any]]:
-        return self.request("POST", f"/api/versions/{version_id}/ocr-recognize-rendered?confidence=0.5").json()
-
     def rendered_image_check(self, version_id: str) -> None:
         response = self.request("GET", f"/api/versions/{version_id}/rendered-image")
         if not response.content.startswith(b"\x89PNG\r\n\x1a\n"):
             raise AssertionError("rendered-image endpoint did not return PNG content")
 
     def create_review_task(self, version_id: str) -> dict[str, Any]:
-        return self.request("POST", "/api/review-tasks", json={"versionId": version_id}).json()
+        return self.request(
+            "POST",
+            "/api/review-tasks",
+            json={
+                "versionId": version_id,
+                "autoVision": True,
+                "autoOcr": True,
+                "forceRender": False,
+                "visionConfidence": 0.25,
+                "ocrConfidence": 0.5,
+            },
+        ).json()
 
     def wait_for_task(self, task_id: str) -> dict[str, Any]:
         deadline = time.time() + self.poll_seconds
@@ -243,23 +248,19 @@ class MultimodalEvidenceE2E:
         project = self.create_project()
         drawing = self.create_drawing(project["id"])
         version = self.upload_version(drawing["id"], dxf_path)
-        self.rendered_image_check(version["id"])
-
-        yolo_version_evidence = self.run_vision_detection(version["id"])
-        ocr_version_evidence = self.run_ocr_recognition(version["id"])
-        if not yolo_version_evidence:
-            raise AssertionError("vision-detect did not create YOLO_SYMBOL evidence")
-        if not ocr_version_evidence:
-            raise AssertionError("ocr-recognize did not create OCR_TEXT evidence")
-        if not self.version_evidence(version["id"], "YOLO_SYMBOL"):
-            raise AssertionError("version evidence endpoint did not return YOLO_SYMBOL evidence")
-        if not self.version_evidence(version["id"], "OCR_TEXT"):
-            raise AssertionError("version evidence endpoint did not return OCR_TEXT evidence")
 
         task = self.create_review_task(version["id"])
         finished = self.wait_for_task(task["id"])
         if finished["status"] != "FINISHED":
             raise AssertionError(f"review task failed: {finished.get('errorMessage')}")
+
+        self.rendered_image_check(version["id"])
+        yolo_version_evidence = self.task_evidence(version["id"], "YOLO_SYMBOL", task["id"])
+        ocr_version_evidence = self.task_evidence(version["id"], "OCR_TEXT", task["id"])
+        if not yolo_version_evidence:
+            raise AssertionError("auto review did not create task-scoped YOLO_SYMBOL evidence")
+        if not ocr_version_evidence:
+            raise AssertionError("auto review did not create task-scoped OCR_TEXT evidence")
 
         issues = self.issues(task["id"])
         self.assert_issue_chain(issues, "YOLO_TITLE_BLOCK_CAD_MISSING", "YOLO_SYMBOL", yolo_version_evidence[0]["id"])
@@ -275,6 +276,13 @@ class MultimodalEvidenceE2E:
             "issueRules": sorted({issue["ruleCode"] for issue in issues}),
             "reportId": report["id"],
         }
+
+    def task_evidence(self, version_id: str, evidence_type: str, task_id: str) -> list[dict[str, Any]]:
+        return [
+            evidence
+            for evidence in self.version_evidence(version_id, evidence_type)
+            if evidence.get("taskId") == task_id
+        ]
 
     def assert_issue_chain(
         self,

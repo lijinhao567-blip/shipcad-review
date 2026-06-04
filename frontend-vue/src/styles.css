@@ -46,6 +46,10 @@ textarea { min-height: 80px; resize: vertical; }
 .inline { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
 .inline h2 { width: 100%; }
 .inline > *:not(h2) { min-width: 180px; flex: 1; }
+.review-task-grid { display: grid; grid-template-columns: minmax(240px, 1fr) 120px 120px repeat(3, auto) auto; gap: 10px; align-items: end; }
+.review-task-grid label { margin-bottom: 0; }
+.check-row { display: flex; align-items: center; gap: 8px; min-height: 40px; color: var(--ink); }
+.check-row input { width: auto; }
 .item { border: 1px solid var(--line); background: #fbfcfe; border-radius: 6px; padding: 12px; margin-bottom: 10px; }
 .item p { margin: 6px 0 0; color: var(--muted); }
 .task-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); background: #fbfcfe; border-radius: 6px; padding: 12px; margin-bottom: 10px; }
@@ -113,6 +117,7 @@ pre { min-height: 300px; padding: 16px; color: #dbeafe; background: #0b1220; bor
 .empty-report p { margin: 0; color: var(--muted); line-height: 1.7; }
 @media (max-width: 960px) {
   .shell, .grid.two, .preview-grid { grid-template-columns: 1fr; }
+  .review-task-grid { grid-template-columns: 1fr; }
   .vision-grid, .ocr-grid { grid-template-columns: 1fr; }
   .kpis, .report-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .report-header { display: grid; }

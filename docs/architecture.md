@@ -19,7 +19,7 @@
 
 ## 技术架构
 
-后端按照 Controller / Service / Repository 分层，CAD解析、CAD渲染和视觉识别作为独立Worker能力接入，避免重型CAD/AI依赖污染核心业务服务。上传版本后先入库，审查任务进入后台队列，由任务线程完成解析、规则执行、问题生成和状态回写。规则通过 Easy Rules 注册和执行，后续可迁移到 Drools 或规则配置中心。文件默认保存到 `data/uploads`，版本渲染图缓存到 `data/rendered/{versionId}`，报告保存到数据库并可导出。
+后端按照 Controller / Service / Repository 分层，CAD解析、CAD渲染和视觉识别作为独立Worker能力接入，避免重型CAD/AI依赖污染核心业务服务。上传版本后先入库，审查任务进入后台队列，由任务线程完成解析；如果任务开启自动 Vision/OCR，则先渲染版本 PNG 并采集任务级证据；随后执行规则、生成问题并回写状态。规则通过 Easy Rules 注册和执行，后续可迁移到 Drools 或规则配置中心。文件默认保存到 `data/uploads`，版本渲染图缓存到 `data/rendered/{versionId}`，报告保存到数据库并可导出。
 
 ## 证据驱动架构
 
@@ -32,7 +32,7 @@
 
 规则引擎消费证据并生成 `ReviewIssue`，AI 基于问题和证据生成解释与报告。详细设计见 `docs/evidence_model.md`。
 
-当前实现中，后端已新增 `ReviewEvidence`/`review_evidence`，现有确定性规则会为每个 `ReviewIssue` 自动保存 `RULE_RESULT` 与 CAD 证据。版本可通过 `/api/versions/{versionId}/rendered-image` 自动渲染为 PNG；Vision Worker 检测结果可通过手动图片或版本渲染图写入 `YOLO_SYMBOL` 证据，图片保存在 `data/vision/{versionId}` 或复用 `data/rendered/{versionId}`；`YOLO_TITLE_BLOCK_CAD_MISSING` 已能消费视觉证据并生成交叉校验问题。OCR Worker 识别结果可通过手动图片或版本渲染图写入 `OCR_TEXT` 证据，图片保存在 `data/ocr/{versionId}` 或复用 `data/rendered/{versionId}`；`OCR_PLACEHOLDER_TEXT` 已能消费 OCR 文字证据并生成问题。更完整的知识图谱后续不应直接绕过问题闭环，而应继续写入同一证据层。
+当前实现中，后端已新增 `ReviewEvidence`/`review_evidence`，现有确定性规则会为每个 `ReviewIssue` 自动保存 `RULE_RESULT` 与 CAD 证据。版本可通过 `/api/versions/{versionId}/rendered-image` 自动渲染为 PNG；Vision Worker 检测结果可通过手动图片、版本渲染图接口或审查任务自动编排写入 `YOLO_SYMBOL` 证据。OCR Worker 识别结果可通过手动图片、版本渲染图接口或审查任务自动编排写入 `OCR_TEXT` 证据。手动版本级证据可被后续任务复用；任务自动采集证据会绑定 `review_task.id`，规则只消费手动证据和当前任务自动证据，避免历史自动证据造成重复问题。更完整的知识图谱后续不应直接绕过问题闭环，而应继续写入同一证据层。
 
 ## 部署架构
 

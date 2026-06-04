@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { api, type Dashboard, type Drawing, type DrawingVersion, type ParsedEntity, type Project, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep } from './api'
+import { api, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ParsedEntity, type Project, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth } from './api'
 
 const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfViewerPreview.vue'))
 const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
 
-const tab = ref<'dashboard' | 'projects' | 'issues' | 'reports'>('dashboard')
+const tab = ref<'dashboard' | 'projects' | 'issues' | 'reports' | 'status'>('dashboard')
 const loginState = reactive({ username: 'admin', password: 'admin123', label: '未登录' })
 const projectForm = reactive({ name: 'A22船舶审图试点', shipNo: 'S-2026-001', owner: '设计院审图组', description: 'DXF优先的AI辅助审图试点项目' })
 const drawingForm = reactive({ projectId: '', drawingNo: 'A22-SEC-001', title: '船体分段结构图', discipline: '船体结构' })
@@ -13,6 +13,7 @@ const uploadForm = reactive({ drawingId: '', versionNo: 'V1', file: null as File
 const reviewOptions = reactive({ autoVision: false, autoOcr: false, forceRender: false, visionConfidence: 0.25, ocrConfidence: 0.5 })
 const selectedReviewVersion = ref('')
 const selectedTask = ref('')
+const selectedTaskDetailId = ref('')
 const previewVersionId = ref('')
 const previewFileUrl = ref('')
 const previewFileError = ref('')
@@ -29,6 +30,9 @@ const output = ref('')
 const reportDocument = ref<ReportDocument | null>(null)
 const reportContent = ref('')
 const reportActionMessage = ref('')
+const systemHealth = ref<SystemHealth | null>(null)
+const healthLoading = ref(false)
+const healthMessage = ref('')
 let previewFileRequestId = 0
 let previewFileVersionId = ''
 
@@ -43,6 +47,21 @@ type ReportSection = {
   level: number
   blocks: ReportBlock[]
   rawLines: string[]
+}
+
+type HealthItem = {
+  key: string
+  name: string
+  status: string
+  required: boolean
+  detail: string
+  endpoint: string
+}
+
+type EvidenceGroup = {
+  type: string
+  label: string
+  items: string[]
 }
 
 const dashboard = ref<Dashboard | null>(null)
@@ -66,6 +85,28 @@ const previewOcrEvidences = computed(() => versionEvidences.value.filter((eviden
 const selectedReportTask = computed(() => tasks.value.find((task) => task.id === selectedTask.value))
 const selectedReportVersion = computed(() => versions.value.find((version) => version.id === selectedReportTask.value?.versionId))
 const selectedReportIssues = computed(() => issues.value.filter((issue) => issue.taskId === selectedTask.value))
+const selectedTaskDetail = computed(() => tasks.value.find((task) => task.id === selectedTaskDetailId.value))
+const selectedTaskDetailIssues = computed(() => issues.value.filter((issue) => issue.taskId === selectedTaskDetailId.value))
+const selectedTaskDetailEvidenceCount = computed(() => selectedTaskDetailIssues.value.reduce((sum, issue) => sum + (issue.evidences?.length ?? 0), 0))
+const systemHealthItems = computed(() => {
+  const health = systemHealth.value
+  if (!health) return []
+  return [
+    {
+      key: 'backend',
+      name: '后端 API',
+      status: health.status || 'unknown',
+      required: true,
+      detail: `健康检查时间：${formatTime(health.time)}`,
+      endpoint: '/api/health'
+    },
+    healthItem('database', '数据库', health.database, true),
+    healthItem('openapi', 'OpenAPI 文档', health.openapi, true),
+    healthItem('cad', 'CAD Worker', health.workers?.cad, true),
+    healthItem('vision', 'Vision Worker', health.workers?.vision, false),
+    healthItem('ocr', 'OCR Worker', health.workers?.ocr, false)
+  ]
+})
 const reportSections = computed(() => parseReportSections(reportContent.value))
 const reportTitle = computed(() => reportSections.value.find((section) => section.level === 1)?.title ?? '审查报告')
 const reportBodySections = computed(() => reportSections.value.filter((section) => section.level === 2))
@@ -91,6 +132,73 @@ function parseSummary(version: DrawingVersion): Record<string, unknown> {
 function summaryNumber(key: string): number {
   const value = reportSummary.value[key]
   return typeof value === 'number' ? value : 0
+}
+
+function healthItem(key: string, name: string, component: HealthComponent | undefined, required: boolean): HealthItem {
+  const status = component?.status || 'unknown'
+  return {
+    key,
+    name: component?.name || name,
+    status,
+    required: component?.required ?? required,
+    detail: healthDetail(component),
+    endpoint: component?.baseUrl || component?.url || '-'
+  }
+}
+
+function healthDetail(component: HealthComponent | undefined): string {
+  if (!component) return '尚未返回该组件状态'
+  if (component.error) return `错误：${component.error}`
+  const parts = []
+  if (component.statusCode) parts.push(`health HTTP ${component.statusCode}`)
+  if (component.capabilitiesStatusCode) parts.push(`capabilities HTTP ${component.capabilitiesStatusCode}`)
+  const capabilities = compactValue(component.capabilities)
+  const health = compactValue(component.health)
+  if (capabilities) parts.push(`能力：${capabilities}`)
+  else if (health) parts.push(`状态：${health}`)
+  return parts.join('；') || '状态已返回，暂无更多细节'
+}
+
+function compactValue(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return shorten(value)
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return shorten(value.map((item) => compactValue(item)).filter(Boolean).join(', '))
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    const preferredKeys = ['status', 'engine', 'engineAvailable', 'modelConfigured', 'modelPath', 'commandAvailable', 'formats', 'version']
+    const preferred = preferredKeys
+      .filter((key) => record[key] != null)
+      .map((key) => `${key}=${compactValue(record[key])}`)
+    if (preferred.length) return shorten(preferred.join('，'))
+    return shorten(JSON.stringify(record))
+  }
+  return shorten(String(value))
+}
+
+function shorten(value: string, length = 160): string {
+  return value.length > length ? `${value.slice(0, length)}...` : value
+}
+
+function healthStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    ok: '正常',
+    degraded: '部分可用',
+    down: '不可用',
+    unknown: '未知'
+  }
+  return labels[status] ?? status
+}
+
+function healthStatusClass(status: string): string {
+  const normalized = ['ok', 'degraded', 'down'].includes(status) ? status : 'unknown'
+  return `health-card ${normalized}`
+}
+
+function formatTime(value?: string | null): string {
+  if (!value) return '-'
+  const time = new Date(value)
+  return Number.isNaN(time.getTime()) ? value : time.toLocaleString()
 }
 
 function parseReportSections(markdown: string): ReportSection[] {
@@ -253,6 +361,7 @@ function taskStepClass(step: ReviewTaskStep): string {
 }
 
 async function refreshAll() {
+  await refreshSystemHealth()
   if (!api.token) return
   loading.value = true
   try {
@@ -275,6 +384,7 @@ async function refreshAll() {
     selectedReviewVersion.value ||= v[0]?.id ?? ''
     previewVersionId.value ||= v[0]?.id ?? ''
     selectedTask.value ||= t[0]?.id ?? ''
+    selectedTaskDetailId.value ||= t[0]?.id ?? ''
     compare.leftId ||= v[0]?.id ?? ''
     compare.rightId ||= v[1]?.id ?? v[0]?.id ?? ''
     await refreshPreview()
@@ -318,6 +428,18 @@ async function refreshVersionEvidences() {
 
 function messageOf(value: unknown): string {
   return value instanceof Error ? value.message : String(value)
+}
+
+async function refreshSystemHealth() {
+  healthLoading.value = true
+  healthMessage.value = ''
+  try {
+    systemHealth.value = await api.request<SystemHealth>('/api/health')
+  } catch (reason) {
+    healthMessage.value = `系统状态获取失败：${messageOf(reason)}`
+  } finally {
+    healthLoading.value = false
+  }
 }
 
 function releasePreviewFileUrl() {
@@ -394,6 +516,7 @@ async function runReview() {
     })
   })
   selectedTask.value = task.id
+  selectedTaskDetailId.value = task.id
   previewVersionId.value = selectedReviewVersion.value
   tab.value = 'issues'
   await refreshAll()
@@ -507,6 +630,7 @@ async function runOcrRecognitionRendered() {
 async function retryTask(task: ReviewTask) {
   const created = await api.request<ReviewTask>(`/api/review-tasks/${task.id}/retry`, { method: 'POST' })
   selectedTask.value = created.id
+  selectedTaskDetailId.value = created.id
   previewVersionId.value = created.versionId
   await refreshAll()
   await waitForTask(created.id)
@@ -581,6 +705,12 @@ function selectIssue(issue: ReviewIssue) {
   previewVersionId.value = issue.versionId
 }
 
+function selectTaskDetail(task: ReviewTask) {
+  selectedTaskDetailId.value = task.id
+  selectedTask.value = task.id
+  previewVersionId.value = task.versionId
+}
+
 function coordinateLabel(entity: ParsedEntity): string {
   if (entity.x == null || entity.y == null) return ''
   return ` / 坐标 ${entity.x.toFixed(1)}, ${entity.y.toFixed(1)}`
@@ -601,9 +731,35 @@ function issueEvidence(issue: ReviewIssue): string {
   return '版本级问题：需要结合图纸版本或审查任务上下文确认'
 }
 
-function structuredEvidenceItems(issue: ReviewIssue): string[] {
-  if (!issue.evidences?.length) return [issueEvidence(issue)]
-  return issue.evidences.map(formatEvidence)
+function groupedEvidence(issue: ReviewIssue): EvidenceGroup[] {
+  if (!issue.evidences?.length) {
+    return [{ type: 'LOCATION', label: '定位证据', items: [issueEvidence(issue)] }]
+  }
+  const order = ['CAD_ENTITY', 'CAD_LAYER', 'CAD_SUMMARY', 'RULE_RESULT', 'KNOWLEDGE_CLAUSE', 'YOLO_SYMBOL', 'OCR_TEXT']
+  const groups = new Map<string, string[]>()
+  for (const evidence of issue.evidences) {
+    const type = evidence.evidenceType || 'UNKNOWN'
+    const items = groups.get(type) ?? []
+    items.push(formatEvidence(evidence))
+    groups.set(type, items)
+  }
+  return [...groups.entries()]
+    .sort(([left], [right]) => orderIndex(order, left) - orderIndex(order, right))
+    .map(([type, items]) => ({ type, label: evidenceTypeLabel(type), items }))
+}
+
+function orderIndex(order: string[], value: string): number {
+  const index = order.indexOf(value)
+  return index === -1 ? order.length : index
+}
+
+function taskStepDetail(step: ReviewTaskStep): string {
+  if (!step.detailJson) return ''
+  try {
+    return compactValue(JSON.parse(step.detailJson))
+  } catch {
+    return shorten(step.detailJson)
+  }
 }
 
 function formatEvidence(evidence: ReviewEvidence): string {
@@ -653,6 +809,7 @@ watch(previewVersionId, () => {
 onBeforeUnmount(releasePreviewFileUrl)
 
 onMounted(() => {
+  refreshSystemHealth().catch(() => undefined)
   if (api.token) {
     loginState.label = '已读取本地登录状态'
     refreshAll().catch(() => localStorage.removeItem('shipcad_token'))
@@ -680,6 +837,7 @@ onMounted(() => {
         <button :class="{ active: tab === 'projects' }" @click="tab = 'projects'">项目与图纸</button>
         <button :class="{ active: tab === 'issues' }" @click="tab = 'issues'">问题闭环</button>
         <button :class="{ active: tab === 'reports' }" @click="tab = 'reports'">报告与对比</button>
+        <button :class="{ active: tab === 'status' }" @click="tab = 'status'">系统状态</button>
       </nav>
     </aside>
 
@@ -688,6 +846,32 @@ onMounted(() => {
         <strong>{{ loading ? '同步中...' : '商业化MVP工作台' }}</strong>
         <button @click="refreshAll">刷新</button>
       </div>
+
+      <section v-if="tab === 'status'">
+        <div class="panel">
+          <div class="section-title">
+            <h2>系统状态</h2>
+            <button type="button" :disabled="healthLoading" @click="refreshSystemHealth">{{ healthLoading ? '检查中' : '重新检查' }}</button>
+          </div>
+          <p class="hint">这里用于确认后端、数据库、OpenAPI 和 Worker 的真实连通性。Vision/OCR 是可选能力，未启动时会显示不可用，但不会阻断核心 CAD 审查链路。</p>
+          <p v-if="healthMessage" class="error">{{ healthMessage }}</p>
+          <div v-if="systemHealthItems.length" class="health-grid">
+            <div v-for="item in systemHealthItems" :key="item.key" :class="healthStatusClass(item.status)">
+              <div class="health-card-head">
+                <strong>{{ item.name }}</strong>
+                <span>{{ item.required ? '必需' : '可选' }}</span>
+              </div>
+              <b>{{ healthStatusLabel(item.status) }}</b>
+              <p>{{ item.detail }}</p>
+              <small>{{ item.endpoint }}</small>
+            </div>
+          </div>
+          <div v-else class="empty-state">
+            <strong>尚未获取系统状态</strong>
+            <p>点击重新检查，确认开发链路是否已启动。</p>
+          </div>
+        </div>
+      </section>
 
       <section v-if="tab === 'dashboard'">
         <div class="kpis">
@@ -760,7 +944,7 @@ onMounted(() => {
         </form>
         <div class="panel">
           <h2>审查任务队列</h2>
-          <div v-for="task in tasks" :key="task.id" class="task-row">
+          <div v-for="task in tasks" :key="task.id" class="task-row" :class="{ selected: selectedTaskDetailId === task.id }">
             <div class="task-main">
               <strong>{{ taskLabel(task) }}</strong>
               <p>阶段：{{ taskStageLabel(task) }}</p>
@@ -774,7 +958,42 @@ onMounted(() => {
                 </span>
               </div>
             </div>
-            <button v-if="task.status === 'FAILED'" @click="retryTask(task)">重试</button>
+            <div class="task-actions">
+              <button type="button" class="secondary" @click="selectTaskDetail(task)">详情</button>
+              <button v-if="task.status === 'FAILED'" @click="retryTask(task)">重试</button>
+            </div>
+          </div>
+        </div>
+        <div v-if="selectedTaskDetail" class="panel task-detail-panel">
+          <div class="section-title">
+            <h2>审查任务详情</h2>
+            <select v-model="selectedTaskDetailId">
+              <option v-for="task in tasks" :key="task.id" :value="task.id">{{ taskLabel(task) }}</option>
+            </select>
+          </div>
+          <div class="task-detail-grid">
+            <div><span>状态</span><strong>{{ selectedTaskDetail.status }}</strong></div>
+            <div><span>阶段</span><strong>{{ taskStageLabel(selectedTaskDetail) }}</strong></div>
+            <div><span>版本</span><strong>{{ taskVersionLabel(selectedTaskDetail) }}</strong></div>
+            <div><span>问题数</span><strong>{{ selectedTaskDetail.issueCount }}</strong></div>
+            <div><span>证据数</span><strong>{{ selectedTaskDetailEvidenceCount }}</strong></div>
+            <div><span>自动证据</span><strong>{{ taskAutomationLabel(selectedTaskDetail) }}</strong></div>
+          </div>
+          <p v-if="selectedTaskDetail.errorMessage" class="error">{{ selectedTaskDetail.errorMessage }}</p>
+          <div v-if="selectedTaskDetail.steps?.length" class="task-step-detail-list">
+            <div v-for="step in selectedTaskDetail.steps" :key="step.id" :class="taskStepClass(step)">
+              <div class="task-step-title">
+                <strong>{{ step.stepName }}</strong>
+                <span>{{ stepStatusLabel(step.status) }}</span>
+              </div>
+              <p>{{ step.message || step.stepCode }}</p>
+              <small>开始：{{ formatTime(step.startedAt) }} / 结束：{{ formatTime(step.finishedAt) }}</small>
+              <code v-if="taskStepDetail(step)">{{ taskStepDetail(step) }}</code>
+            </div>
+          </div>
+          <div v-else class="empty-state">
+            <strong>暂无步骤记录</strong>
+            <p>任务尚未进入后台执行，或旧任务没有生成步骤明细。</p>
           </div>
         </div>
         <div class="preview-grid">
@@ -856,9 +1075,14 @@ onMounted(() => {
               <strong>{{ issue.title }}</strong>
               <p>{{ issue.ruleCode }} / {{ issue.severity }} / {{ issue.status }} / 图层 {{ issue.layerName || '-' }}</p>
               <p class="evidence">{{ issueEvidence(issue) }}</p>
-              <ul class="evidence-list">
-                <li v-for="item in structuredEvidenceItems(issue)" :key="item">{{ item }}</li>
-              </ul>
+              <div class="evidence-groups">
+                <div v-for="group in groupedEvidence(issue)" :key="group.type" class="evidence-group">
+                  <strong>{{ group.label }}</strong>
+                  <ul>
+                    <li v-for="item in group.items" :key="item">{{ item }}</li>
+                  </ul>
+                </div>
+              </div>
               <p>{{ issue.description }}</p>
               <p>建议：{{ issue.suggestion }}</p>
               <div v-if="issue.aiExplanation" class="ai-explanation">

@@ -3,6 +3,27 @@ export type LoginResponse = {
   user: { id: string; username: string; displayName: string; role: string }
 }
 
+export type HealthComponent = {
+  status?: string
+  name?: string
+  required?: boolean
+  baseUrl?: string
+  url?: string
+  statusCode?: number
+  capabilitiesStatusCode?: number
+  error?: string
+  health?: unknown
+  capabilities?: unknown
+}
+
+export type SystemHealth = {
+  status: string
+  time: string
+  database?: HealthComponent
+  openapi?: HealthComponent
+  workers?: Record<string, HealthComponent>
+}
+
 export type Project = {
   id: string
   name: string

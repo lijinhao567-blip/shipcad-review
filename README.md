@@ -15,7 +15,7 @@
 
 ## 架构边界
 
-当前仓库已经按前端、后端、CAD Worker、Vision Worker、OCR Worker 拆分。上传文件先生成版本记录，审查任务进入后端任务队列，再由后台线程调用 CAD Worker 解析并执行规则审查。审查任务可选自动采集视觉/OCR证据：先将图纸版本渲染为 PNG，再调用 YOLOv8 和 OCR Worker，最后统一进入规则引擎。每个审查任务会记录当前阶段和 PARSE、RENDER、VISION、OCR、RULES 步骤状态，便于定位失败原因。DWG 解析通过 LibreDWG `dwg2dxf` 适配；训练数据、模型权重和真实图纸不进入仓库。
+当前仓库已经按前端、后端、CAD Worker、Vision Worker、OCR Worker 拆分。上传文件先生成版本记录，审查任务进入后端任务队列，再由后台线程调用 CAD Worker 解析并执行规则审查。审查任务可选自动采集视觉/OCR证据：先将图纸版本渲染为 PNG，再调用 YOLOv8 和 OCR Worker，最后统一进入规则引擎。每个审查任务会记录当前阶段和 PARSE、RENDER、VISION、OCR、RULES 步骤状态，前端提供任务详情页用于查看每一步的状态、时间和错误细节。DWG 解析通过 LibreDWG `dwg2dxf` 适配；训练数据、模型权重和真实图纸不进入仓库。
 
 ## 本地启动
 
@@ -88,6 +88,7 @@ npm run dev
 健康检查：
 
 - 核心健康接口：http://127.0.0.1:8080/api/health
+- 前端系统状态页：登录前后均可在“系统状态”查看后端、数据库、OpenAPI、CAD Worker 和可选 Vision/OCR Worker 状态
 - PowerShell 检查：`.\deploy\test-health.ps1`
 
 默认账号：
@@ -134,12 +135,13 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 - DWG 上传入口和 LibreDWG 转 DXF 解析适配，需要本机安装 `dwg2dxf`
 - CAD Worker 图纸渲染：支持将 DXF/DWG 版本渲染为 PNG，并缓存到 `data/rendered/{versionId}`
 - 审查任务队列：支持 PENDING、RUNNING、FINISHED、FAILED 状态、阶段/步骤进度、失败重试和可选自动 Vision/OCR 证据采集
+- 系统状态页和审查任务详情页：支持查看组件健康、必需/可选 Worker 状态、任务步骤时间线和失败细节
 - dxf-viewer DXF正式预览，支持图层查看；Canvas仅用于人工诊断解析实体
 - 问题定位高亮：按问题关联图元或图层高亮显示
 - YOLOv8 Vision Worker 骨架：支持使用版本渲染图或手动上传图像生成符号检测框，需配置模型权重
 - OCR Worker 骨架：支持使用版本渲染图或手动上传图像生成文字区域，需安装 Tesseract OCR
 - Easy Rules 规则审查：图层命名、空图层、标题栏、版次格式、占位文本、实体数量、OCR占位文本、YOLO/CAD标题栏交叉校验
-- 问题整改闭环、审查报告、统计看板和版本对比
+- 问题整改闭环、按来源分组的证据链展示、审查报告、统计看板和版本对比
 
 ## 下一阶段重点
 

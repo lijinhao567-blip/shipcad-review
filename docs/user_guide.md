@@ -14,14 +14,15 @@ admin / admin123
 ```
 
 1. 启动 CAD Worker、Spring Boot 后端和 Vue 前端；需要符号识别时额外启动 Vision Worker，需要文字识别时额外启动 OCR Worker。
-2. 登录系统。
-3. 创建项目和图纸。
-4. 上传 `samples/dxf/invalid_ship_section.dxf`，系统先创建图纸版本记录。DWG 文件需要本机安装 LibreDWG `dwg2dxf`。
-5. 发起审查任务，按需勾选自动视觉证据或自动 OCR 证据；等待任务从 PENDING/RUNNING 进入 FINISHED。任务队列会显示当前阶段和 PARSE、RENDER、VISION、OCR、RULES 步骤状态，如果进入 FAILED，可查看错误和失败步骤后重试。
-6. 在“问题闭环”中查看 dxf-viewer 正式DXF预览；Canvas诊断视图只在需要排查解析结果时手动打开。
-7. 查看问题清单并完成整改流转。
-8. 生成审查报告。报告页会展示审查摘要、解析证据摘要、问题清单和问题证据详情，并支持复制/下载 Markdown。
-9. 上传 `valid_ship_section.dxf` 作为新版本并做版本对比。
+2. 打开“系统状态”，确认后端、数据库、OpenAPI 和 CAD Worker 可用；Vision/OCR 未启动时会显示为可选不可用，不影响规则审查主链路。
+3. 登录系统。
+4. 创建项目和图纸。
+5. 上传 `samples/dxf/invalid_ship_section.dxf`，系统先创建图纸版本记录。DWG 文件需要本机安装 LibreDWG `dwg2dxf`。
+6. 发起审查任务，按需勾选自动视觉证据或自动 OCR 证据；等待任务从 PENDING/RUNNING 进入 FINISHED。任务队列会显示当前阶段和 PARSE、RENDER、VISION、OCR、RULES 步骤状态；点击“详情”可查看每一步的开始时间、结束时间和 detailJson 摘要，如果进入 FAILED，可查看错误和失败步骤后重试。
+7. 在“问题闭环”中查看 dxf-viewer 正式DXF预览；Canvas诊断视图只在需要排查解析结果时手动打开。
+8. 查看问题清单并完成整改流转。问题证据会按 CAD 图元/图层、解析摘要、规则命中、依据条款、视觉符号和 OCR 文字等来源分组展示。
+9. 生成审查报告。报告页会展示审查摘要、解析证据摘要、问题清单和问题证据详情，并支持复制/下载 Markdown。
+10. 上传 `valid_ship_section.dxf` 作为新版本并做版本对比。
 
 也可以直接运行演示验收脚本：
 

@@ -6,15 +6,15 @@
 - CAD rendering：`POST /render` 和 `/api/versions/{versionId}/rendered-image` 应返回真实 PNG；渲染失败必须暴露明确错误，不能伪造空图片。
 - DWG：安装 LibreDWG 后，验证 DWG 转 DXF 的失败和成功路径。
 - Vision Worker：未配置模型时返回明确错误；配置模型后能返回检测框结构。
-- 后端：登录、项目创建、图纸创建、版本上传、异步审查任务、任务阶段/步骤记录、可选自动 Vision/OCR 证据采集、任务失败重试、问题整改、报告生成、版本对比。
-- 前端：构建通过，API 调用路径可配置，dxf-viewer 能加载上传 DXF 并显示图层；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
+- 后端：登录、项目创建、图纸创建、版本上传、异步审查任务、任务阶段/步骤记录、可选自动 Vision/OCR 证据采集、任务失败重试、问题整改、报告生成、版本对比、聚合健康检查。
+- 前端：构建通过，API 调用路径可配置，系统状态页能展示后端、数据库、OpenAPI 和 Worker 状态；审查任务详情能展示步骤时间线和失败细节；dxf-viewer 能加载上传 DXF 并显示图层；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
 - Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字和实体数量异常。
-- 报告：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用、结构化 evidence chain。
+- 报告和问题清单：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用、结构化 evidence chain；前端问题清单应按 CAD、规则、知识条款、YOLO、OCR 等来源分组展示证据。
 - Vision evidence：配置模型后，`POST /api/versions/{versionId}/vision-detect` 和 `POST /api/versions/{versionId}/vision-detect-rendered` 应能保存 `YOLO_SYMBOL` evidence；未配置模型时应返回明确错误，不能伪造检测结果。
 - OCR evidence：配置 Tesseract 后，`POST /api/versions/{versionId}/ocr-recognize` 和 `POST /api/versions/{versionId}/ocr-recognize-rendered` 应能保存 `OCR_TEXT` evidence；未安装 OCR 引擎时应返回明确错误，不能伪造识别文本。
 - 安全：Token 鉴权、文件类型限制、20MB 限制、审计日志。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
-- 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`deploy/test-health.ps1` 应能检查后端、数据库、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环。
+- 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环。
 
 ## Evidence Regression Checks
 
@@ -27,6 +27,7 @@
 - Version-level OCR regions should be stored as `OCR_TEXT` evidence and remain separate from `ReviewIssue` until rules explicitly consume them.
 - Automatic review-task detections should carry `taskId`; RuleEngine should consume manual version-level evidence plus current-task automatic evidence, not stale automatic evidence from earlier tasks.
 - Review tasks should expose `review_task.stage` and ordered `review_task_step` rows. Default rule-only tasks should mark PARSE and RULES as `SUCCESS`, and RENDER/VISION/OCR as `SKIPPED`; automatic multimodal tasks should mark RENDER/VISION/OCR as `SUCCESS` or `FAILED` instead of silently skipping them.
+- Review task detail UI should display the selected task status, stage, version, issue count, evidence count, ordered steps, timestamps, error message, and detail JSON summary.
 - `OCR_PLACEHOLDER_TEXT` should generate an issue-level `OCR_TEXT` evidence reference with `sourceEvidenceId` when OCR text contains unfinished placeholders.
 - `YOLO_TITLE_BLOCK_CAD_MISSING` should generate an issue-level `YOLO_SYMBOL` evidence reference with `sourceEvidenceId` when visual title-block evidence conflicts with CAD structured parsing.
 - `tools/run_golden_e2e.py` verifies these evidence checks for the golden DXF dataset.

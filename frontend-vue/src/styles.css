@@ -53,8 +53,18 @@ textarea { min-height: 80px; resize: vertical; }
 .item { border: 1px solid var(--line); background: #fbfcfe; border-radius: 6px; padding: 12px; margin-bottom: 10px; }
 .item p { margin: 6px 0 0; color: var(--muted); }
 .task-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); background: #fbfcfe; border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+.task-main { min-width: 0; flex: 1; }
 .task-row p { margin: 6px 0 0; color: var(--muted); }
 .task-row .error { color: var(--danger); }
+.task-steps { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.task-step { display: grid; gap: 2px; min-width: 112px; max-width: 180px; border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; background: #fff; color: #334155; }
+.task-step b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.task-step small { color: var(--muted); font-size: 12px; }
+.task-step.running { border-color: #0ea5e9; background: #f0f9ff; }
+.task-step.success { border-color: #14b8a6; background: #f0fdfa; }
+.task-step.skipped { color: #64748b; background: #f8fafc; }
+.task-step.failed { border-color: #dc2626; background: #fff5f5; }
+.task-step.failed small { color: var(--danger); }
 .issue { border-left: 4px solid var(--warn); background: #fffaf5; padding: 14px; border-radius: 6px; margin-bottom: 12px; }
 .issue.HIGH { border-color: var(--danger); background: #fff5f5; }
 .issue.LOW, .issue.INFO { border-color: var(--brand); background: #f0fdfa; }

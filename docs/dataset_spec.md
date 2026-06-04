@@ -99,7 +99,7 @@ Generation and acceptance commands:
 .\.venv\Scripts\python.exe tools\run_multimodal_evidence_e2e.py
 ```
 
-The E2E script uploads each DXF, creates a review task, polls until it finishes, checks the generated `ReviewIssue.ruleCode` set, validates parser summary expectations, verifies issue evidence fields such as `layerName` and `entityRef`, creates an evidence-aware report, checks that report content cites the expected rules/evidence, and checks the authenticated version file endpoint used by the official preview path.
+The E2E script uploads each DXF, creates a review task, polls until it finishes, verifies the ordered task steps for parse/render/vision/OCR/rules, checks the generated `ReviewIssue.ruleCode` set, validates parser summary expectations, verifies issue evidence fields such as `layerName` and `entityRef`, creates an evidence-aware report, checks that report content cites the expected rules/evidence, and checks the authenticated version file endpoint used by the official preview path.
 
 `tools/run_multimodal_evidence_e2e.py` is the deterministic live API regression for OCR/YOLO evidence. It uses the missing-title-block DXF fixture plus mock Vision/OCR workers to verify review-task automatic CAD rendering, task-scoped `YOLO_SYMBOL`/`OCR_TEXT` evidence, version evidence endpoints, rule consumption, issue-level `sourceEvidenceId`, AI explanations, and report output.
 

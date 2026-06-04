@@ -13,7 +13,8 @@
 - `parsed_entity`：DXF 图元摘要。
 - `review_rule`：审查规则；`knowledge_clause_code` 用于绑定规则依据条款。
 - `knowledge_clause`：规则依据、规范条款或内部审查知识条目。
-- `review_task`：审查任务，包含 PENDING、RUNNING、FINISHED、FAILED 状态、失败原因和可选自动 Vision/OCR 证据采集配置。
+- `review_task`：审查任务，包含 PENDING、RUNNING、FINISHED、FAILED 状态、当前阶段 `stage`、失败原因和可选自动 Vision/OCR 证据采集配置。
+- `review_task_step`：审查任务步骤记录，按 PARSE、RENDER、VISION、OCR、RULES 记录每一步的状态、开始/结束时间、说明和结构化详情。
 - `review_issue`：规则命中问题。
 - `review_evidence`：审查证据，保存 CAD 图元、CAD 图层、解析摘要、规则结果、知识条款以及后续 YOLO/OCR 证据。
 - `remediation_record`：整改记录。
@@ -44,6 +45,18 @@
 - `KNOWLEDGE_CLAUSE`：规则绑定的依据条款证据。
 
 `YOLO_SYMBOL` 已作为视觉证据接入，`OCR_TEXT` 已作为文字证据接入。手动生成的版本级证据 `task_id` 为空，可被后续审查任务复用；审查任务自动采集的证据会写入当前 `review_task.id`，规则引擎只消费手动版本级证据和当前任务自动证据，避免重复审查时历史自动证据造成重复问题。后续 Vision Worker、OCR Worker 和知识图谱模块接入时，应继续写入同一张证据表；已生成问题的证据由 `review_issue.evidences` 返回，版本级证据由版本 evidence 接口返回。规则消费 evidence 时，会生成新的 issue-level evidence 引用，并在 `payloadJson.sourceEvidenceId` 中指向原始证据。
+
+## 任务步骤表设计
+
+`review_task_step` 是审查任务的可观测过程记录，不参与规则结论本身。当前固定步骤如下：
+
+- `PARSE`：CAD Worker 结构化解析 DXF/DWG。
+- `RENDER`：生成版本渲染图，供自动 Vision/OCR 使用。
+- `VISION`：调用 Vision Worker 生成 `YOLO_SYMBOL` 证据。
+- `OCR`：调用 OCR Worker 生成 `OCR_TEXT` 证据。
+- `RULES`：规则引擎消费 CAD、视觉、OCR 和知识条款证据，生成 `ReviewIssue`。
+
+步骤状态包括 `RUNNING`、`SUCCESS`、`SKIPPED`、`FAILED`。默认规则审查任务会跳过自动渲染、Vision 和 OCR；开启自动多模态证据后，这些步骤必须显式成功或失败，不能静默丢失。
 
 ## 迁移建议
 

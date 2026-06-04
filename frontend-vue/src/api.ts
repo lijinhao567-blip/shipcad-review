@@ -35,6 +35,7 @@ export type ReviewTask = {
   id: string
   versionId: string
   status: string
+  stage: string | null
   issueCount: number
   startedAt: string | null
   finishedAt: string | null
@@ -44,6 +45,20 @@ export type ReviewTask = {
   forceRender?: boolean
   visionConfidence?: number
   ocrConfidence?: number
+  steps?: ReviewTaskStep[]
+}
+
+export type ReviewTaskStep = {
+  id: string
+  taskId: string
+  stepOrder: number
+  stepCode: string
+  stepName: string
+  status: string
+  startedAt: string | null
+  finishedAt: string | null
+  message: string | null
+  detailJson: string | null
 }
 
 export type ReviewIssue = {

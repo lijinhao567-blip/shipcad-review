@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { api, type Dashboard, type Drawing, type DrawingVersion, type ParsedEntity, type Project, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask } from './api'
+import { api, type Dashboard, type Drawing, type DrawingVersion, type ParsedEntity, type Project, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep } from './api'
 
 const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfViewerPreview.vue'))
 const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
@@ -221,6 +221,35 @@ function taskAutomationLabel(task: ReviewTask): string {
   if (!modes.length) return '自动证据：未启用'
   const render = task.forceRender ? ' / 强制重渲染' : ''
   return `自动证据：${modes.join('+')}${render}`
+}
+
+function taskStageLabel(task: ReviewTask): string {
+  const labels: Record<string, string> = {
+    QUEUED: '排队中',
+    PARSING: 'CAD解析',
+    RENDERING: '生成渲染图',
+    VISION_DETECTING: '视觉识别',
+    OCR_RECOGNIZING: 'OCR识别',
+    RULE_REVIEWING: '规则审查',
+    FINISHED: '已完成',
+    FAILED: '失败'
+  }
+  const stage = task.stage || task.status
+  return labels[stage] ?? stage
+}
+
+function stepStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    RUNNING: '进行中',
+    SUCCESS: '成功',
+    SKIPPED: '跳过',
+    FAILED: '失败'
+  }
+  return labels[status] ?? status
+}
+
+function taskStepClass(step: ReviewTaskStep): string {
+  return `task-step ${step.status.toLowerCase()}`
 }
 
 async function refreshAll() {
@@ -732,11 +761,18 @@ onMounted(() => {
         <div class="panel">
           <h2>审查任务队列</h2>
           <div v-for="task in tasks" :key="task.id" class="task-row">
-            <div>
+            <div class="task-main">
               <strong>{{ taskLabel(task) }}</strong>
+              <p>阶段：{{ taskStageLabel(task) }}</p>
               <p>版本：{{ taskVersionLabel(task) }}</p>
               <p>{{ taskAutomationLabel(task) }}</p>
               <p v-if="task.errorMessage" class="error">{{ task.errorMessage }}</p>
+              <div v-if="task.steps?.length" class="task-steps">
+                <span v-for="step in task.steps" :key="step.id" :class="taskStepClass(step)" :title="step.message || step.stepCode">
+                  <b>{{ step.stepName }}</b>
+                  <small>{{ stepStatusLabel(step.status) }}</small>
+                </span>
+              </div>
             </div>
             <button v-if="task.status === 'FAILED'" @click="retryTask(task)">重试</button>
           </div>

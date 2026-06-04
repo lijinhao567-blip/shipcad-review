@@ -10,7 +10,7 @@ admin / admin123
 2. 登录系统。
 3. 创建项目和图纸。
 4. 上传 `samples/dxf/invalid_ship_section.dxf`，系统先创建图纸版本记录。DWG 文件需要本机安装 LibreDWG `dwg2dxf`。
-5. 发起审查任务，按需勾选自动视觉证据或自动 OCR 证据；等待任务从 PENDING/RUNNING 进入 FINISHED，如果进入 FAILED，可查看错误并重试。
+5. 发起审查任务，按需勾选自动视觉证据或自动 OCR 证据；等待任务从 PENDING/RUNNING 进入 FINISHED。任务队列会显示当前阶段和 PARSE、RENDER、VISION、OCR、RULES 步骤状态，如果进入 FAILED，可查看错误和失败步骤后重试。
 6. 在“问题闭环”中查看 dxf-viewer 正式DXF预览；Canvas诊断视图只在需要排查解析结果时手动打开。
 7. 查看问题清单并完成整改流转。
 8. 生成审查报告。报告页会展示审查摘要、解析证据摘要、问题清单和问题证据详情，并支持复制/下载 Markdown。

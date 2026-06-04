@@ -6,12 +6,12 @@ import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewRule;
 import com.shipcad.review.domain.ReviewTask;
+import com.shipcad.review.domain.ReviewTaskStep;
 import com.shipcad.review.dto.ApiDtos.IssueUpdateRequest;
 import com.shipcad.review.dto.ApiDtos.ReportRequest;
 import com.shipcad.review.dto.ApiDtos.ReviewTaskRequest;
 import com.shipcad.review.repo.ReportDocumentRepository;
 import com.shipcad.review.repo.ReviewRuleRepository;
-import com.shipcad.review.repo.ReviewTaskRepository;
 import com.shipcad.review.service.AuthService;
 import com.shipcad.review.service.ReviewPlatformService;
 import jakarta.validation.Valid;
@@ -29,15 +29,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api")
 public class ReviewController extends BaseController {
-    private final ReviewTaskRepository tasks;
     private final ReviewRuleRepository rules;
     private final ReportDocumentRepository reports;
     private final ReviewPlatformService platform;
 
-    public ReviewController(AuthService auth, ReviewTaskRepository tasks, ReviewRuleRepository rules,
+    public ReviewController(AuthService auth, ReviewRuleRepository rules,
                             ReportDocumentRepository reports, ReviewPlatformService platform) {
         super(auth);
-        this.tasks = tasks;
         this.rules = rules;
         this.reports = reports;
         this.platform = platform;
@@ -46,13 +44,19 @@ public class ReviewController extends BaseController {
     @GetMapping("/review-tasks")
     public List<ReviewTask> tasks(@RequestHeader("Authorization") String authorization, @RequestParam(required = false) String versionId) {
         user(authorization);
-        return versionId == null || versionId.isBlank() ? tasks.findAll() : tasks.findByVersionId(versionId);
+        return platform.listReviewTasks(versionId);
     }
 
     @GetMapping("/review-tasks/{taskId}")
     public ReviewTask task(@RequestHeader("Authorization") String authorization, @PathVariable String taskId) {
         user(authorization);
-        return tasks.findById(taskId).orElseThrow(() -> new IllegalArgumentException("审查任务不存在"));
+        return platform.getReviewTask(taskId);
+    }
+
+    @GetMapping("/review-tasks/{taskId}/steps")
+    public List<ReviewTaskStep> taskSteps(@RequestHeader("Authorization") String authorization, @PathVariable String taskId) {
+        user(authorization);
+        return platform.listReviewTaskSteps(taskId);
     }
 
     @PostMapping("/review-tasks")

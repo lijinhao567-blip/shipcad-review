@@ -106,6 +106,9 @@ class GoldenE2E:
             time.sleep(1.0)
         raise TimeoutError(f"Review task {task_id} did not finish in {self.poll_seconds}s. Last task={last_task}")
 
+    def task_steps(self, task_id: str) -> list[dict[str, Any]]:
+        return self.request("GET", f"/api/review-tasks/{task_id}/steps").json()
+
     def issues(self, task_id: str) -> list[dict[str, Any]]:
         return self.request("GET", "/api/issues", params={"taskId": task_id}).json()
 
@@ -134,6 +137,16 @@ class GoldenE2E:
             finished = self.wait_for_task(task["id"])
             if finished["status"] != "FINISHED":
                 raise AssertionError(f"review task failed: {finished.get('errorMessage')}")
+            self.assert_task_steps(
+                task["id"],
+                {
+                    "PARSE": "SUCCESS",
+                    "RENDER": "SKIPPED",
+                    "VISION": "SKIPPED",
+                    "OCR": "SKIPPED",
+                    "RULES": "SUCCESS",
+                },
+            )
 
             actual_issues = self.issues(task["id"])
             actual_rules = sorted({issue["ruleCode"] for issue in actual_issues})
@@ -253,6 +266,20 @@ class GoldenE2E:
                 raise AssertionError(f"report is missing layer evidence {layer_name}")
         if issues and "AI辅助解释" not in content:
             raise AssertionError("report is missing AI evidence explanations")
+
+    def assert_task_steps(self, task_id: str, expected: dict[str, str]) -> None:
+        steps = self.task_steps(task_id)
+        by_code = {step.get("stepCode"): step for step in steps}
+        missing = sorted(set(expected) - set(by_code))
+        if missing:
+            raise AssertionError(f"review task {task_id} is missing steps {missing}; actual={sorted(by_code)}")
+        mismatches = {
+            code: {"expected": status, "actual": by_code[code].get("status")}
+            for code, status in expected.items()
+            if by_code[code].get("status") != status
+        }
+        if mismatches:
+            raise AssertionError(f"review task {task_id} step status mismatch: {mismatches}")
 
 
 def load_manifest(path: Path) -> list[dict[str, Any]]:

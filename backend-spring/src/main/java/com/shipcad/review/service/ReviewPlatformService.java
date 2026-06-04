@@ -13,7 +13,9 @@ import com.shipcad.review.domain.RemediationRecord;
 import com.shipcad.review.domain.ReportDocument;
 import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
+import com.shipcad.review.domain.ReviewRule;
 import com.shipcad.review.domain.ReviewTask;
+import com.shipcad.review.domain.ReviewTaskStep;
 import com.shipcad.review.dto.ApiDtos.DrawingRequest;
 import com.shipcad.review.dto.ApiDtos.IssueUpdateRequest;
 import com.shipcad.review.dto.ApiDtos.OcrRegion;
@@ -36,6 +38,7 @@ import com.shipcad.review.repo.ReviewEvidenceRepository;
 import com.shipcad.review.repo.ReviewIssueRepository;
 import com.shipcad.review.repo.ReviewRuleRepository;
 import com.shipcad.review.repo.ReviewTaskRepository;
+import com.shipcad.review.repo.ReviewTaskStepRepository;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,6 +46,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -68,6 +72,7 @@ public class ReviewPlatformService {
     private final ParsedEntityRepository entities;
     private final ReviewRuleRepository rules;
     private final ReviewTaskRepository tasks;
+    private final ReviewTaskStepRepository taskSteps;
     private final ReviewIssueRepository issues;
     private final ReviewEvidenceRepository evidences;
     private final KnowledgeClauseRepository knowledgeClauses;
@@ -92,6 +97,7 @@ public class ReviewPlatformService {
             ParsedEntityRepository entities,
             ReviewRuleRepository rules,
             ReviewTaskRepository tasks,
+            ReviewTaskStepRepository taskSteps,
             ReviewIssueRepository issues,
             ReviewEvidenceRepository evidences,
             KnowledgeClauseRepository knowledgeClauses,
@@ -115,6 +121,7 @@ public class ReviewPlatformService {
         this.entities = entities;
         this.rules = rules;
         this.tasks = tasks;
+        this.taskSteps = taskSteps;
         this.issues = issues;
         this.evidences = evidences;
         this.knowledgeClauses = knowledgeClauses;
@@ -313,6 +320,21 @@ public class ReviewPlatformService {
         return generated;
     }
 
+    public List<ReviewTask> listReviewTasks(String versionId) {
+        List<ReviewTask> result = versionId == null || versionId.isBlank() ? tasks.findAll() : tasks.findByVersionId(versionId);
+        return attachTaskSteps(result);
+    }
+
+    public ReviewTask getReviewTask(String taskId) {
+        ReviewTask task = tasks.findById(taskId).orElseThrow(() -> new IllegalArgumentException("审查任务不存在"));
+        return attachTaskSteps(task);
+    }
+
+    public List<ReviewTaskStep> listReviewTaskSteps(String taskId) {
+        tasks.findById(taskId).orElseThrow(() -> new IllegalArgumentException("审查任务不存在"));
+        return taskSteps.findByTaskIdOrderByStepOrderAsc(taskId);
+    }
+
     public ReviewTask createReviewTask(ReviewTaskRequest request, AppUser actor) {
         return createReviewTask(
                 request.versionId(),
@@ -342,6 +364,7 @@ public class ReviewPlatformService {
         task.id = Ids.next("task");
         task.versionId = versionId;
         task.status = "PENDING";
+        task.stage = "QUEUED";
         task.startedAt = Ids.now();
         task.errorMessage = "";
         task.autoVision = autoVision;
@@ -382,6 +405,7 @@ public class ReviewPlatformService {
     private void runQueuedReviewTask(String taskId, String actorUsername) {
         ReviewTask task = tasks.findById(taskId).orElseThrow(() -> new IllegalArgumentException("审查任务不存在"));
         task.status = "RUNNING";
+        task.stage = "PARSING";
         task.startedAt = Ids.now();
         task.errorMessage = "";
         tasks.save(task);
@@ -389,36 +413,66 @@ public class ReviewPlatformService {
         try {
             DrawingVersion version = versions.findById(task.versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
             if (!"SUCCESS".equals(version.parseStatus)) {
-                version = parseVersion(task.versionId, systemActor(actorUsername));
+                ReviewTaskStep parseStep = startTaskStep(task, 10, "PARSE", "CAD结构化解析");
+                try {
+                    version = parseVersion(task.versionId, systemActor(actorUsername));
+                    WorkerSummary parsedSummary = fromJson(version.parseSummaryJson, WorkerSummary.class);
+                    completeTaskStep(parseStep, "解析完成", Map.of(
+                            "parseStatus", version.parseStatus,
+                            "entityCount", parsedSummary.entityCount()
+                    ));
+                } catch (Exception exception) {
+                    failTaskStep(parseStep, messageOf(exception));
+                    throw exception;
+                }
+            } else {
+                skipTaskStep(task, 10, "PARSE", "CAD结构化解析", "版本已解析，复用结构化结果", Map.of("parseStatus", version.parseStatus));
             }
-            collectAutomaticEvidence(task, systemActor(actorUsername));
+            collectAutomaticEvidenceWithSteps(task, systemActor(actorUsername));
+
+            task.stage = "RULE_REVIEWING";
+            tasks.save(task);
+            ReviewTaskStep ruleStep = startTaskStep(task, 50, "RULES", "确定性规则审查");
             WorkerSummary summary = fromJson(version.parseSummaryJson, WorkerSummary.class);
             List<ParsedEntity> parsedEntities = entities.findByVersionId(task.versionId);
             List<ReviewEvidence> versionEvidences = evidences.findByVersionId(task.versionId).stream()
                     .filter(evidence -> evidence.issueId == null || evidence.issueId.isBlank())
                     .filter(evidence -> evidence.taskId == null || evidence.taskId.isBlank() || task.id.equals(evidence.taskId))
                     .toList();
-            List<ReviewIssue> generated = ruleEngine.run(
-                    task.id,
-                    version,
-                    summary,
-                    parsedEntities,
-                    rules.findByEnabledTrue(),
-                    knowledgeClauses.findAll(),
-                    versionEvidences
-            );
-            issues.saveAll(generated);
-            evidences.saveAll(generated.stream()
-                    .flatMap(issue -> safeEvidences(issue).stream())
-                    .toList());
+            List<ReviewRule> enabledRules = rules.findByEnabledTrue();
+            List<ReviewIssue> generated;
+            try {
+                generated = ruleEngine.run(
+                        task.id,
+                        version,
+                        summary,
+                        parsedEntities,
+                        enabledRules,
+                        knowledgeClauses.findAll(),
+                        versionEvidences
+                );
+                issues.saveAll(generated);
+                evidences.saveAll(generated.stream()
+                        .flatMap(issue -> safeEvidences(issue).stream())
+                        .toList());
+                completeTaskStep(ruleStep, "规则审查完成", Map.of(
+                        "ruleCount", enabledRules.size(),
+                        "evidenceInputCount", versionEvidences.size(),
+                        "issueCount", generated.size()
+                ));
+            } catch (Exception exception) {
+                failTaskStep(ruleStep, messageOf(exception));
+                throw exception;
+            }
 
             task.status = "FINISHED";
+            task.stage = "FINISHED";
             task.finishedAt = Ids.now();
             task.issueCount = generated.size();
             tasks.save(task);
             audit.record(actorUsername, "REVIEW_FINISHED", "task", task.id, Map.of("versionId", task.versionId, "issueCount", generated.size()));
         } catch (Exception exception) {
-            String message = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
+            String message = messageOf(exception);
             versions.findById(task.versionId).ifPresent(version -> {
                 if (!"SUCCESS".equals(version.parseStatus)) {
                     version.parseStatus = "FAILED";
@@ -426,6 +480,7 @@ public class ReviewPlatformService {
                 }
             });
             task.status = "FAILED";
+            task.stage = "FAILED";
             task.finishedAt = Ids.now();
             task.errorMessage = message;
             tasks.save(task);
@@ -433,33 +488,142 @@ public class ReviewPlatformService {
         }
     }
 
-    private void collectAutomaticEvidence(ReviewTask task, AppUser actor) throws IOException {
+    private void collectAutomaticEvidenceWithSteps(ReviewTask task, AppUser actor) throws Exception {
         if (!bool(task.autoVision) && !bool(task.autoOcr)) {
+            skipTaskStep(task, 20, "RENDER", "版本渲染图生成", "未启用自动 Vision/OCR，跳过渲染", Map.of("autoVision", false, "autoOcr", false));
+            skipTaskStep(task, 30, "VISION", "YOLOv8视觉识别", "未启用自动视觉证据", Map.of("autoVision", false));
+            skipTaskStep(task, 40, "OCR", "OCR文字识别", "未启用自动OCR证据", Map.of("autoOcr", false));
             return;
         }
-        Path image = renderVersionImage(task.versionId, bool(task.forceRender), actor);
+        task.stage = "RENDERING";
+        tasks.save(task);
+        ReviewTaskStep renderStep = startTaskStep(task, 20, "RENDER", "版本渲染图生成");
+        Path image;
+        try {
+            image = renderVersionImage(task.versionId, bool(task.forceRender), actor);
+            completeTaskStep(renderStep, "渲染图已生成", Map.of(
+                    "imagePath", image.toString(),
+                    "forceRender", bool(task.forceRender)
+            ));
+        } catch (Exception exception) {
+            failTaskStep(renderStep, messageOf(exception));
+            throw exception;
+        }
+
         if (bool(task.autoVision)) {
-            runVisionDetectionOnImage(
-                    task.versionId,
-                    task.id,
-                    image,
-                    confidenceOrDefault(task.visionConfidence, 0.25),
-                    actor,
-                    "REVIEW_AUTO_VISION_DETECT",
-                    "review-rendered-version-image"
-            );
+            task.stage = "VISION_DETECTING";
+            tasks.save(task);
+            ReviewTaskStep visionStep = startTaskStep(task, 30, "VISION", "YOLOv8视觉识别");
+            try {
+                List<ReviewEvidence> generated = runVisionDetectionOnImage(
+                        task.versionId,
+                        task.id,
+                        image,
+                        confidenceOrDefault(task.visionConfidence, 0.25),
+                        actor,
+                        "REVIEW_AUTO_VISION_DETECT",
+                        "review-rendered-version-image"
+                );
+                completeTaskStep(visionStep, "视觉证据采集完成", Map.of(
+                        "evidenceCount", generated.size(),
+                        "confidence", confidenceOrDefault(task.visionConfidence, 0.25)
+                ));
+            } catch (Exception exception) {
+                failTaskStep(visionStep, messageOf(exception));
+                throw exception;
+            }
+        } else {
+            skipTaskStep(task, 30, "VISION", "YOLOv8视觉识别", "未启用自动视觉证据", Map.of("autoVision", false));
         }
+
         if (bool(task.autoOcr)) {
-            runOcrRecognitionOnImage(
-                    task.versionId,
-                    task.id,
-                    image,
-                    confidenceOrDefault(task.ocrConfidence, 0.5),
-                    actor,
-                    "REVIEW_AUTO_OCR_RECOGNIZE",
-                    "review-rendered-version-image"
-            );
+            task.stage = "OCR_RECOGNIZING";
+            tasks.save(task);
+            ReviewTaskStep ocrStep = startTaskStep(task, 40, "OCR", "OCR文字识别");
+            try {
+                List<ReviewEvidence> generated = runOcrRecognitionOnImage(
+                        task.versionId,
+                        task.id,
+                        image,
+                        confidenceOrDefault(task.ocrConfidence, 0.5),
+                        actor,
+                        "REVIEW_AUTO_OCR_RECOGNIZE",
+                        "review-rendered-version-image"
+                );
+                completeTaskStep(ocrStep, "OCR证据采集完成", Map.of(
+                        "evidenceCount", generated.size(),
+                        "confidence", confidenceOrDefault(task.ocrConfidence, 0.5)
+                ));
+            } catch (Exception exception) {
+                failTaskStep(ocrStep, messageOf(exception));
+                throw exception;
+            }
+        } else {
+            skipTaskStep(task, 40, "OCR", "OCR文字识别", "未启用自动OCR证据", Map.of("autoOcr", false));
         }
+    }
+
+    private List<ReviewTask> attachTaskSteps(List<ReviewTask> source) {
+        if (source.isEmpty()) {
+            return source;
+        }
+        List<String> taskIds = source.stream().map(task -> task.id).toList();
+        Map<String, List<ReviewTaskStep>> stepsByTask = taskSteps.findByTaskIdInOrderByTaskIdAscStepOrderAsc(taskIds)
+                .stream()
+                .collect(Collectors.groupingBy(step -> step.taskId));
+        source.forEach(task -> task.steps = stepsByTask.getOrDefault(task.id, List.of()));
+        return source;
+    }
+
+    private ReviewTask attachTaskSteps(ReviewTask task) {
+        task.steps = taskSteps.findByTaskIdOrderByStepOrderAsc(task.id);
+        return task;
+    }
+
+    private ReviewTaskStep startTaskStep(ReviewTask task, int stepOrder, String stepCode, String stepName) {
+        ReviewTaskStep step = new ReviewTaskStep();
+        step.id = Ids.next("taskstep");
+        step.taskId = task.id;
+        step.stepOrder = stepOrder;
+        step.stepCode = stepCode;
+        step.stepName = stepName;
+        step.status = "RUNNING";
+        step.startedAt = Ids.now();
+        step.message = "";
+        step.detailJson = "{}";
+        return taskSteps.save(step);
+    }
+
+    private void skipTaskStep(ReviewTask task, int stepOrder, String stepCode, String stepName, String message, Object detail) {
+        ReviewTaskStep step = new ReviewTaskStep();
+        Instant now = Ids.now();
+        step.id = Ids.next("taskstep");
+        step.taskId = task.id;
+        step.stepOrder = stepOrder;
+        step.stepCode = stepCode;
+        step.stepName = stepName;
+        step.status = "SKIPPED";
+        step.startedAt = now;
+        step.finishedAt = now;
+        step.message = message;
+        step.detailJson = detail == null ? "{}" : toJson(detail);
+        taskSteps.save(step);
+    }
+
+    private void completeTaskStep(ReviewTaskStep step, String message, Object detail) {
+        step.status = "SUCCESS";
+        step.finishedAt = Ids.now();
+        step.message = message;
+        step.detailJson = detail == null ? "{}" : toJson(detail);
+        taskSteps.save(step);
+    }
+
+    private void failTaskStep(ReviewTaskStep step, String message) {
+        step.status = "FAILED";
+        step.finishedAt = Ids.now();
+        step.message = message;
+        step.detailJson = toJson(Map.of("error", message));
+        taskSteps.save(step);
     }
 
     public List<ReviewIssue> listIssues(String taskId, String versionId) {
@@ -654,6 +818,10 @@ public class ReviewPlatformService {
 
     private double confidenceOrDefault(Double value, double fallback) {
         return value == null ? fallback : value;
+    }
+
+    private String messageOf(Exception exception) {
+        return exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
     }
 
     private Path storeEvidenceImage(String versionId, MultipartFile file, String folderName, String idPrefix, String fallbackName, String label) throws IOException {

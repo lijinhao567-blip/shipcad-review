@@ -2,7 +2,10 @@ package com.shipcad.review.domain;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Transient;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 public class ReviewTask {
@@ -10,6 +13,7 @@ public class ReviewTask {
     public String id;
     public String versionId;
     public String status;
+    public String stage;
     public Instant startedAt;
     public Instant finishedAt;
     public int issueCount;
@@ -19,4 +23,6 @@ public class ReviewTask {
     public Boolean forceRender;
     public Double visionConfidence;
     public Double ocrConfidence;
+    @Transient
+    public List<ReviewTaskStep> steps = new ArrayList<>();
 }

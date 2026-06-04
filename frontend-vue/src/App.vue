@@ -513,8 +513,20 @@ function structuredEvidenceItems(issue: ReviewIssue): string[] {
 
 function formatEvidence(evidence: ReviewEvidence): string {
   const source = evidence.sourceId || evidence.sourceLabel || '-'
+  const sourceEvidenceId = sourceEvidenceIdOf(evidence)
   const summary = evidence.summary || evidence.payloadJson || '-'
+  if (sourceEvidenceId) return `${evidenceTypeLabel(evidence.evidenceType)} / ${source} / sourceEvidenceId=${sourceEvidenceId}: ${summary}`
   return `${evidenceTypeLabel(evidence.evidenceType)} / ${source}: ${summary}`
+}
+
+function sourceEvidenceIdOf(evidence: ReviewEvidence): string {
+  if (!evidence.payloadJson) return ''
+  try {
+    const payload = JSON.parse(evidence.payloadJson) as { sourceEvidenceId?: unknown }
+    return typeof payload.sourceEvidenceId === 'string' ? payload.sourceEvidenceId : ''
+  } catch {
+    return ''
+  }
 }
 
 function evidenceTypeLabel(type: string): string {

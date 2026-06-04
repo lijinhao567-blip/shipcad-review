@@ -74,6 +74,14 @@ Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 .\.venv\Scripts\python.exe tools\run_golden_e2e.py --keep-going
 ```
 
+Multimodal evidence E2E needs the backend and CAD Worker running. By default it starts deterministic mock Vision/OCR workers on `127.0.0.1:9100` and `127.0.0.1:9200`, so it can validate the official `vision-detect` and `ocr-recognize` API flow without real YOLO weights or Tesseract:
+
+```powershell
+.\.venv\Scripts\python.exe tools\run_multimodal_evidence_e2e.py
+```
+
+If Windows blocks `9100/9200`, start the backend with matching `SHIPCAD_VISION_URL` and `SHIPCAD_OCR_URL`, then pass `--vision-port` and `--ocr-port` to the script.
+
 ## 当前已实现能力
 
 - DXF 上传、异步解析和实体几何提取

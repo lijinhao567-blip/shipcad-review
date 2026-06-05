@@ -32,6 +32,14 @@ admin / admin123
 
 该脚本会检查核心服务健康状态，然后执行 golden dataset 端到端验收。需要关闭脚本启动的服务时运行：
 
+如果需要生成一份可人工查阅的演示走查摘要，可在后端和 CAD Worker 启动后运行：
+
+```powershell
+.\deploy\run-demo-walkthrough.ps1
+```
+
+摘要会写入 `.run/demo-walkthrough-*.md`，记录本次真实创建的项目、图纸、版本、审查任务、问题、证据类型和报告预览。
+
 ```powershell
 .\deploy\stop-dev.ps1
 ```

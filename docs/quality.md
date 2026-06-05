@@ -9,12 +9,13 @@
 - 后端：登录、项目创建、图纸创建、版本上传、异步审查任务、任务阶段/步骤记录、可选自动 Vision/OCR 证据采集、任务失败重试、问题整改、报告生成、版本对比、聚合健康检查。
 - 前端：构建通过，API 调用路径可配置，系统状态页能展示后端、数据库、OpenAPI 和 Worker 状态；审图流程状态应能反映系统、登录、项目图纸、版本、审查、问题和报告进度；项目、图纸、版本列表切换当前上下文后，应同步影响上传、预览、审查和报告选择；审查任务详情能展示步骤时间线和失败细节；dxf-viewer 能加载上传 DXF 并显示图层；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
 - Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字和实体数量异常。
+- Demo walkthrough：`tools/run_demo_walkthrough.py` 应能用一个真实 DXF 样例走通登录、建项目、建图纸、上传版本、发起审查、生成问题、生成报告，并把项目 ID、图纸 ID、版本 ID、任务步骤、问题证据类型和报告预览写入 `.run/demo-walkthrough-*.md`，用于人工演示核查。
 - 报告和问题清单：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用、结构化 evidence chain；前端问题清单应按 CAD、规则、知识条款、YOLO、OCR 等来源分组展示证据。
 - Vision evidence：配置模型后，`POST /api/versions/{versionId}/vision-detect` 和 `POST /api/versions/{versionId}/vision-detect-rendered` 应能保存 `YOLO_SYMBOL` evidence；未配置模型时应返回明确错误，不能伪造检测结果。
 - OCR evidence：配置 Tesseract 后，`POST /api/versions/{versionId}/ocr-recognize` 和 `POST /api/versions/{versionId}/ocr-recognize-rendered` 应能保存 `OCR_TEXT` evidence；未安装 OCR 引擎时应返回明确错误，不能伪造识别文本。
 - 安全：Token 鉴权、文件类型限制、20MB 限制、审计日志。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
-- 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环。
+- 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环，`deploy/run-demo-walkthrough.ps1` 应能生成单样例演示摘要。
 
 ## Evidence Regression Checks
 
@@ -33,6 +34,7 @@
 - `YOLO_TITLE_BLOCK_CAD_MISSING` should generate an issue-level `YOLO_SYMBOL` evidence reference with `sourceEvidenceId` when visual title-block evidence conflicts with CAD structured parsing.
 - `tools/run_golden_e2e.py` verifies these evidence checks for the golden DXF dataset.
 - `tools/run_multimodal_evidence_e2e.py` verifies the live API chain for review-task automatic rendering, task-scoped `YOLO_SYMBOL` and `OCR_TEXT` evidence, rule consumption, issue-level `sourceEvidenceId` references, AI explanations, and report output. Its default mock workers are deterministic integration substitutes; they do not validate real model accuracy.
+- `tools/run_demo_walkthrough.py` verifies one live rule-only demo path and writes a human-readable Markdown summary for presentation and handoff checks.
 
 ## 验收目标
 

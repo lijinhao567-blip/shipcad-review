@@ -44,6 +44,9 @@
 # 跑完整 golden dataset 演示验收
 .\deploy\run-demo.ps1
 
+# 生成单样例 Markdown 演示走查摘要（输出到 .run/）
+.\deploy\run-demo-walkthrough.ps1
+
 # 跑 golden dataset + mock Vision/OCR 多模态验收
 .\deploy\run-demo.ps1 -Multimodal
 
@@ -114,6 +117,9 @@ Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 .\.venv\Scripts\python.exe tools\run_golden_e2e.py --keep-going
 # 或
 .\deploy\run-demo.ps1
+
+# 生成可人工查阅的单样例演示走查摘要
+.\deploy\run-demo-walkthrough.ps1
 ```
 
 Multimodal evidence E2E needs the backend and CAD Worker running. By default it starts deterministic mock Vision/OCR workers on `127.0.0.1:9100` and `127.0.0.1:9200`, so it can validate review-task orchestration for CAD rendering, YOLO evidence, OCR evidence, rule consumption, and report output without real YOLO weights or Tesseract:

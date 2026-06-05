@@ -5,6 +5,7 @@ import com.shipcad.review.domain.EvidenceType;
 import com.shipcad.review.domain.ParsedEntity;
 import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.dto.ApiDtos.EntityView;
+import com.shipcad.review.dto.ApiDtos.VersionCompareResponse;
 import com.shipcad.review.repo.DrawingVersionRepository;
 import com.shipcad.review.repo.ParsedEntityRepository;
 import com.shipcad.review.service.AuthService;
@@ -67,7 +68,7 @@ public class VersionController extends BaseController {
     }
 
     @GetMapping("/compare")
-    public Map<String, Object> compare(@RequestHeader("Authorization") String authorization, @RequestParam String leftId, @RequestParam String rightId) {
+    public VersionCompareResponse compare(@RequestHeader("Authorization") String authorization, @RequestParam String leftId, @RequestParam String rightId) {
         user(authorization);
         return platform.compareVersions(leftId, rightId);
     }

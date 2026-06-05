@@ -176,17 +176,33 @@ pre { min-height: 300px; padding: 16px; color: #dbeafe; background: #0b1220; bor
 .report-table th, .report-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; white-space: pre-line; font-size: 13px; }
 .report-table th { background: #f8fafc; color: #475467; font-weight: 700; }
 .report-table tr:last-child td { border-bottom: 0; }
+.compact-table { min-width: 0; }
 .raw-report { padding: 18px; border-top: 1px solid var(--line); }
 .raw-report summary { cursor: pointer; font-weight: 700; color: var(--brand-dark); }
 .raw-report pre { margin-top: 12px; }
 .empty-report p { margin: 0; color: var(--muted); line-height: 1.7; }
+.compare-document { background: #fff; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+.compare-header { display: flex; justify-content: space-between; gap: 16px; padding: 18px; border-bottom: 1px solid var(--line); background: #fbfcfe; }
+.compare-header h2 { margin: 0 0 6px; }
+.compare-header span { color: var(--muted); font-size: 13px; }
+.compare-metrics { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.compare-metrics div { padding: 14px 18px; border-right: 1px solid var(--line); }
+.compare-metrics div:last-child { border-right: 0; }
+.compare-metrics span, .compare-diff-grid span { display: block; color: var(--muted); font-size: 13px; }
+.compare-metrics strong { display: block; margin-top: 4px; font-size: 24px; }
+.compare-section { padding: 18px; border-bottom: 1px solid var(--line); }
+.compare-section:last-child { border-bottom: 0; }
+.compare-section h3 { margin: 0 0 12px; font-size: 17px; }
+.compare-diff-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.compare-diff-grid div { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fbfcfe; }
+.compare-diff-grid strong { display: block; margin-top: 6px; color: var(--ink); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 @media (max-width: 960px) {
-  .shell, .grid.two, .grid.three, .preview-grid, .health-grid, .task-detail-grid, .workflow-steps { grid-template-columns: 1fr; }
+  .shell, .grid.two, .grid.three, .preview-grid, .health-grid, .task-detail-grid, .workflow-steps, .compare-diff-grid { grid-template-columns: 1fr; }
   .workflow-head { display: grid; }
   .context-strip { justify-content: flex-start; }
   .review-task-grid { grid-template-columns: 1fr; }
   .vision-grid, .ocr-grid { grid-template-columns: 1fr; }
-  .kpis, .report-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .report-header { display: grid; }
+  .kpis, .report-metrics, .compare-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-header, .compare-header { display: grid; }
   .report-actions { justify-content: flex-start; }
 }

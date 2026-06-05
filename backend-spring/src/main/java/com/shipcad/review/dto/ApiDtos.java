@@ -61,6 +61,41 @@ public final class ApiDtos {
     public record EntityView(String id, String versionId, String entityType, String layerName, String textValue, String blockName, Double x, Double y, Map<String, Object> geometry) {
     }
 
+    public record VersionCompareSide(
+            String id,
+            String versionNo,
+            String fileName,
+            String parseStatus,
+            int entityCount,
+            int layerCount,
+            int textCount,
+            int blockCount
+    ) {
+    }
+
+    public record VersionCountDelta(String name, int leftCount, int rightCount, int delta) {
+    }
+
+    public record VersionCompareResponse(
+            VersionCompareSide left,
+            VersionCompareSide right,
+            int entityCountDelta,
+            List<String> addedLayers,
+            List<String> removedLayers,
+            List<String> addedEmptyLayers,
+            List<String> removedEmptyLayers,
+            List<String> addedBlocks,
+            List<String> removedBlocks,
+            List<String> addedTexts,
+            List<String> removedTexts,
+            List<VersionCountDelta> layerDeltas,
+            List<VersionCountDelta> typeDeltas,
+            List<String> riskHints,
+            List<String> reviewFocus,
+            String summary
+    ) {
+    }
+
     public record WorkerSummary(
             int entityCount,
             Map<String, Integer> typeCounts,

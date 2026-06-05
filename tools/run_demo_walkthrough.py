@@ -13,6 +13,7 @@ import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SAMPLE = ROOT / "samples" / "dxf" / "invalid_ship_section.dxf"
+DEFAULT_RIGHT_SAMPLE = ROOT / "samples" / "dxf" / "valid_ship_section.dxf"
 DEFAULT_OUTPUT_DIR = ROOT / ".run"
 
 
@@ -111,6 +112,9 @@ class DemoWalkthrough:
     def create_report(self, task_id: str) -> dict[str, Any]:
         return self.request("POST", "/api/reports", json={"taskId": task_id}).json()
 
+    def compare_versions(self, left_id: str, right_id: str) -> dict[str, Any]:
+        return self.request("GET", "/api/versions/compare", params={"leftId": left_id, "rightId": right_id}).json()
+
     def report_download(self, report_id: str) -> dict[str, Any]:
         response = self.request("GET", f"/api/reports/{report_id}/download")
         return {
@@ -119,7 +123,14 @@ class DemoWalkthrough:
             "contentDisposition": response.headers.get("content-disposition", ""),
         }
 
-    def run(self, sample: Path, version_no: str, output: Path) -> tuple[dict[str, Any], list[tuple[str, bool]]]:
+    def run(
+        self,
+        sample: Path,
+        right_sample: Path,
+        version_no: str,
+        right_version_no: str,
+        output: Path,
+    ) -> tuple[dict[str, Any], list[tuple[str, bool]]]:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         self.login()
         project = self.create_project(stamp)
@@ -134,21 +145,36 @@ class DemoWalkthrough:
         version_after_parse = self.find_version(drawing["id"], version["id"])
         report = self.create_report(task["id"])
         report_download = self.report_download(report["id"])
+        right_version = self.upload_version(drawing["id"], right_version_no, right_sample)
+        right_file_size = self.file_size(right_version["id"])
+        right_task = self.create_review_task(right_version["id"])
+        right_finished = self.wait_for_task(right_task["id"])
+        right_steps = self.task_steps(right_task["id"])
+        right_issues = self.issues(right_task["id"])
+        right_version_after_parse = self.find_version(drawing["id"], right_version["id"])
+        comparison = self.compare_versions(version["id"], right_version["id"])
 
-        checks = acceptance_checks(uploaded_file_size, finished, steps, issues, report, report_download)
+        checks = acceptance_checks(uploaded_file_size, finished, steps, issues, report, report_download, right_file_size, right_finished, right_steps, comparison)
         result = {
             "baseUrl": self.base_url,
             "sample": sample,
+            "rightSample": right_sample,
             "project": project,
             "drawing": drawing,
             "version": version_after_parse,
+            "rightVersion": right_version_after_parse,
             "task": finished,
+            "rightTask": right_finished,
             "steps": steps,
+            "rightSteps": right_steps,
             "issues": issues,
+            "rightIssues": right_issues,
             "entities": entities,
             "report": report,
             "reportDownload": report_download,
+            "comparison": comparison,
             "fileSize": uploaded_file_size,
+            "rightFileSize": right_file_size,
         }
         write_summary(output, result, checks)
         return result, checks
@@ -167,8 +193,13 @@ def acceptance_checks(
     issues: list[dict[str, Any]],
     report: dict[str, Any],
     report_download: dict[str, Any],
+    right_file_size: int,
+    right_task: dict[str, Any],
+    right_steps: list[dict[str, Any]],
+    comparison: dict[str, Any],
 ) -> list[tuple[str, bool]]:
     step_status = {step.get("stepCode"): step.get("status") for step in steps}
+    right_step_status = {step.get("stepCode"): step.get("status") for step in right_steps}
     issue_evidence_ok = all(issue.get("evidences") for issue in issues) if issues else True
     issue_ai_ok = all((issue.get("aiExplanation") or {}).get("summary") for issue in issues) if issues else True
     return [
@@ -180,6 +211,11 @@ def acceptance_checks(
         ("report generated content", bool((report.get("content") or "").strip())),
         ("report download endpoint returned markdown", report_download.get("size", 0) > 0 and "text/markdown" in report_download.get("contentType", "")),
         ("report download endpoint returned attachment", "attachment" in report_download.get("contentDisposition", "")),
+        ("right version file endpoint returned content", right_file_size > 0),
+        ("right version review task finished", right_task.get("status") == "FINISHED"),
+        ("right version PARSE step succeeded", right_step_status.get("PARSE") == "SUCCESS"),
+        ("right version RULES step succeeded", right_step_status.get("RULES") == "SUCCESS"),
+        ("version compare endpoint returned summary", bool((comparison.get("summary") or "").strip())),
         ("issues include evidence chains", issue_evidence_ok),
         ("issues include AI explanations", issue_ai_ok),
     ]
@@ -233,7 +269,9 @@ def write_summary(output: Path, result: dict[str, Any], checks: list[tuple[str, 
     version = result["version"]
     task = result["task"]
     report = result["report"]
+    comparison = result["comparison"]
     summary = parse_json(version.get("parseSummaryJson"))
+    right_summary = parse_json(result["rightVersion"].get("parseSummaryJson"))
     type_counts = summary.get("typeCounts") or {}
     layers = summary.get("layers") or []
     blocks = summary.get("blocks") or []
@@ -273,7 +311,9 @@ def write_summary(output: Path, result: dict[str, Any], checks: list[tuple[str, 
             f"- Generated at: {datetime.now(timezone.utc).isoformat()}",
             f"- Backend: {result['baseUrl']}",
             f"- Sample: `{result['sample']}`",
+            f"- Right sample: `{result['rightSample']}`",
             f"- File endpoint size: {result['fileSize']} bytes",
+            f"- Right file endpoint size: {result['rightFileSize']} bytes",
             f"- Report download size: {result['reportDownload']['size']} bytes",
             "## Created Records\n"
             + md_table(
@@ -283,19 +323,35 @@ def write_summary(output: Path, result: dict[str, Any], checks: list[tuple[str, 
                     ["Drawing", result["drawing"].get("id"), result["drawing"].get("drawingNo")],
                     ["Version", version.get("id"), f"{version.get('versionNo')} / {version.get('fileName')}"],
                     ["ReviewTask", task.get("id"), f"{task.get('status')} / stage={task.get('stage')} / issues={task.get('issueCount')}"],
+                    ["RightVersion", result["rightVersion"].get("id"), f"{result['rightVersion'].get('versionNo')} / {result['rightVersion'].get('fileName')}"],
+                    ["RightReviewTask", result["rightTask"].get("id"), f"{result['rightTask'].get('status')} / stage={result['rightTask'].get('stage')} / issues={result['rightTask'].get('issueCount')}"],
                     ["Report", report.get("id"), f"taskId={report.get('taskId')}"],
                 ],
             ),
             "## Acceptance Checks\n" + md_table(["Check", "Result"], check_rows),
             "## Parser Summary\n"
             + md_table(
+                ["Metric", "Left", "Right"],
+                [
+                    ["parseStatus", version.get("parseStatus"), result["rightVersion"].get("parseStatus")],
+                    ["entityCount", summary.get("entityCount"), right_summary.get("entityCount")],
+                    ["layerCount", len(layers), len(right_summary.get("layers") or [])],
+                    ["layers", ", ".join(layers[:20]), ", ".join((right_summary.get("layers") or [])[:20])],
+                    ["blocks", ", ".join(blocks[:20]), ", ".join((right_summary.get("blocks") or [])[:20])],
+                ],
+            ),
+            "## Version Compare\n"
+            + md_table(
                 ["Metric", "Value"],
                 [
-                    ["parseStatus", version.get("parseStatus")],
-                    ["entityCount", summary.get("entityCount")],
-                    ["layerCount", len(layers)],
-                    ["layers", ", ".join(layers[:20])],
-                    ["blocks", ", ".join(blocks[:20])],
+                    ["summary", comparison.get("summary")],
+                    ["entityCountDelta", comparison.get("entityCountDelta")],
+                    ["addedLayers", ", ".join(comparison.get("addedLayers") or [])],
+                    ["removedLayers", ", ".join(comparison.get("removedLayers") or [])],
+                    ["addedTexts", ", ".join(comparison.get("addedTexts") or [])],
+                    ["removedTexts", ", ".join(comparison.get("removedTexts") or [])],
+                    ["riskHints", " / ".join(comparison.get("riskHints") or [])],
+                    ["reviewFocus", " / ".join(comparison.get("reviewFocus") or [])],
                 ],
             ),
             "## Entity Type Counts\n" + md_table(["Entity Type", "Count"], entity_rows),
@@ -323,7 +379,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--username", default="admin")
     parser.add_argument("--password", default="admin123")
     parser.add_argument("--sample", type=Path, default=DEFAULT_SAMPLE, help="DXF sample used for the walkthrough")
+    parser.add_argument("--right-sample", type=Path, default=DEFAULT_RIGHT_SAMPLE, help="Second DXF sample used for version comparison")
     parser.add_argument("--version-no", default="V1")
+    parser.add_argument("--right-version-no", default="V2")
     parser.add_argument("--poll-seconds", type=int, default=45)
     parser.add_argument("--output", type=Path, help="Markdown output path")
     return parser.parse_args()
@@ -335,6 +393,10 @@ def main() -> int:
     if not sample.exists():
         print(f"DXF sample not found: {sample}", file=sys.stderr)
         return 2
+    right_sample = args.right_sample.resolve()
+    if not right_sample.exists():
+        print(f"Right DXF sample not found: {right_sample}", file=sys.stderr)
+        return 2
     output = args.output
     if output is None:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -343,7 +405,7 @@ def main() -> int:
 
     runner = DemoWalkthrough(args.base_url, args.username, args.password, args.poll_seconds)
     try:
-        result, checks = runner.run(sample, args.version_no, output)
+        result, checks = runner.run(sample, right_sample, args.version_no, args.right_version_no, output)
     except Exception as exc:
         print(f"Demo walkthrough failed: {exc}", file=sys.stderr)
         return 1
@@ -357,8 +419,11 @@ def main() -> int:
     print(f"Drawing ID : {result['drawing']['id']}")
     print(f"Version ID : {result['version']['id']}")
     print(f"Task ID    : {result['task']['id']} ({result['task']['status']})")
+    print(f"Right ID   : {result['rightVersion']['id']}")
+    print(f"Right Task : {result['rightTask']['id']} ({result['rightTask']['status']})")
     print(f"Report ID  : {result['report']['id']}")
     print(f"Issues     : {len(result['issues'])}")
+    print(f"Compare    : {result['comparison']['summary']}")
     print(f"Summary    : {output}")
     print("-" * 88)
     if failed:

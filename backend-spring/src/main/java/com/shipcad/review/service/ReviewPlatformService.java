@@ -22,6 +22,7 @@ import com.shipcad.review.dto.ApiDtos.OcrRegion;
 import com.shipcad.review.dto.ApiDtos.OcrResponse;
 import com.shipcad.review.dto.ApiDtos.ProjectRequest;
 import com.shipcad.review.dto.ApiDtos.ReviewTaskRequest;
+import com.shipcad.review.dto.ApiDtos.VersionCompareResponse;
 import com.shipcad.review.dto.ApiDtos.VisionDetection;
 import com.shipcad.review.dto.ApiDtos.VisionDetectionResponse;
 import com.shipcad.review.dto.ApiDtos.WorkerEntity;
@@ -83,6 +84,7 @@ public class ReviewPlatformService {
     private final OcrWorkerClient ocrWorker;
     private final RuleEngine ruleEngine;
     private final ReviewReportBuilder reportBuilder;
+    private final VersionCompareService versionCompareService;
     private final AiGateway aiGateway;
     private final AuditService audit;
     private final ObjectMapper mapper;
@@ -108,6 +110,7 @@ public class ReviewPlatformService {
             OcrWorkerClient ocrWorker,
             RuleEngine ruleEngine,
             ReviewReportBuilder reportBuilder,
+            VersionCompareService versionCompareService,
             AiGateway aiGateway,
             AuditService audit,
             ObjectMapper mapper,
@@ -132,6 +135,7 @@ public class ReviewPlatformService {
         this.ocrWorker = ocrWorker;
         this.ruleEngine = ruleEngine;
         this.reportBuilder = reportBuilder;
+        this.versionCompareService = versionCompareService;
         this.aiGateway = aiGateway;
         this.audit = audit;
         this.mapper = mapper;
@@ -704,22 +708,12 @@ public class ReviewPlatformService {
         return report;
     }
 
-    public Map<String, Object> compareVersions(String leftId, String rightId) {
-        WorkerSummary left = fromJson(versions.findById(leftId).orElseThrow().parseSummaryJson, WorkerSummary.class);
-        WorkerSummary right = fromJson(versions.findById(rightId).orElseThrow().parseSummaryJson, WorkerSummary.class);
-        Map<String, Object> result = new HashMap<>();
-        result.put("entityCountDelta", right.entityCount() - left.entityCount());
-        result.put("addedLayers", right.layers().stream().filter(layer -> !left.layers().contains(layer)).toList());
-        result.put("removedLayers", left.layers().stream().filter(layer -> !right.layers().contains(layer)).toList());
-        Map<String, Integer> deltas = new HashMap<>();
-        for (String type : right.typeCounts().keySet()) {
-            deltas.put(type, right.typeCounts().getOrDefault(type, 0) - left.typeCounts().getOrDefault(type, 0));
-        }
-        for (String type : left.typeCounts().keySet()) {
-            deltas.putIfAbsent(type, right.typeCounts().getOrDefault(type, 0) - left.typeCounts().getOrDefault(type, 0));
-        }
-        result.put("typeDeltas", deltas);
-        return result;
+    public VersionCompareResponse compareVersions(String leftId, String rightId) {
+        DrawingVersion leftVersion = versions.findById(leftId).orElseThrow(() -> new IllegalArgumentException("旧版本不存在"));
+        DrawingVersion rightVersion = versions.findById(rightId).orElseThrow(() -> new IllegalArgumentException("新版本不存在"));
+        WorkerSummary left = fromJson(leftVersion.parseSummaryJson, WorkerSummary.class);
+        WorkerSummary right = fromJson(rightVersion.parseSummaryJson, WorkerSummary.class);
+        return versionCompareService.compare(leftVersion, left, rightVersion, right);
     }
 
     public WorkerSummary summaryOf(DrawingVersion version) {

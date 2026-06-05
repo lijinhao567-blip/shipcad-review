@@ -142,6 +142,43 @@ export type ReportDocument = {
   createdAt: string
 }
 
+export type VersionCompareSide = {
+  id: string
+  versionNo: string
+  fileName: string
+  parseStatus: string
+  entityCount: number
+  layerCount: number
+  textCount: number
+  blockCount: number
+}
+
+export type VersionCountDelta = {
+  name: string
+  leftCount: number
+  rightCount: number
+  delta: number
+}
+
+export type VersionCompareResponse = {
+  left: VersionCompareSide
+  right: VersionCompareSide
+  entityCountDelta: number
+  addedLayers: string[]
+  removedLayers: string[]
+  addedEmptyLayers: string[]
+  removedEmptyLayers: string[]
+  addedBlocks: string[]
+  removedBlocks: string[]
+  addedTexts: string[]
+  removedTexts: string[]
+  layerDeltas: VersionCountDelta[]
+  typeDeltas: VersionCountDelta[]
+  riskHints: string[]
+  reviewFocus: string[]
+  summary: string
+}
+
 export type ParsedEntity = {
   id: string
   versionId: string

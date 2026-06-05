@@ -21,6 +21,8 @@
 
 后端按照 Controller / Service / Repository 分层，CAD解析、CAD渲染和视觉识别作为独立Worker能力接入，避免重型CAD/AI依赖污染核心业务服务。上传版本后先入库，审查任务进入后台队列，由任务线程完成解析；如果任务开启自动 Vision/OCR，则先渲染版本 PNG 并采集任务级证据；随后执行规则、生成问题并回写状态。任务会同步维护 `review_task.stage` 和 `review_task_step`，记录 PARSE、RENDER、VISION、OCR、RULES 每一步的成功、跳过或失败原因，便于排障和验收；前端任务详情页负责展示步骤时间线、错误和 detailJson 摘要。规则通过 Easy Rules 注册和执行，后续可迁移到 Drools 或规则配置中心。文件默认保存到 `data/uploads`，版本渲染图缓存到 `data/rendered/{versionId}`，报告保存到数据库，并通过 `GET /api/reports/{reportId}/download` 提供鉴权 Markdown 附件下载。
 
+版本对比由后端 `VersionCompareService` 基于两个版本的 CAD 结构化解析摘要生成，输出实体数量、图层、实体类型、块参照、文本差异、风险提示和复核重点。前端只渲染后端返回的结构化差异，不在页面中伪造或重新推理审图结论。
+
 ## 证据驱动架构
 
 后续能力不应绕过审查流程直接给结论，而应统一进入证据层：

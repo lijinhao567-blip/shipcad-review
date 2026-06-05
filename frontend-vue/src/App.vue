@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { api, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ParsedEntity, type Project, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth } from './api'
+import { api, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ParsedEntity, type Project, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth, type VersionCompareResponse } from './api'
 
 const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfViewerPreview.vue'))
 const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
@@ -27,7 +27,8 @@ const ocrForm = reactive({ file: null as File | null, confidence: 0.5 })
 const ocrRecognizing = ref(false)
 const ocrMessage = ref('')
 const compare = reactive({ leftId: '', rightId: '' })
-const output = ref('')
+const compareResult = ref<VersionCompareResponse | null>(null)
+const compareMessage = ref('')
 const reportDocument = ref<ReportDocument | null>(null)
 const reportContent = ref('')
 const reportActionMessage = ref('')
@@ -198,6 +199,10 @@ const reportEntityEvidenceCount = computed(() => selectedReportIssues.value.filt
 const reportLayerEvidenceCount = computed(() => selectedReportIssues.value.filter((issue) => !issue.entityRef && issue.layerName).length)
 const reportStructuredEvidenceCount = computed(() => selectedReportIssues.value.reduce((sum, issue) => sum + (issue.evidences?.length ?? 0), 0))
 const reportHighIssueCount = computed(() => selectedReportIssues.value.filter((issue) => issue.severity === 'HIGH').length)
+const compareTextChangeCount = computed(() => (compareResult.value?.addedTexts.length ?? 0) + (compareResult.value?.removedTexts.length ?? 0))
+const compareLayerChangeCount = computed(() => (compareResult.value?.addedLayers.length ?? 0) + (compareResult.value?.removedLayers.length ?? 0))
+const compareBlockChangeCount = computed(() => (compareResult.value?.addedBlocks.length ?? 0) + (compareResult.value?.removedBlocks.length ?? 0))
+const compareRiskCount = computed(() => compareResult.value?.riskHints.length ?? 0)
 
 function versionLabel(version: DrawingVersion): string {
   const drawing = drawings.value.find((item) => item.id === version.drawingId)
@@ -215,6 +220,14 @@ function parseSummary(version: DrawingVersion): Record<string, unknown> {
 function summaryNumber(key: string): number {
   const value = reportSummary.value[key]
   return typeof value === 'number' ? value : 0
+}
+
+function signedNumber(value: number): string {
+  return value > 0 ? `+${value}` : `${value}`
+}
+
+function compareListText(items: string[]): string {
+  return items.length ? items.join('、') : '无'
 }
 
 function healthItem(key: string, name: string, component: HealthComponent | undefined, required: boolean): HealthItem {
@@ -538,8 +551,16 @@ async function refreshAll() {
     if (!selectedTaskDetailId.value || !t.some((task) => task.id === selectedTaskDetailId.value)) {
       selectedTaskDetailId.value = selectedTask.value || t[0]?.id || ''
     }
-    compare.leftId ||= v[0]?.id ?? ''
-    compare.rightId ||= v[1]?.id ?? v[0]?.id ?? ''
+    const comparableVersions = availableVersions.length ? availableVersions : v
+    if (!compare.leftId || !comparableVersions.some((version) => version.id === compare.leftId)) {
+      compare.leftId = comparableVersions[0]?.id ?? ''
+    }
+    if (!compare.rightId || !comparableVersions.some((version) => version.id === compare.rightId)) {
+      compare.rightId = comparableVersions[1]?.id ?? comparableVersions[0]?.id ?? ''
+    }
+    if (compare.leftId === compare.rightId && comparableVersions.length > 1) {
+      compare.rightId = comparableVersions.find((version) => version.id !== compare.leftId)?.id ?? compare.rightId
+    }
     await refreshPreview()
   } finally {
     loading.value = false
@@ -803,15 +824,23 @@ async function createReport() {
   reportDocument.value = report
   reportContent.value = report.content
   reportActionMessage.value = ''
-  output.value = ''
   tab.value = 'reports'
   await refreshAll()
 }
 
 async function compareVersions() {
-  const result = await api.request(`/api/versions/compare?leftId=${compare.leftId}&rightId=${compare.rightId}`)
-  output.value = JSON.stringify(result, null, 2)
-  reportActionMessage.value = ''
+  compareMessage.value = ''
+  if (!compare.leftId || !compare.rightId) {
+    compareMessage.value = '请选择两个版本'
+    return
+  }
+  try {
+    compareResult.value = await api.request<VersionCompareResponse>(`/api/versions/compare?leftId=${compare.leftId}&rightId=${compare.rightId}`)
+    compareMessage.value = '版本对比完成'
+    reportActionMessage.value = ''
+  } catch (reason) {
+    compareMessage.value = `版本对比失败：${messageOf(reason)}`
+  }
 }
 
 async function copyReport() {
@@ -1344,9 +1373,10 @@ onMounted(() => {
           </form>
           <form class="panel" @submit.prevent="compareVersions">
             <h2>版本对比</h2>
-            <label>旧版本<select v-model="compare.leftId"><option v-for="v in versions" :key="v.id" :value="v.id">{{ versionLabel(v) }}</option></select></label>
-            <label>新版本<select v-model="compare.rightId"><option v-for="v in versions" :key="v.id" :value="v.id">{{ versionLabel(v) }}</option></select></label>
+            <label>旧版本<select v-model="compare.leftId"><option v-for="v in selectedDrawingVersions" :key="v.id" :value="v.id">{{ versionLabel(v) }}</option></select></label>
+            <label>新版本<select v-model="compare.rightId"><option v-for="v in selectedDrawingVersions" :key="v.id" :value="v.id">{{ versionLabel(v) }}</option></select></label>
             <button>对比</button>
+            <p v-if="compareMessage" class="hint">{{ compareMessage }}</p>
           </form>
         </div>
 
@@ -1406,10 +1436,125 @@ onMounted(() => {
           <p>选择一个已完成的审查任务后生成报告。系统会把规则、图层、实体引用和解析摘要整理成可追溯审查材料。</p>
         </div>
 
-        <div v-if="output" class="panel">
-          <h2>版本对比结果</h2>
-          <pre>{{ output }}</pre>
-        </div>
+        <article v-if="compareResult" class="compare-document">
+          <header class="compare-header">
+            <div>
+              <p class="eyebrow">Version delta</p>
+              <h2>版本差异摘要</h2>
+              <span>{{ compareResult.summary }}</span>
+            </div>
+          </header>
+
+          <div class="compare-metrics">
+            <div><span>旧版实体</span><strong>{{ compareResult.left.entityCount }}</strong></div>
+            <div><span>新版实体</span><strong>{{ compareResult.right.entityCount }}</strong></div>
+            <div><span>实体变化</span><strong>{{ signedNumber(compareResult.entityCountDelta) }}</strong></div>
+            <div><span>图层变化</span><strong>{{ compareLayerChangeCount }}</strong></div>
+            <div><span>块变化</span><strong>{{ compareBlockChangeCount }}</strong></div>
+            <div><span>文本变化</span><strong>{{ compareTextChangeCount }}</strong></div>
+            <div><span>风险提示</span><strong>{{ compareRiskCount }}</strong></div>
+          </div>
+
+          <section class="compare-section">
+            <h3>版本信息</h3>
+            <table class="report-table compact-table">
+              <thead>
+                <tr><th>版本</th><th>文件</th><th>解析状态</th><th>实体</th><th>图层</th><th>文本</th><th>块参照</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{{ compareResult.left.versionNo }}</td>
+                  <td>{{ compareResult.left.fileName }}</td>
+                  <td>{{ compareResult.left.parseStatus }}</td>
+                  <td>{{ compareResult.left.entityCount }}</td>
+                  <td>{{ compareResult.left.layerCount }}</td>
+                  <td>{{ compareResult.left.textCount }}</td>
+                  <td>{{ compareResult.left.blockCount }}</td>
+                </tr>
+                <tr>
+                  <td>{{ compareResult.right.versionNo }}</td>
+                  <td>{{ compareResult.right.fileName }}</td>
+                  <td>{{ compareResult.right.parseStatus }}</td>
+                  <td>{{ compareResult.right.entityCount }}</td>
+                  <td>{{ compareResult.right.layerCount }}</td>
+                  <td>{{ compareResult.right.textCount }}</td>
+                  <td>{{ compareResult.right.blockCount }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="compare-section grid two">
+            <div>
+              <h3>风险提示</h3>
+              <ul class="report-list">
+                <li v-for="hint in compareResult.riskHints" :key="hint">{{ hint }}</li>
+              </ul>
+            </div>
+            <div>
+              <h3>复核重点</h3>
+              <ul class="report-list">
+                <li v-for="focus in compareResult.reviewFocus" :key="focus">{{ focus }}</li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="compare-section">
+            <h3>结构变化</h3>
+            <div class="compare-diff-grid">
+              <div><span>新增图层</span><strong>{{ compareListText(compareResult.addedLayers) }}</strong></div>
+              <div><span>删除图层</span><strong>{{ compareListText(compareResult.removedLayers) }}</strong></div>
+              <div><span>新增空图层</span><strong>{{ compareListText(compareResult.addedEmptyLayers) }}</strong></div>
+              <div><span>删除空图层</span><strong>{{ compareListText(compareResult.removedEmptyLayers) }}</strong></div>
+              <div><span>新增块参照</span><strong>{{ compareListText(compareResult.addedBlocks) }}</strong></div>
+              <div><span>删除块参照</span><strong>{{ compareListText(compareResult.removedBlocks) }}</strong></div>
+            </div>
+          </section>
+
+          <section class="compare-section grid two">
+            <div>
+              <h3>实体类型变化</h3>
+              <table class="report-table compact-table">
+                <thead><tr><th>类型</th><th>旧</th><th>新</th><th>变化</th></tr></thead>
+                <tbody>
+                  <tr v-if="!compareResult.typeDeltas.length"><td colspan="4">无实体类型数量变化</td></tr>
+                  <tr v-for="delta in compareResult.typeDeltas" :key="delta.name">
+                    <td>{{ delta.name }}</td><td>{{ delta.leftCount }}</td><td>{{ delta.rightCount }}</td><td>{{ signedNumber(delta.delta) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <h3>图层实体变化</h3>
+              <table class="report-table compact-table">
+                <thead><tr><th>图层</th><th>旧</th><th>新</th><th>变化</th></tr></thead>
+                <tbody>
+                  <tr v-if="!compareResult.layerDeltas.length"><td colspan="4">无图层实体数量变化</td></tr>
+                  <tr v-for="delta in compareResult.layerDeltas" :key="delta.name">
+                    <td>{{ delta.name }}</td><td>{{ delta.leftCount }}</td><td>{{ delta.rightCount }}</td><td>{{ signedNumber(delta.delta) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="compare-section grid two">
+            <div>
+              <h3>新增文本</h3>
+              <ul class="report-list">
+                <li v-if="!compareResult.addedTexts.length">无新增文本</li>
+                <li v-for="text in compareResult.addedTexts" :key="text">{{ text }}</li>
+              </ul>
+            </div>
+            <div>
+              <h3>删除文本</h3>
+              <ul class="report-list">
+                <li v-if="!compareResult.removedTexts.length">无删除文本</li>
+                <li v-for="text in compareResult.removedTexts" :key="text">{{ text }}</li>
+              </ul>
+            </div>
+          </section>
+        </article>
       </section>
     </section>
   </main>

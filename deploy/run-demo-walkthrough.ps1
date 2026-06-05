@@ -4,6 +4,7 @@ param(
     [string]$Username = "admin",
     [string]$Password = "admin123",
     [string]$Sample = "",
+    [string]$RightSample = "",
     [string]$Output = ""
 )
 
@@ -26,6 +27,9 @@ $walkthroughArgs = @(
 
 if ($Sample) {
     $walkthroughArgs += @("--sample", $Sample)
+}
+if ($RightSample) {
+    $walkthroughArgs += @("--right-sample", $RightSample)
 }
 if ($Output) {
     $walkthroughArgs += @("--output", $Output)

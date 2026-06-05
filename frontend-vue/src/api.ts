@@ -94,8 +94,24 @@ export type ReviewIssue = {
   layerName: string
   entityRef: string
   suggestion: string
+  assignee: string
   evidences?: ReviewEvidence[]
   aiExplanation?: AiExplanation
+}
+
+export type RemediationRecord = {
+  id: string
+  issueId: string
+  taskId: string
+  versionId: string
+  operator: string
+  action: string
+  fromStatus: string
+  toStatus: string
+  assignee: string
+  reportId: string
+  note: string
+  createdAt: string
 }
 
 export type AiExplanation = {

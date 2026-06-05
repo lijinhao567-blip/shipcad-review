@@ -33,7 +33,7 @@ This makes review results:
 | YOLOv8 | DetectedSymbol | welding symbol, arrow, section marker, title block |
 | OCR | OcrTextRegion | title text, revision record, dimension text, note |
 | Knowledge graph | KnowledgeClause | standard clause, rule basis, remediation suggestion |
-| User workflow | RemediationRecord | assignee, comment, status change, review decision |
+| User workflow | RemediationRecord | assignee, operator, status change, report reference, remediation/review decision |
 
 ## Proposed Future Data Objects
 

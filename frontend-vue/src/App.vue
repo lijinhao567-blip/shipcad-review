@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { api, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ParsedEntity, type Project, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth, type VersionCompareResponse } from './api'
+import { api, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ParsedEntity, type Project, type RemediationRecord, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth, type VersionCompareResponse } from './api'
 
 const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfViewerPreview.vue'))
 const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
@@ -29,6 +29,10 @@ const ocrMessage = ref('')
 const compare = reactive({ leftId: '', rightId: '' })
 const compareResult = ref<VersionCompareResponse | null>(null)
 const compareMessage = ref('')
+const remediationForm = reactive({ status: 'IN_PROGRESS', assignee: '', note: '', reportId: '' })
+const remediationRecords = ref<RemediationRecord[]>([])
+const remediationMessage = ref('')
+const remediationLoading = ref(false)
 const reportDocument = ref<ReportDocument | null>(null)
 const reportContent = ref('')
 const reportActionMessage = ref('')
@@ -99,6 +103,11 @@ const previewVersion = computed(() => versions.value.find((item) => item.id === 
 const isDxfPreview = computed(() => previewVersion.value?.fileName.toLowerCase().endsWith('.dxf') ?? false)
 const entityById = computed(() => new Map(entities.value.map((entity) => [entity.id, entity])))
 const selectedIssue = computed(() => issues.value.find((issue) => issue.id === selectedIssueId.value))
+const selectedIssueRecords = computed(() => remediationRecords.value.filter((record) => record.issueId === selectedIssueId.value))
+const selectedIssueReportRef = computed(() => {
+  if (!selectedIssue.value || reportDocument.value?.taskId !== selectedIssue.value.taskId) return ''
+  return reportDocument.value.id
+})
 const previewVisionEvidences = computed(() => versionEvidences.value.filter((evidence) => evidence.evidenceType === 'YOLO_SYMBOL'))
 const previewOcrEvidences = computed(() => versionEvidences.value.filter((evidence) => evidence.evidenceType === 'OCR_TEXT'))
 const selectedReportTask = computed(() => tasks.value.find((task) => task.id === selectedTask.value))
@@ -411,6 +420,30 @@ function formatReportText(value: string): string {
 
 function taskLabel(task: ReviewTask): string {
   return `${task.id} / ${task.status} / ${task.issueCount}个问题`
+}
+
+function issueStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    OPEN: '待处理',
+    IN_PROGRESS: '整改中',
+    READY_FOR_REVIEW: '待复核',
+    CLOSED: '已关闭'
+  }
+  return labels[status] ?? status
+}
+
+function remediationActionLabel(action: string): string {
+  const labels: Record<string, string> = {
+    START_REMEDIATION: '开始整改',
+    SUBMIT_FOR_REVIEW: '提交复核',
+    CLOSE: '关闭问题',
+    REOPEN: '重新打开',
+    MARK_OPEN: '标记待处理',
+    ASSIGN: '指派经办人',
+    COMMENT: '补充说明',
+    UPDATE: '更新'
+  }
+  return labels[action] ?? action
 }
 
 function taskVersionLabel(task: ReviewTask): string {
@@ -814,9 +847,45 @@ async function retryTask(task: ReviewTask) {
   await waitForTask(created.id)
 }
 
-async function updateIssue(issue: ReviewIssue, status: string) {
-  await api.request(`/api/issues/${issue.id}`, { method: 'PATCH', body: JSON.stringify({ status, note: '前端工作台状态流转' }) })
+async function refreshIssueRemediations(issueId = selectedIssueId.value) {
+  if (!issueId) {
+    remediationRecords.value = []
+    return
+  }
+  remediationRecords.value = await api.request<RemediationRecord[]>(`/api/issues/${issueId}/remediations`)
+}
+
+async function updateIssue(issue: ReviewIssue, status: string, note?: string) {
+  await api.request(`/api/issues/${issue.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      status,
+      assignee: remediationForm.assignee || issue.assignee || '',
+      note: note ?? remediationForm.note,
+      reportId: selectedIssueReportRef.value || remediationForm.reportId || ''
+    })
+  })
   await refreshAll()
+  await refreshIssueRemediations(issue.id)
+}
+
+async function applyIssueWorkflow(status: string) {
+  if (!selectedIssue.value) {
+    remediationMessage.value = '请先选择一个问题'
+    return
+  }
+  remediationLoading.value = true
+  remediationMessage.value = ''
+  try {
+    await updateIssue(selectedIssue.value, status)
+    remediationForm.status = status
+    remediationForm.note = ''
+    remediationMessage.value = `已记录：${issueStatusLabel(status)}`
+  } catch (reason) {
+    remediationMessage.value = `整改记录失败：${messageOf(reason)}`
+  } finally {
+    remediationLoading.value = false
+  }
 }
 
 async function createReport() {
@@ -901,6 +970,14 @@ function copyReportWithTextarea(value: string): boolean {
 function selectIssue(issue: ReviewIssue) {
   selectedIssueId.value = issue.id
   previewVersionId.value = issue.versionId
+  remediationForm.status = issue.status === 'CLOSED' ? 'OPEN' : issue.status || 'IN_PROGRESS'
+  remediationForm.assignee = issue.assignee || ''
+  remediationForm.note = ''
+  remediationForm.reportId = selectedIssueReportRef.value
+  remediationMessage.value = ''
+  refreshIssueRemediations(issue.id).catch((reason) => {
+    remediationMessage.value = `整改时间线加载失败：${messageOf(reason)}`
+  })
 }
 
 function selectTaskDetail(task: ReviewTask) {
@@ -1332,9 +1409,47 @@ onMounted(() => {
           </div>
           <div class="panel">
             <h2>问题清单</h2>
+            <div v-if="selectedIssue" class="remediation-panel">
+              <div class="remediation-head">
+                <div>
+                  <strong>{{ selectedIssue.title }}</strong>
+                  <p>{{ selectedIssue.ruleCode }} / {{ selectedIssue.severity }} / {{ issueStatusLabel(selectedIssue.status) }}</p>
+                </div>
+                <span>{{ shortId(selectedIssue.id) }}</span>
+              </div>
+              <div class="remediation-form">
+                <label>经办人<input v-model="remediationForm.assignee" placeholder="例如：设计工程师A" /></label>
+                <label>报告引用<input v-model="remediationForm.reportId" :placeholder="selectedIssueReportRef || '可选：先生成报告后自动引用'" /></label>
+                <label class="remediation-note">整改/复核说明<textarea v-model="remediationForm.note" placeholder="记录整改措施、复核意见、关闭依据或重新打开原因"></textarea></label>
+              </div>
+              <div class="actions remediation-actions">
+                <button type="button" :disabled="remediationLoading" @click="applyIssueWorkflow('IN_PROGRESS')">开始整改</button>
+                <button type="button" :disabled="remediationLoading" @click="applyIssueWorkflow('READY_FOR_REVIEW')">提交复核</button>
+                <button type="button" :disabled="remediationLoading" @click="applyIssueWorkflow('CLOSED')">关闭问题</button>
+                <button type="button" class="secondary" :disabled="remediationLoading" @click="applyIssueWorkflow('OPEN')">重新打开</button>
+              </div>
+              <p v-if="remediationMessage" class="hint">{{ remediationMessage }}</p>
+              <div class="remediation-timeline">
+                <strong>整改时间线</strong>
+                <div v-if="!selectedIssueRecords.length" class="timeline-empty">暂无整改记录</div>
+                <div v-for="record in selectedIssueRecords" :key="record.id" class="timeline-row">
+                  <div>
+                    <b>{{ remediationActionLabel(record.action) }}</b>
+                    <span>{{ formatTime(record.createdAt) }} / {{ record.operator || '-' }}</span>
+                  </div>
+                  <p>{{ issueStatusLabel(record.fromStatus) }} → {{ issueStatusLabel(record.toStatus) }} / 经办人 {{ record.assignee || '-' }}</p>
+                  <p v-if="record.reportId">报告引用：{{ shortId(record.reportId) }}</p>
+                  <p v-if="record.note">{{ record.note }}</p>
+                </div>
+              </div>
+            </div>
+            <div v-else class="empty-state">
+              <strong>请选择一个问题</strong>
+              <p>选中问题后可填写整改说明、提交复核、关闭问题并查看完整时间线。</p>
+            </div>
             <div v-for="issue in issues" :key="issue.id" class="issue" :class="[issue.severity, { selected: selectedIssueId === issue.id }]" @click="selectIssue(issue)">
               <strong>{{ issue.title }}</strong>
-              <p>{{ issue.ruleCode }} / {{ issue.severity }} / {{ issue.status }} / 图层 {{ issue.layerName || '-' }}</p>
+              <p>{{ issue.ruleCode }} / {{ issue.severity }} / {{ issueStatusLabel(issue.status) }} / 图层 {{ issue.layerName || '-' }}</p>
               <p class="evidence">{{ issueEvidence(issue) }}</p>
               <div class="evidence-groups">
                 <div v-for="group in groupedEvidence(issue)" :key="group.type" class="evidence-group">
@@ -1355,9 +1470,7 @@ onMounted(() => {
                 <p>{{ issue.aiExplanation.reviewFocus }}</p>
               </div>
               <div class="actions">
-                <button @click.stop="updateIssue(issue, 'IN_PROGRESS')">整改中</button>
-                <button @click.stop="updateIssue(issue, 'READY_FOR_REVIEW')">待复核</button>
-                <button @click.stop="updateIssue(issue, 'CLOSED')">关闭</button>
+                <button type="button" @click.stop="selectIssue(issue)">处理</button>
               </div>
             </div>
           </div>

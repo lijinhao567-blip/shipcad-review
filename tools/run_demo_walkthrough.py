@@ -123,6 +123,21 @@ class DemoWalkthrough:
             "contentDisposition": response.headers.get("content-disposition", ""),
         }
 
+    def update_issue(self, issue_id: str, status: str, note: str, report_id: str = "") -> dict[str, Any]:
+        return self.request(
+            "PATCH",
+            f"/api/issues/{issue_id}",
+            json={
+                "status": status,
+                "assignee": "demo-reviewer",
+                "note": note,
+                "reportId": report_id,
+            },
+        ).json()
+
+    def remediations(self, issue_id: str) -> list[dict[str, Any]]:
+        return self.request("GET", f"/api/issues/{issue_id}/remediations").json()
+
     def run(
         self,
         sample: Path,
@@ -145,6 +160,14 @@ class DemoWalkthrough:
         version_after_parse = self.find_version(drawing["id"], version["id"])
         report = self.create_report(task["id"])
         report_download = self.report_download(report["id"])
+        remediation_records: list[dict[str, Any]] = []
+        remediated_issue: dict[str, Any] | None = None
+        if issues:
+            remediated_issue = issues[0]
+            self.update_issue(remediated_issue["id"], "IN_PROGRESS", "Demo: remediation started from evidence chain.")
+            self.update_issue(remediated_issue["id"], "READY_FOR_REVIEW", "Demo: fix submitted for expert review.")
+            self.update_issue(remediated_issue["id"], "CLOSED", "Demo: reviewer accepted the fix and linked the report.", report["id"])
+            remediation_records = self.remediations(remediated_issue["id"])
         right_version = self.upload_version(drawing["id"], right_version_no, right_sample)
         right_file_size = self.file_size(right_version["id"])
         right_task = self.create_review_task(right_version["id"])
@@ -154,7 +177,19 @@ class DemoWalkthrough:
         right_version_after_parse = self.find_version(drawing["id"], right_version["id"])
         comparison = self.compare_versions(version["id"], right_version["id"])
 
-        checks = acceptance_checks(uploaded_file_size, finished, steps, issues, report, report_download, right_file_size, right_finished, right_steps, comparison)
+        checks = acceptance_checks(
+            uploaded_file_size,
+            finished,
+            steps,
+            issues,
+            report,
+            report_download,
+            remediation_records,
+            right_file_size,
+            right_finished,
+            right_steps,
+            comparison,
+        )
         result = {
             "baseUrl": self.base_url,
             "sample": sample,
@@ -172,6 +207,8 @@ class DemoWalkthrough:
             "entities": entities,
             "report": report,
             "reportDownload": report_download,
+            "remediatedIssue": remediated_issue,
+            "remediationRecords": remediation_records,
             "comparison": comparison,
             "fileSize": uploaded_file_size,
             "rightFileSize": right_file_size,
@@ -193,6 +230,7 @@ def acceptance_checks(
     issues: list[dict[str, Any]],
     report: dict[str, Any],
     report_download: dict[str, Any],
+    remediation_records: list[dict[str, Any]],
     right_file_size: int,
     right_task: dict[str, Any],
     right_steps: list[dict[str, Any]],
@@ -202,6 +240,7 @@ def acceptance_checks(
     right_step_status = {step.get("stepCode"): step.get("status") for step in right_steps}
     issue_evidence_ok = all(issue.get("evidences") for issue in issues) if issues else True
     issue_ai_ok = all((issue.get("aiExplanation") or {}).get("summary") for issue in issues) if issues else True
+    remediation_actions = {record.get("action") for record in remediation_records}
     return [
         ("uploaded file endpoint returned content", file_size > 0),
         ("review task finished", task.get("status") == "FINISHED"),
@@ -211,6 +250,7 @@ def acceptance_checks(
         ("report generated content", bool((report.get("content") or "").strip())),
         ("report download endpoint returned markdown", report_download.get("size", 0) > 0 and "text/markdown" in report_download.get("contentType", "")),
         ("report download endpoint returned attachment", "attachment" in report_download.get("contentDisposition", "")),
+        ("issue remediation timeline recorded", not issues or {"START_REMEDIATION", "SUBMIT_FOR_REVIEW", "CLOSE"}.issubset(remediation_actions)),
         ("right version file endpoint returned content", right_file_size > 0),
         ("right version review task finished", right_task.get("status") == "FINISHED"),
         ("right version PARSE step succeeded", right_step_status.get("PARSE") == "SUCCESS"),
@@ -354,6 +394,25 @@ def write_summary(output: Path, result: dict[str, Any], checks: list[tuple[str, 
                     ["reviewFocus", " / ".join(comparison.get("reviewFocus") or [])],
                 ],
             ),
+            "## Remediation Timeline\n"
+            + (
+                md_table(
+                    ["Action", "From", "To", "Assignee", "Report", "Note"],
+                    [
+                        [
+                            record.get("action"),
+                            record.get("fromStatus"),
+                            record.get("toStatus"),
+                            record.get("assignee") or "",
+                            record.get("reportId") or "",
+                            record.get("note") or "",
+                        ]
+                        for record in result["remediationRecords"]
+                    ],
+                )
+                if result["remediationRecords"]
+                else "No remediation records were generated."
+            ),
             "## Entity Type Counts\n" + md_table(["Entity Type", "Count"], entity_rows),
             "## Review Task Steps\n" + md_table(["Order", "Code", "Name", "Status", "Message"], step_rows),
             "## Issues\n"
@@ -423,6 +482,7 @@ def main() -> int:
     print(f"Right Task : {result['rightTask']['id']} ({result['rightTask']['status']})")
     print(f"Report ID  : {result['report']['id']}")
     print(f"Issues     : {len(result['issues'])}")
+    print(f"Remediation: {len(result['remediationRecords'])} records")
     print(f"Compare    : {result['comparison']['summary']}")
     print(f"Summary    : {output}")
     print("-" * 88)

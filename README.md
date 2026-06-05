@@ -148,7 +148,7 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 - YOLOv8 Vision Worker 骨架：支持使用版本渲染图或手动上传图像生成符号检测框，需配置模型权重
 - OCR Worker 骨架：支持使用版本渲染图或手动上传图像生成文字区域，需安装 Tesseract OCR
 - Easy Rules 规则审查：图层命名、空图层、标题栏、版次格式、占位文本、实体数量、OCR占位文本、YOLO/CAD标题栏交叉校验
-- 问题整改闭环、按来源分组的证据链展示、审查报告、服务端 Markdown 附件下载、统计看板和结构化版本对比
+- 带时间线的整改闭环、按来源分组的证据链展示、审查报告、服务端 Markdown 附件下载、统计看板和结构化版本对比
 
 ## 下一阶段重点
 

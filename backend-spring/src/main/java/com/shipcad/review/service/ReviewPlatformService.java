@@ -647,6 +647,11 @@ public class ReviewPlatformService {
         return evidences.findByIssueId(issueId);
     }
 
+    public List<RemediationRecord> listIssueRemediations(String issueId) {
+        issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
+        return remediations.findByIssueIdOrderByCreatedAtAsc(issueId);
+    }
+
     public List<ReviewEvidence> listVersionEvidence(String versionId, EvidenceType type) {
         versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
         List<ReviewEvidence> source = evidences.findByVersionId(versionId);
@@ -665,6 +670,9 @@ public class ReviewPlatformService {
 
     public ReviewIssue updateIssue(String issueId, IssueUpdateRequest request, AppUser actor) {
         ReviewIssue issue = issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
+        IssueStatus fromStatus = issue.status;
+        String fromAssignee = issue.assignee;
+        validateReportReference(request.reportId(), issue);
         if (request.status() != null) {
             issue.status = request.status();
         }
@@ -677,13 +685,44 @@ public class ReviewPlatformService {
         RemediationRecord record = new RemediationRecord();
         record.id = Ids.next("remediation");
         record.issueId = issueId;
+        record.taskId = issue.taskId;
+        record.versionId = issue.versionId;
         record.operator = actor.username;
-        record.action = "UPDATE";
+        record.action = remediationAction(fromStatus, issue.status, fromAssignee, issue.assignee);
+        record.fromStatus = fromStatus == null ? "" : fromStatus.name();
+        record.toStatus = issue.status == null ? "" : issue.status.name();
+        record.assignee = issue.assignee;
+        record.reportId = request.reportId();
         record.note = request.note();
         record.createdAt = Ids.now();
         remediations.save(record);
         audit.record(actor.username, "ISSUE_UPDATE", "issue", issueId, request);
         return attachEvidence(issue);
+    }
+
+    private void validateReportReference(String reportId, ReviewIssue issue) {
+        if (reportId == null || reportId.isBlank()) {
+            return;
+        }
+        ReportDocument report = reports.findById(reportId).orElseThrow(() -> new IllegalArgumentException("报告不存在"));
+        if (issue.taskId == null || !issue.taskId.equals(report.taskId)) {
+            throw new IllegalArgumentException("报告不属于当前问题所在审查任务");
+        }
+    }
+
+    private String remediationAction(IssueStatus fromStatus, IssueStatus toStatus, String fromAssignee, String toAssignee) {
+        if (toStatus != null && toStatus != fromStatus) {
+            return switch (toStatus) {
+                case IN_PROGRESS -> "START_REMEDIATION";
+                case READY_FOR_REVIEW -> "SUBMIT_FOR_REVIEW";
+                case CLOSED -> "CLOSE";
+                case OPEN -> fromStatus == IssueStatus.CLOSED ? "REOPEN" : "MARK_OPEN";
+            };
+        }
+        if (!java.util.Objects.equals(fromAssignee, toAssignee)) {
+            return "ASSIGN";
+        }
+        return "COMMENT";
     }
 
     public ReportDocument createReport(String taskId, AppUser actor) {

@@ -34,7 +34,7 @@ public final class ApiDtos {
     ) {
     }
 
-    public record IssueUpdateRequest(IssueStatus status, String assignee, String note) {
+    public record IssueUpdateRequest(IssueStatus status, String assignee, String note, String reportId) {
     }
 
     public record ReportRequest(@NotBlank String taskId) {

@@ -16,6 +16,9 @@ import com.shipcad.review.service.AuthService;
 import com.shipcad.review.service.ReviewPlatformService;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -109,5 +112,16 @@ public class ReviewController extends BaseController {
     public ReportDocument report(@RequestHeader("Authorization") String authorization, @PathVariable String reportId) {
         user(authorization);
         return reports.findById(reportId).orElseThrow(() -> new IllegalArgumentException("报告不存在"));
+    }
+
+    @GetMapping("/reports/{reportId}/download")
+    public ResponseEntity<String> downloadReport(@RequestHeader("Authorization") String authorization, @PathVariable String reportId) {
+        user(authorization);
+        ReportDocument report = reports.findById(reportId).orElseThrow(() -> new IllegalArgumentException("报告不存在"));
+        String fileName = "shipcad-review-report-" + report.id + ".md";
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/markdown;charset=UTF-8"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .body(report.content == null ? "" : report.content);
     }
 }

@@ -832,17 +832,28 @@ async function copyReport() {
   }
 }
 
-function downloadReport() {
-  if (!reportContent.value) return
-  const name = `${reportDocument.value?.id ?? 'shipcad-review-report'}.md`
-  const blob = new Blob([reportContent.value], { type: 'text/markdown;charset=utf-8' })
+async function downloadReport() {
+  if (!reportDocument.value?.id) {
+    reportActionMessage.value = '请先生成报告'
+    return
+  }
+  try {
+    const result = await api.download(`/api/reports/${reportDocument.value.id}/download`)
+    const name = result.fileName ?? `${reportDocument.value.id}.md`
+    saveBlob(result.blob, name)
+    reportActionMessage.value = `已从服务端下载 ${name}`
+  } catch (reason) {
+    reportActionMessage.value = `下载失败：${messageOf(reason)}`
+  }
+}
+
+function saveBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = name
   anchor.click()
   URL.revokeObjectURL(url)
-  reportActionMessage.value = `已下载 ${name}`
 }
 
 function copyReportWithTextarea(value: string): boolean {
@@ -1348,7 +1359,7 @@ onMounted(() => {
             </div>
             <div class="report-actions">
               <button type="button" class="secondary" @click="copyReport">复制Markdown</button>
-              <button type="button" @click="downloadReport">下载.md</button>
+              <button type="button" @click="downloadReport">服务端下载.md</button>
             </div>
           </header>
 

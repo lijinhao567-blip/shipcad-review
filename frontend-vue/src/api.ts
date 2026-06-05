@@ -165,6 +165,11 @@ export type Dashboard = {
   issueCountByRule: Record<string, number>
 }
 
+export type DownloadResult = {
+  blob: Blob
+  fileName: string | null
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 export class ApiClient {
@@ -193,6 +198,20 @@ export class ApiClient {
     return response.blob()
   }
 
+  async download(path: string, init: RequestInit = {}): Promise<DownloadResult> {
+    const headers = new Headers(init.headers)
+    if (this.token) headers.set('Authorization', `Bearer ${this.token}`)
+    const response = await fetch(`${API_BASE}${path}`, { ...init, headers })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: response.statusText }))
+      throw new Error(error.message ?? response.statusText)
+    }
+    return {
+      blob: await response.blob(),
+      fileName: fileNameFromContentDisposition(response.headers.get('Content-Disposition'))
+    }
+  }
+
   async login(username: string, password: string): Promise<LoginResponse> {
     const result = await this.request<LoginResponse>('/api/auth/login', {
       method: 'POST',
@@ -202,6 +221,21 @@ export class ApiClient {
     localStorage.setItem('shipcad_token', this.token)
     return result
   }
+}
+
+function fileNameFromContentDisposition(disposition: string | null): string | null {
+  if (!disposition) return null
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded)
+    } catch {
+      return encoded
+    }
+  }
+  const quoted = disposition.match(/filename="([^"]+)"/i)?.[1]
+  if (quoted) return quoted
+  return disposition.match(/filename=([^;]+)/i)?.[1]?.trim() ?? null
 }
 
 export const api = new ApiClient()

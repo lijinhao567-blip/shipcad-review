@@ -19,7 +19,7 @@
 
 ## 技术架构
 
-后端按照 Controller / Service / Repository 分层，CAD解析、CAD渲染和视觉识别作为独立Worker能力接入，避免重型CAD/AI依赖污染核心业务服务。上传版本后先入库，审查任务进入后台队列，由任务线程完成解析；如果任务开启自动 Vision/OCR，则先渲染版本 PNG 并采集任务级证据；随后执行规则、生成问题并回写状态。任务会同步维护 `review_task.stage` 和 `review_task_step`，记录 PARSE、RENDER、VISION、OCR、RULES 每一步的成功、跳过或失败原因，便于排障和验收；前端任务详情页负责展示步骤时间线、错误和 detailJson 摘要。规则通过 Easy Rules 注册和执行，后续可迁移到 Drools 或规则配置中心。文件默认保存到 `data/uploads`，版本渲染图缓存到 `data/rendered/{versionId}`，报告保存到数据库并可导出。
+后端按照 Controller / Service / Repository 分层，CAD解析、CAD渲染和视觉识别作为独立Worker能力接入，避免重型CAD/AI依赖污染核心业务服务。上传版本后先入库，审查任务进入后台队列，由任务线程完成解析；如果任务开启自动 Vision/OCR，则先渲染版本 PNG 并采集任务级证据；随后执行规则、生成问题并回写状态。任务会同步维护 `review_task.stage` 和 `review_task_step`，记录 PARSE、RENDER、VISION、OCR、RULES 每一步的成功、跳过或失败原因，便于排障和验收；前端任务详情页负责展示步骤时间线、错误和 detailJson 摘要。规则通过 Easy Rules 注册和执行，后续可迁移到 Drools 或规则配置中心。文件默认保存到 `data/uploads`，版本渲染图缓存到 `data/rendered/{versionId}`，报告保存到数据库，并通过 `GET /api/reports/{reportId}/download` 提供鉴权 Markdown 附件下载。
 
 ## 证据驱动架构
 

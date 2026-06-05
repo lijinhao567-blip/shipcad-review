@@ -251,6 +251,15 @@ class MultimodalEvidenceE2E:
     def create_report(self, task_id: str) -> dict[str, Any]:
         return self.request("POST", "/api/reports", json={"taskId": task_id}).json()
 
+    def report_download_check(self, report_id: str) -> None:
+        response = self.request("GET", f"/api/reports/{report_id}/download")
+        if len(response.content) == 0:
+            raise AssertionError("report download endpoint returned an empty body")
+        if "text/markdown" not in response.headers.get("content-type", ""):
+            raise AssertionError(f"report download returned unexpected content type: {response.headers.get('content-type')}")
+        if "attachment" not in response.headers.get("content-disposition", ""):
+            raise AssertionError("report download is missing attachment content disposition")
+
     def run(self, dxf_path: Path) -> dict[str, Any]:
         self.login()
         self.assert_required_rules()
@@ -286,6 +295,7 @@ class MultimodalEvidenceE2E:
         self.assert_issue_chain(issues, "OCR_PLACEHOLDER_TEXT", "OCR_TEXT", ocr_version_evidence[0]["id"])
         report = self.create_report(task["id"])
         self.assert_report(report)
+        self.report_download_check(report["id"])
 
         return {
             "projectId": project["id"],

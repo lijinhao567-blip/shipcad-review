@@ -111,6 +111,14 @@ class DemoWalkthrough:
     def create_report(self, task_id: str) -> dict[str, Any]:
         return self.request("POST", "/api/reports", json={"taskId": task_id}).json()
 
+    def report_download(self, report_id: str) -> dict[str, Any]:
+        response = self.request("GET", f"/api/reports/{report_id}/download")
+        return {
+            "size": len(response.content),
+            "contentType": response.headers.get("content-type", ""),
+            "contentDisposition": response.headers.get("content-disposition", ""),
+        }
+
     def run(self, sample: Path, version_no: str, output: Path) -> tuple[dict[str, Any], list[tuple[str, bool]]]:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         self.login()
@@ -125,8 +133,9 @@ class DemoWalkthrough:
         entities = self.entities(version["id"])
         version_after_parse = self.find_version(drawing["id"], version["id"])
         report = self.create_report(task["id"])
+        report_download = self.report_download(report["id"])
 
-        checks = acceptance_checks(uploaded_file_size, finished, steps, issues, report)
+        checks = acceptance_checks(uploaded_file_size, finished, steps, issues, report, report_download)
         result = {
             "baseUrl": self.base_url,
             "sample": sample,
@@ -138,6 +147,7 @@ class DemoWalkthrough:
             "issues": issues,
             "entities": entities,
             "report": report,
+            "reportDownload": report_download,
             "fileSize": uploaded_file_size,
         }
         write_summary(output, result, checks)
@@ -156,6 +166,7 @@ def acceptance_checks(
     steps: list[dict[str, Any]],
     issues: list[dict[str, Any]],
     report: dict[str, Any],
+    report_download: dict[str, Any],
 ) -> list[tuple[str, bool]]:
     step_status = {step.get("stepCode"): step.get("status") for step in steps}
     issue_evidence_ok = all(issue.get("evidences") for issue in issues) if issues else True
@@ -167,6 +178,8 @@ def acceptance_checks(
         ("RULES step succeeded", step_status.get("RULES") == "SUCCESS"),
         ("visual steps skipped in rule-only demo", step_status.get("RENDER") == "SKIPPED"),
         ("report generated content", bool((report.get("content") or "").strip())),
+        ("report download endpoint returned markdown", report_download.get("size", 0) > 0 and "text/markdown" in report_download.get("contentType", "")),
+        ("report download endpoint returned attachment", "attachment" in report_download.get("contentDisposition", "")),
         ("issues include evidence chains", issue_evidence_ok),
         ("issues include AI explanations", issue_ai_ok),
     ]
@@ -261,6 +274,7 @@ def write_summary(output: Path, result: dict[str, Any], checks: list[tuple[str, 
             f"- Backend: {result['baseUrl']}",
             f"- Sample: `{result['sample']}`",
             f"- File endpoint size: {result['fileSize']} bytes",
+            f"- Report download size: {result['reportDownload']['size']} bytes",
             "## Created Records\n"
             + md_table(
                 ["Record", "ID", "Key Info"],

@@ -6,7 +6,7 @@
 - CAD rendering：`POST /render` 和 `/api/versions/{versionId}/rendered-image` 应返回真实 PNG；渲染失败必须暴露明确错误，不能伪造空图片。
 - DWG：安装 LibreDWG 后，验证 DWG 转 DXF 的失败和成功路径。
 - Vision Worker：未配置模型时返回明确错误；配置模型后能返回检测框结构。
-- 后端：登录、项目创建、图纸创建、版本上传、异步审查任务、任务阶段/步骤记录、可选自动 Vision/OCR 证据采集、任务失败重试、问题整改、报告生成、版本对比、聚合健康检查。
+- 后端：登录、持久化会话恢复、注销失效、会话过期、密码修改、账号停用、角色变更、管理员用户管理、项目创建、图纸创建、版本上传、异步审查任务、任务阶段/步骤记录、可选自动 Vision/OCR 证据采集、任务失败重试、问题整改、报告生成、版本对比、聚合健康检查。
 - 前端：构建通过，API 调用路径可配置，系统状态页能展示后端、数据库、OpenAPI 和 Worker 状态；审图流程状态应能反映系统、登录、项目图纸、版本、审查、问题和报告进度；项目、图纸、版本列表切换当前上下文后，应同步影响上传、预览、审查和报告选择；审查任务详情能展示步骤时间线和失败细节；dxf-viewer 能加载上传 DXF 并显示图层；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
 - Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字和实体数量异常。
 - Demo walkthrough：`tools/run_demo_walkthrough.py` 应能用一个真实 DXF 样例走通登录、建项目、建图纸、上传版本、发起审查、生成问题、生成报告，并把项目 ID、图纸 ID、版本 ID、任务步骤、问题证据类型和报告预览写入 `.run/demo-walkthrough-*.md`，用于人工演示核查。
@@ -15,7 +15,7 @@
 - 版本对比：`GET /api/versions/compare` 应返回结构化版本差异，包括实体数量变化、图层新增/删除、图层实体数量变化、实体类型变化、块参照变化、文本变化、风险提示和复核重点；前端应以摘要、指标和表格展示，而不是只输出原始 JSON。
 - Vision evidence：配置模型后，`POST /api/versions/{versionId}/vision-detect` 和 `POST /api/versions/{versionId}/vision-detect-rendered` 应能保存 `YOLO_SYMBOL` evidence；未配置模型时应返回明确错误，不能伪造检测结果。
 - OCR evidence：配置 Tesseract 后，`POST /api/versions/{versionId}/ocr-recognize` 和 `POST /api/versions/{versionId}/ocr-recognize-rendered` 应能保存 `OCR_TEXT` evidence；未安装 OCR 引擎时应返回明确错误，不能伪造识别文本。
-- 安全：Token 鉴权、四角色操作级权限矩阵、403 越权拒绝、越权行为审计、文件类型限制、20MB 限制、审计日志分页查询。
+- 安全：数据库持久化且仅存摘要的 Token 会话、过期与主动撤销、禁用账号拒绝登录、密码策略、四角色操作级权限矩阵、403 越权拒绝、越权与登录失败审计、文件类型限制、20MB 限制、审计日志分页查询。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
 - 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环，`deploy/run-demo-walkthrough.ps1` 应能生成单样例演示摘要。
 
@@ -38,7 +38,7 @@
 - `tools/run_multimodal_evidence_e2e.py` verifies the live API chain for review-task automatic rendering, task-scoped `YOLO_SYMBOL` and `OCR_TEXT` evidence, rule consumption, issue-level `sourceEvidenceId` references, AI explanations, and report output. Its default mock workers are deterministic integration substitutes; they do not validate real model accuracy.
 - `tools/run_demo_walkthrough.py` verifies one live rule-only review path, then uploads a second version and writes a human-readable Markdown summary for presentation and handoff checks.
 - `tools/run_demo_walkthrough.py` also uploads a second DXF version, reviews it, calls `GET /api/versions/compare`, and records the version comparison summary in the walkthrough artifact.
-- `tools/run_access_control_e2e.py` verifies role restoration through `/api/auth/me`, viewer read-only access, design engineer authoring boundaries, review expert separation, HTTP 403 responses, and administrator audit visibility for denied attempts.
+- `tools/run_access_control_e2e.py` verifies role restoration through `/api/auth/me`, viewer read-only access, design engineer authoring boundaries, review expert separation, HTTP 403 responses, administrator audit visibility, managed-user creation, own-password change, account disabling, logout, and immediate session invalidation.
 
 ## 验收目标
 

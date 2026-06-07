@@ -1,6 +1,7 @@
 package com.shipcad.review.dto;
 
 import com.shipcad.review.domain.IssueStatus;
+import com.shipcad.review.domain.UserRole;
 import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
 import java.util.List;
@@ -13,13 +14,44 @@ public final class ApiDtos {
     public record LoginRequest(@NotBlank String username, @NotBlank String password) {
     }
 
-    public record LoginResponse(String token, UserView user, List<String> permissions) {
+    public record LoginResponse(String token, Instant expiresAt, UserView user, List<String> permissions) {
     }
 
     public record UserView(String id, String username, String displayName, String role) {
     }
 
-    public record AccessView(UserView user, List<String> permissions) {
+    public record AccessView(UserView user, List<String> permissions, Instant sessionExpiresAt) {
+    }
+
+    public record CreateUserRequest(
+            @NotBlank String username,
+            @NotBlank String displayName,
+            UserRole role,
+            @NotBlank String password,
+            Boolean enabled
+    ) {
+    }
+
+    public record UpdateUserRequest(String displayName, UserRole role, Boolean enabled) {
+    }
+
+    public record ResetPasswordRequest(@NotBlank String newPassword) {
+    }
+
+    public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank String newPassword) {
+    }
+
+    public record ManagedUserView(
+            String id,
+            String username,
+            String displayName,
+            String role,
+            boolean enabled,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant passwordChangedAt,
+            Instant lastLoginAt
+    ) {
     }
 
     public record AuditLogView(

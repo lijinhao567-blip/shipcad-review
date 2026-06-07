@@ -185,6 +185,19 @@ textarea { min-height: 80px; resize: vertical; }
 .audit-table th:nth-child(4) { width: 180px; }
 .audit-table code { display: block; max-width: 620px; color: #334155; white-space: pre-wrap; overflow-wrap: anywhere; }
 .audit-pagination { display: flex; justify-content: flex-end; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+.account-summary dl { display: grid; gap: 0; margin: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.account-summary dl div { display: grid; grid-template-columns: 130px minmax(0, 1fr); border-bottom: 1px solid var(--line); }
+.account-summary dl div:last-child { border-bottom: 0; }
+.account-summary dt, .account-summary dd { margin: 0; padding: 10px 12px; }
+.account-summary dt { background: #f8fafc; color: var(--muted); font-size: 13px; }
+.account-summary dd { overflow-wrap: anywhere; font-weight: 700; }
+.selected-user-title { margin: -4px 0 14px; color: var(--muted); }
+.password-reset-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.user-table tr.selected td { background: #f0fdfa; }
+.user-table small { color: var(--muted); }
+.status-enabled, .status-disabled { display: inline-block; border-radius: 999px; padding: 3px 8px; font-size: 12px; font-weight: 700; }
+.status-enabled { background: #d1fae5; color: #065f46; }
+.status-disabled { background: #fee2e2; color: #991b1b; }
 pre { min-height: 300px; padding: 16px; color: #dbeafe; background: #0b1220; border-radius: 8px; white-space: pre-wrap; overflow: auto; }
 .report-document { background: #fff; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
 .report-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 18px; border-bottom: 1px solid var(--line); background: #fbfcfe; }
@@ -233,6 +246,7 @@ pre { min-height: 300px; padding: 16px; color: #dbeafe; background: #0b1220; bor
   .context-strip { justify-content: flex-start; }
   .review-task-grid { grid-template-columns: 1fr; }
   .audit-filters { grid-template-columns: 1fr; }
+  .account-summary dl div { grid-template-columns: 1fr; }
   .vision-grid, .ocr-grid { grid-template-columns: 1fr; }
   .kpis, .report-metrics, .compare-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .report-header, .compare-header { display: grid; }

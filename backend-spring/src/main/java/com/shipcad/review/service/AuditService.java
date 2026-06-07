@@ -12,6 +12,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuditService {
@@ -23,6 +25,7 @@ public class AuditService {
         this.mapper = mapper;
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(String actor, String action, String targetType, String targetId, Object detail) {
         AuditLog log = new AuditLog();
         log.id = Ids.next("audit");

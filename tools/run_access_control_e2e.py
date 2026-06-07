@@ -104,11 +104,74 @@ class AccessControlE2E:
         if not project_audit.json()["items"]:
             raise AssertionError("engineer project creation was not written to the audit log")
 
+        identity_stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        managed_username = f"e2e_user_{identity_stamp}"
+        initial_password = "IdentityPassword123"
+        changed_password = "IdentityPassword456"
+        create_user = self.client.post(
+            "/api/users",
+            headers=admin,
+            json={
+                "username": managed_username,
+                "displayName": "Identity E2E User",
+                "role": "DESIGN_ENGINEER",
+                "password": initial_password,
+                "enabled": True,
+            },
+        )
+        self.expect_status(create_user, 200)
+        managed_user = create_user.json()
+        managed_headers, _ = self.login(managed_username, initial_password)
+        self.expect_status(self.client.get("/api/auth/me", headers=managed_headers), 200)
+
+        change_password = self.client.post(
+            "/api/auth/change-password",
+            headers=managed_headers,
+            json={"currentPassword": initial_password, "newPassword": changed_password},
+        )
+        self.expect_status(change_password, 200)
+        self.expect_status(self.client.get("/api/auth/me", headers=managed_headers), 401)
+        self.expect_status(
+            self.client.post("/api/auth/login", json={"username": managed_username, "password": initial_password}),
+            401,
+        )
+        changed_headers, _ = self.login(managed_username, changed_password)
+
+        disable_user = self.client.patch(
+            f"/api/users/{managed_user['id']}",
+            headers=admin,
+            json={"displayName": "Identity E2E User", "role": "DESIGN_ENGINEER", "enabled": False},
+        )
+        self.expect_status(disable_user, 200)
+        self.expect_status(self.client.get("/api/auth/me", headers=changed_headers), 401)
+        self.expect_status(
+            self.client.post("/api/auth/login", json={"username": managed_username, "password": changed_password}),
+            401,
+        )
+
+        logout_username = f"e2e_logout_{identity_stamp}"
+        logout_user = self.client.post(
+            "/api/users",
+            headers=admin,
+            json={
+                "username": logout_username,
+                "displayName": "Logout E2E User",
+                "role": "VIEWER",
+                "password": initial_password,
+                "enabled": True,
+            },
+        )
+        self.expect_status(logout_user, 200)
+        logout_headers, _ = self.login(logout_username, initial_password)
+        self.expect_status(self.client.post("/api/auth/logout", headers=logout_headers), 200)
+        self.expect_status(self.client.get("/api/auth/me", headers=logout_headers), 401)
+
         print("Access-control E2E passed.")
         print("- viewer: read-only access confirmed")
         print("- design engineer: project authoring allowed, review execution denied")
         print("- review expert: review capability present, project authoring denied")
         print("- admin: audit query and denied-attempt traceability confirmed")
+        print("- identity: user creation, password rotation, disable and logout revocation confirmed")
 
     def assert_role(
         self,

@@ -39,6 +39,7 @@ services:
     volumes:
       - ../data:/app/data
     environment:
+      SPRING_PROFILES_ACTIVE: dev
       SHIPCAD_WORKER_URL: http://cad-worker:9000
       SHIPCAD_VISION_URL: http://vision-worker:9100
       SHIPCAD_OCR_URL: http://ocr-worker:9200

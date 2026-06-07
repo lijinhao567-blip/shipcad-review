@@ -1,0 +1,3 @@
+shipcad:
+  security:
+    seed-dev-users: true

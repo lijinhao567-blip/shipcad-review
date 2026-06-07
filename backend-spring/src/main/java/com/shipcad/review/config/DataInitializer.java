@@ -11,7 +11,9 @@ import com.shipcad.review.repo.ReviewRuleRepository;
 import com.shipcad.review.service.AuthService;
 import com.shipcad.review.service.Ids;
 import jakarta.annotation.PostConstruct;
+import java.time.Instant;
 import java.util.Locale;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,20 +22,49 @@ public class DataInitializer {
     private final ReviewRuleRepository rules;
     private final KnowledgeClauseRepository clauses;
     private final AuthService auth;
+    private final boolean seedDevUsers;
+    private final String bootstrapUsername;
+    private final String bootstrapPassword;
+    private final String bootstrapDisplayName;
 
-    public DataInitializer(AppUserRepository users, ReviewRuleRepository rules, KnowledgeClauseRepository clauses, AuthService auth) {
+    public DataInitializer(
+            AppUserRepository users,
+            ReviewRuleRepository rules,
+            KnowledgeClauseRepository clauses,
+            AuthService auth,
+            @Value("${shipcad.security.seed-dev-users:false}") boolean seedDevUsers,
+            @Value("${shipcad.security.bootstrap-admin.username:}") String bootstrapUsername,
+            @Value("${shipcad.security.bootstrap-admin.password:}") String bootstrapPassword,
+            @Value("${shipcad.security.bootstrap-admin.display-name:系统管理员}") String bootstrapDisplayName
+    ) {
         this.users = users;
         this.rules = rules;
         this.clauses = clauses;
         this.auth = auth;
+        this.seedDevUsers = seedDevUsers;
+        this.bootstrapUsername = bootstrapUsername;
+        this.bootstrapPassword = bootstrapPassword;
+        this.bootstrapDisplayName = bootstrapDisplayName;
     }
 
     @PostConstruct
     public void init() {
-        addUserIfMissing("user_admin", "admin", "系统管理员", UserRole.ADMIN, "admin123");
-        addUserIfMissing("user_expert", "expert", "审图专家", UserRole.REVIEW_EXPERT, "expert123");
-        addUserIfMissing("user_engineer", "engineer", "设计工程师", UserRole.DESIGN_ENGINEER, "engineer123");
-        addUserIfMissing("user_viewer", "viewer", "只读访客", UserRole.VIEWER, "viewer123");
+        normalizeExistingUsers();
+        if (seedDevUsers) {
+            addUserIfMissing("user_admin", "admin", "系统管理员", UserRole.ADMIN, "admin123");
+            addUserIfMissing("user_expert", "expert", "审图专家", UserRole.REVIEW_EXPERT, "expert123");
+            addUserIfMissing("user_engineer", "engineer", "设计工程师", UserRole.DESIGN_ENGINEER, "engineer123");
+            addUserIfMissing("user_viewer", "viewer", "只读访客", UserRole.VIEWER, "viewer123");
+        } else if (users.count() == 0 && bootstrapPassword != null && !bootstrapPassword.isBlank()) {
+            auth.validatePassword(bootstrapPassword);
+            addUserIfMissing(
+                    "user_bootstrap_admin",
+                    bootstrapUsername == null || bootstrapUsername.isBlank() ? "admin" : bootstrapUsername.trim(),
+                    bootstrapDisplayName,
+                    UserRole.ADMIN,
+                    bootstrapPassword
+            );
+        }
 
         addClauseIfMissing("BASIS_LAYER_NAMING", "图层命名约定依据",
                 "项目内部审查依据：图层名称应采用约定的专业或用途前缀，便于图纸结构化解析、问题定位和后续版本对比。",
@@ -95,8 +126,38 @@ public class DataInitializer {
         user.username = username;
         user.displayName = displayName;
         user.role = role;
+        user.enabled = true;
         user.passwordHash = auth.encode(password);
+        user.createdAt = Ids.now();
+        user.updatedAt = user.createdAt;
+        user.passwordChangedAt = user.createdAt;
         users.save(user);
+    }
+
+    private void normalizeExistingUsers() {
+        Instant now = Ids.now();
+        for (AppUser user : users.findAll()) {
+            boolean changed = false;
+            if (user.enabled == null) {
+                user.enabled = true;
+                changed = true;
+            }
+            if (user.createdAt == null) {
+                user.createdAt = now;
+                changed = true;
+            }
+            if (user.updatedAt == null) {
+                user.updatedAt = now;
+                changed = true;
+            }
+            if (user.passwordChangedAt == null) {
+                user.passwordChangedAt = now;
+                changed = true;
+            }
+            if (changed) {
+                users.save(user);
+            }
+        }
     }
 
     private void addClauseIfMissing(String code, String title, String content, String source, String tags, String remediationHint) {

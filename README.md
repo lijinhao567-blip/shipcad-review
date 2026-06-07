@@ -75,6 +75,7 @@
 
 # 4. 启动 Spring Boot 后端
 $env:JAVA_HOME=(Resolve-Path .tools\jdk-17).Path
+$env:SPRING_PROFILES_ACTIVE="dev"
 .\.tools\maven\bin\mvn.cmd -f backend-spring\pom.xml spring-boot:run
 
 # 5. 启动 Vue 前端
@@ -106,7 +107,20 @@ engineer / engineer123 设计工程师
 viewer / viewer123     只读访客
 ```
 
-这些账号仅用于本地开发和自动化验收，生产部署必须替换默认凭据，并接入持久会话或企业身份源。
+这些账号只会在 `dev` Profile 下初始化，供本地开发和自动化验收使用。`start-dev.ps1` 与当前 Docker Compose 开发编排会显式启用该 Profile；生产环境不得启用它。
+
+系统现已使用数据库持久化会话：客户端只持有随机 Token，数据库只保存 Token 的 SHA-256 摘要。会话默认 8 小时过期，注销、修改密码、管理员重置密码、停用账号或变更角色都会立即撤销相关会话。
+
+生产环境首次启动时，必须通过环境变量创建初始管理员。初始化只会在用户表为空时执行，创建成功后应从运行环境中移除明文密码：
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE="prod"
+$env:SHIPCAD_BOOTSTRAP_ADMIN_USERNAME="admin"
+$env:SHIPCAD_BOOTSTRAP_ADMIN_PASSWORD="ReplaceWithStrongPassword123"
+$env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
+```
+
+生产密码要求为 10-128 个字符，并同时包含字母和数字。
 
 ## 验证
 
@@ -158,6 +172,7 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 - Easy Rules 规则审查：图层命名、空图层、标题栏、版次格式、占位文本、实体数量、OCR占位文本、YOLO/CAD标题栏交叉校验
 - 带时间线的整改闭环、按来源分组的证据链展示、审查报告、服务端 Markdown 附件下载、统计看板和结构化版本对比
 - 四角色操作级权限控制：管理员、审图专家、设计工程师、只读访客；管理员可筛选查看关键操作与越权拒绝审计日志
+- 持久化可撤销会话、登录/注销审计、密码修改，以及管理员用户创建、角色调整、停用和密码重置
 
 ## 下一阶段重点
 
@@ -170,6 +185,7 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 
 ```powershell
 cd deploy
+# 当前 Compose 编排面向本地开发，会启用 dev Profile 和开发账号
 docker compose up --build
 
 # 启动包含 YOLOv8 Vision Worker 的 profile
@@ -179,7 +195,17 @@ docker compose --profile vision up --build
 docker compose --profile ocr up --build
 ```
 
-云原生部署占位文件位于 `deploy/kubernetes/shipcad-review.yaml`。
+云原生部署占位文件位于 `deploy/kubernetes/shipcad-review.yaml`，默认使用 `prod` Profile。空数据库首次部署前应创建初始管理员 Secret：
+
+```powershell
+kubectl create secret generic shipcad-bootstrap-admin `
+  --namespace shipcad-review `
+  --from-literal=SHIPCAD_BOOTSTRAP_ADMIN_USERNAME=admin `
+  --from-literal=SHIPCAD_BOOTSTRAP_ADMIN_PASSWORD=ReplaceWithStrongPassword123 `
+  --from-literal=SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME=系统管理员
+```
+
+确认初始管理员已创建后，应删除或轮换该 Secret；后续用户由网页“账号与用户”页面管理。
 
 ## 开源许可证
 

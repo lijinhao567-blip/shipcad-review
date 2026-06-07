@@ -31,6 +31,13 @@ shipcad:
     core-size: ${SHIPCAD_REVIEW_QUEUE_CORE_SIZE:2}
     max-size: ${SHIPCAD_REVIEW_QUEUE_MAX_SIZE:4}
     capacity: ${SHIPCAD_REVIEW_QUEUE_CAPACITY:50}
+  security:
+    session-hours: ${SHIPCAD_SESSION_HOURS:8}
+    seed-dev-users: false
+    bootstrap-admin:
+      username: ${SHIPCAD_BOOTSTRAP_ADMIN_USERNAME:}
+      password: ${SHIPCAD_BOOTSTRAP_ADMIN_PASSWORD:}
+      display-name: ${SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME:系统管理员}
 
 springdoc:
   swagger-ui:

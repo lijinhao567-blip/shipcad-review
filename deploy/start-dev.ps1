@@ -122,6 +122,7 @@ if ($WithVision) { Assert-PortFree "Vision Worker" $VisionPort }
 if ($WithOcr) { Assert-PortFree "OCR Worker" $OcrPort }
 
 $env:JAVA_HOME = (Resolve-Path $javaHome).Path
+$env:SPRING_PROFILES_ACTIVE = "dev"
 $env:SHIPCAD_WORKER_URL = "http://127.0.0.1:$CadPort"
 $env:SHIPCAD_VISION_URL = "http://127.0.0.1:$VisionPort"
 $env:SHIPCAD_OCR_URL = "http://127.0.0.1:$OcrPort"

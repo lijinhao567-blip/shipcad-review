@@ -7,6 +7,7 @@ export type UserView = {
 
 export type LoginResponse = {
   token: string
+  expiresAt: string
   user: UserView
   permissions: string[]
 }
@@ -14,6 +15,19 @@ export type LoginResponse = {
 export type AccessProfile = {
   user: UserView
   permissions: string[]
+  sessionExpiresAt: string
+}
+
+export type ManagedUser = {
+  id: string
+  username: string
+  displayName: string
+  role: string
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
+  passwordChangedAt: string
+  lastLoginAt: string | null
 }
 
 export type AuditLog = {

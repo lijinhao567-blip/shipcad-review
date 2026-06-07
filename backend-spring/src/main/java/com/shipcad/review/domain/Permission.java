@@ -8,5 +8,6 @@ public enum Permission {
     ISSUE_REMEDIATE,
     ISSUE_REVIEW_DECIDE,
     REPORT_GENERATE,
-    AUDIT_VIEW
+    AUDIT_VIEW,
+    USER_MANAGE
 }

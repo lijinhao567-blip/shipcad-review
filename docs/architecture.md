@@ -6,8 +6,8 @@
 
 ## 应用架构
 
-- Vue Web 工作台：项目、图纸、版本、审图流程状态、当前上下文选择、系统状态、审查任务详情、dxf-viewer WebGL正式预览、Canvas诊断视图、问题定位、证据链分组、统计看板、报告导出和管理员审计日志。
-- Spring Boot API：Token鉴权、集中式角色权限策略、主数据管理、文件管理、异步审查任务、Easy Rules规则审查、整改流转、分页审计查询和OpenAPI。
+- Vue Web 工作台：项目、图纸、版本、审图流程状态、当前上下文选择、系统状态、审查任务详情、dxf-viewer WebGL正式预览、Canvas诊断视图、问题定位、证据链分组、统计看板、报告导出、账号管理和管理员审计日志。
+- Spring Boot API：持久化会话鉴权、用户生命周期管理、集中式角色权限策略、主数据管理、文件管理、异步审查任务、Easy Rules规则审查、整改流转、分页审计查询和OpenAPI。
 - Python CAD Worker：基于 ezdxf 解析 DXF 文件，并通过 ezdxf drawing/matplotlib 将版本渲染为 PNG；安装 LibreDWG 后，通过 `dwg2dxf` 转换 DWG 并复用 DXF 解析和渲染链路。
 - Python Vision Worker：基于 Ultralytics YOLOv8 识别图纸渲染图中的符号目标，输出类别、置信度和检测框。
 - Python OCR Worker：基于 Tesseract OCR 提取图纸渲染图中的文字区域，输出文本、置信度和检测框；后续可替换或增强为 PaddleOCR。
@@ -15,7 +15,7 @@
 
 ## 数据架构
 
-开发环境使用 H2，生产目标为达梦 DM8。核心模型包括用户、角色、项目、图纸、图纸版本、解析实体、审查规则、审查任务、审查问题、整改记录、审计日志和报告。
+开发环境使用 H2，生产目标为达梦 DM8。核心模型包括用户、持久化会话、角色、项目、图纸、图纸版本、解析实体、审查规则、审查任务、审查问题、整改记录、审计日志和报告。
 
 ## 技术架构
 
@@ -37,8 +37,11 @@
 | 开始整改、提交复核 | 是 | 是 | 是 | 否 |
 | 关闭/重新打开问题、生成报告 | 是 | 是 | 否 | 否 |
 | 查询审计日志 | 是 | 否 | 否 | 否 |
+| 创建、停用用户和调整角色 | 是 | 否 | 否 | 否 |
 
-权限不足统一返回 HTTP 403，并写入 `ACCESS_DENIED` 审计记录。管理员通过 `GET /api/audit-logs` 按操作人、动作和对象类型筛选分页查询；`GET /api/auth/me` 用于前端恢复当前用户及权限。当前内存 Token 会话适合本地 MVP，生产部署需迁移到可撤销、可过期的持久会话或 OIDC/企业身份源。
+权限不足统一返回 HTTP 403，并写入 `ACCESS_DENIED` 审计记录。管理员通过 `GET /api/audit-logs` 按操作人、动作和对象类型筛选分页查询；`GET /api/auth/me` 用于前端恢复当前用户、权限和会话过期时间。
+
+登录 Token 使用安全随机数生成，客户端持有原始 Token，`auth_session` 只保存 SHA-256 摘要。会话支持过期和撤销，注销、修改密码、管理员重置密码、账号停用或角色变化都会使该用户现有会话失效。登录成功、登录失败、用户变更和密码操作均写入审计日志。后续接入 OIDC 或企业身份源时，应替换认证入口并继续复用当前权限与审计边界。
 
 ## 证据驱动架构
 
@@ -58,6 +61,7 @@
 当前提供三类边界：
 
 - 本地开发：PowerShell 脚本或手动启动前端、后端、CAD Worker、可选 Vision Worker 和可选 OCR Worker。
+- 身份初始化：开发脚本和 Docker Compose 显式启用 `dev` Profile 并创建四个开发账号；生产 `prod` Profile 不创建默认账号，空库首次启动需通过 `SHIPCAD_BOOTSTRAP_ADMIN_*` 环境变量创建初始管理员。
 - 本地健康检查：`/api/health` 聚合数据库、OpenAPI、CAD Worker 和可选 Vision/OCR Worker 状态；前端“系统状态”页展示同一组状态；`deploy/test-health.ps1` 统一检查 `/api/health`、OpenAPI、Worker `/health`/`/capabilities` 和前端入口；`deploy/run-demo.ps1` 在服务启动后执行 golden dataset 演示验收。
 - 容器部署：`deploy/docker-compose.yml` 构建并启动核心服务；使用 `--profile vision` 启动 YOLOv8 识别服务，使用 `--profile ocr` 启动 OCR 识别服务。
 - 云原生占位：`deploy/kubernetes/shipcad-review.yaml` 提供 Deployment、Service、ConfigMap 和 PVC 骨架，后续可接入 DM8、Redis、MinIO 和 Ingress。

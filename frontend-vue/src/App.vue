@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { api, type AccessProfile, type AuditLogPage, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ParsedEntity, type Project, type RemediationRecord, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth, type UserView, type VersionCompareResponse } from './api'
+import { api, type AccessProfile, type AuditLogPage, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ManagedUser, type ParsedEntity, type Project, type RemediationRecord, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth, type UserView, type VersionCompareResponse } from './api'
 
 const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfViewerPreview.vue'))
 const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
 
-const tab = ref<'dashboard' | 'projects' | 'issues' | 'reports' | 'status' | 'audit'>('dashboard')
+const tab = ref<'dashboard' | 'projects' | 'issues' | 'reports' | 'status' | 'audit' | 'users'>('dashboard')
 const loginState = reactive({ username: 'admin', password: 'admin123', label: '未登录' })
 const authenticated = ref(Boolean(api.token))
 const currentUser = ref<UserView | null>(null)
 const permissions = ref<string[]>([])
+const sessionExpiresAt = ref('')
 const projectForm = reactive({ name: 'A22船舶审图试点', shipNo: 'S-2026-001', owner: '设计院审图组', description: 'DXF优先的AI辅助审图试点项目' })
 const drawingForm = reactive({ projectId: '', drawingNo: 'A22-SEC-001', title: '船体分段结构图', discipline: '船体结构' })
 const uploadForm = reactive({ drawingId: '', versionNo: 'V1', file: null as File | null })
@@ -45,6 +46,15 @@ const auditFilters = reactive({ actor: '', action: '', targetType: '' })
 const auditPage = ref<AuditLogPage | null>(null)
 const auditLoading = ref(false)
 const auditMessage = ref('')
+const managedUsers = ref<ManagedUser[]>([])
+const selectedManagedUserId = ref('')
+const userCreateForm = reactive({ username: '', displayName: '', role: 'VIEWER', password: '', enabled: true })
+const userEditForm = reactive({ displayName: '', role: 'VIEWER', enabled: true })
+const resetPasswordForm = reactive({ newPassword: '' })
+const changePasswordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
+const userManagementMessage = ref('')
+const accountMessage = ref('')
+const userManagementLoading = ref(false)
 let previewFileRequestId = 0
 let previewFileVersionId = ''
 
@@ -93,14 +103,9 @@ const issues = ref<ReviewIssue[]>([])
 const entities = ref<ParsedEntity[]>([])
 const versionEvidences = ref<ReviewEvidence[]>([])
 const loading = ref(false)
+const selectedManagedUser = computed(() => managedUsers.value.find((user) => user.id === selectedManagedUserId.value))
 const roleLabel = computed(() => {
-  const labels: Record<string, string> = {
-    ADMIN: '系统管理员',
-    REVIEW_EXPERT: '审图专家',
-    DESIGN_ENGINEER: '设计工程师',
-    VIEWER: '只读访客'
-  }
-  return currentUser.value ? labels[currentUser.value.role] ?? currentUser.value.role : '未登录'
+  return currentUser.value ? roleName(currentUser.value.role) : '未登录'
 })
 
 function can(permission: string): boolean {
@@ -110,6 +115,7 @@ function can(permission: string): boolean {
 function applyAccessProfile(profile: AccessProfile) {
   currentUser.value = profile.user
   permissions.value = profile.permissions ?? []
+  sessionExpiresAt.value = profile.sessionExpiresAt ?? ''
   authenticated.value = true
   loginState.username = profile.user.username
   loginState.password = ''
@@ -121,8 +127,20 @@ function clearSession() {
   authenticated.value = false
   currentUser.value = null
   permissions.value = []
+  sessionExpiresAt.value = ''
   auditPage.value = null
+  managedUsers.value = []
   loginState.label = '未登录'
+}
+
+function roleName(role: string): string {
+  const labels: Record<string, string> = {
+    ADMIN: '系统管理员',
+    REVIEW_EXPERT: '审图专家',
+    DESIGN_ENGINEER: '设计工程师',
+    VIEWER: '只读访客'
+  }
+  return labels[role] ?? role
 }
 
 const selectedProject = computed(() => projects.value.find((item) => item.id === drawingForm.projectId) ?? projects.value[0])
@@ -710,6 +728,123 @@ async function refreshAudit(page = auditPage.value?.page ?? 0) {
   }
 }
 
+async function refreshManagedUsers() {
+  if (!can('USER_MANAGE')) {
+    managedUsers.value = []
+    return
+  }
+  userManagementLoading.value = true
+  userManagementMessage.value = ''
+  try {
+    managedUsers.value = await api.request<ManagedUser[]>('/api/users')
+    if (!selectedManagedUserId.value || !managedUsers.value.some((user) => user.id === selectedManagedUserId.value)) {
+      selectedManagedUserId.value = managedUsers.value[0]?.id ?? ''
+    }
+    const selected = managedUsers.value.find((user) => user.id === selectedManagedUserId.value)
+    if (selected) fillManagedUserForm(selected)
+  } catch (reason) {
+    userManagementMessage.value = `用户列表获取失败：${messageOf(reason)}`
+  } finally {
+    userManagementLoading.value = false
+  }
+}
+
+function fillManagedUserForm(user: ManagedUser) {
+  selectedManagedUserId.value = user.id
+  userEditForm.displayName = user.displayName
+  userEditForm.role = user.role
+  userEditForm.enabled = user.enabled
+  resetPasswordForm.newPassword = ''
+  userManagementMessage.value = ''
+}
+
+async function createManagedUser() {
+  userManagementLoading.value = true
+  userManagementMessage.value = ''
+  try {
+    const created = await api.request<ManagedUser>('/api/users', {
+      method: 'POST',
+      body: JSON.stringify(userCreateForm)
+    })
+    userCreateForm.username = ''
+    userCreateForm.displayName = ''
+    userCreateForm.password = ''
+    userCreateForm.role = 'VIEWER'
+    userCreateForm.enabled = true
+    await refreshManagedUsers()
+    fillManagedUserForm(created)
+    userManagementMessage.value = `已创建用户：${created.username}`
+  } catch (reason) {
+    userManagementMessage.value = `创建用户失败：${messageOf(reason)}`
+  } finally {
+    userManagementLoading.value = false
+  }
+}
+
+async function updateManagedUser() {
+  if (!selectedManagedUser.value) return
+  userManagementLoading.value = true
+  userManagementMessage.value = ''
+  try {
+    const updated = await api.request<ManagedUser>(`/api/users/${selectedManagedUser.value.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(userEditForm)
+    })
+    await refreshManagedUsers()
+    fillManagedUserForm(updated)
+    userManagementMessage.value = `已更新用户：${updated.username}`
+  } catch (reason) {
+    userManagementMessage.value = `更新用户失败：${messageOf(reason)}`
+  } finally {
+    userManagementLoading.value = false
+  }
+}
+
+async function resetManagedPassword() {
+  if (!selectedManagedUser.value) return
+  userManagementLoading.value = true
+  userManagementMessage.value = ''
+  try {
+    await api.request(`/api/users/${selectedManagedUser.value.id}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ newPassword: resetPasswordForm.newPassword })
+    })
+    resetPasswordForm.newPassword = ''
+    await refreshManagedUsers()
+    userManagementMessage.value = `已重置 ${selectedManagedUser.value.username} 的密码，并撤销其现有会话`
+  } catch (reason) {
+    userManagementMessage.value = `重置密码失败：${messageOf(reason)}`
+  } finally {
+    userManagementLoading.value = false
+  }
+}
+
+async function changeOwnPassword() {
+  accountMessage.value = ''
+  if (changePasswordForm.newPassword !== changePasswordForm.confirmPassword) {
+    accountMessage.value = '两次输入的新密码不一致'
+    return
+  }
+  try {
+    await api.request('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        currentPassword: changePasswordForm.currentPassword,
+        newPassword: changePasswordForm.newPassword
+      })
+    })
+    changePasswordForm.currentPassword = ''
+    changePasswordForm.newPassword = ''
+    changePasswordForm.confirmPassword = ''
+    clearSession()
+    loginState.label = '密码已修改，请使用新密码重新登录'
+    accountMessage.value = '密码已修改，所有会话已撤销，请使用新密码重新登录'
+    tab.value = 'dashboard'
+  } catch (reason) {
+    accountMessage.value = `修改密码失败：${messageOf(reason)}`
+  }
+}
+
 function auditDetail(detailJson: string): string {
   if (!detailJson) return '-'
   try {
@@ -755,7 +890,7 @@ async function refreshPreview(resetDiagnostics = false) {
 async function login() {
   try {
     const result = await api.login(loginState.username, loginState.password)
-    applyAccessProfile({ user: result.user, permissions: result.permissions })
+    applyAccessProfile({ user: result.user, permissions: result.permissions, sessionExpiresAt: result.expiresAt })
     await refreshAll()
   } catch (reason) {
     clearSession()
@@ -763,7 +898,12 @@ async function login() {
   }
 }
 
-function logout() {
+async function logout() {
+  try {
+    await api.request('/api/auth/logout', { method: 'POST' })
+  } catch {
+    // Local cleanup still applies when the session is already expired.
+  }
   clearSession()
   dashboard.value = null
   projects.value = []
@@ -1173,6 +1313,9 @@ watch(tab, (nextTab) => {
   if (nextTab === 'audit') {
     refreshAudit(0).catch(() => undefined)
   }
+  if (nextTab === 'users') {
+    refreshManagedUsers().catch(() => undefined)
+  }
 })
 
 onBeforeUnmount(releasePreviewFileUrl)
@@ -1214,6 +1357,7 @@ onMounted(() => {
         <button :class="{ active: tab === 'projects' }" @click="tab = 'projects'">项目与图纸</button>
         <button :class="{ active: tab === 'issues' }" @click="tab = 'issues'">问题闭环</button>
         <button :class="{ active: tab === 'reports' }" @click="tab = 'reports'">报告与对比</button>
+        <button v-if="authenticated" :class="{ active: tab === 'users' }" @click="tab = 'users'">账号与用户</button>
         <button v-if="can('AUDIT_VIEW')" :class="{ active: tab === 'audit' }" @click="tab = 'audit'">审计日志</button>
         <button :class="{ active: tab === 'status' }" @click="tab = 'status'">系统状态</button>
       </nav>
@@ -1305,6 +1449,105 @@ onMounted(() => {
             </div>
           </div>
         </div>
+      </section>
+
+      <section v-if="tab === 'users' && authenticated">
+        <div class="grid two">
+          <div class="panel account-summary">
+            <h2>当前账号</h2>
+            <dl>
+              <div><dt>用户名</dt><dd>{{ currentUser?.username }}</dd></div>
+              <div><dt>显示名称</dt><dd>{{ currentUser?.displayName }}</dd></div>
+              <div><dt>角色</dt><dd>{{ roleLabel }}</dd></div>
+              <div><dt>会话到期</dt><dd>{{ formatTime(sessionExpiresAt) }}</dd></div>
+            </dl>
+            <p class="hint">注销、修改密码、管理员重置密码、停用账号或调整角色后，相关会话会立即失效。</p>
+          </div>
+          <form class="panel" @submit.prevent="changeOwnPassword">
+            <h2>修改密码</h2>
+            <label>当前密码<input v-model="changePasswordForm.currentPassword" type="password" autocomplete="current-password" /></label>
+            <label>新密码<input v-model="changePasswordForm.newPassword" type="password" autocomplete="new-password" /></label>
+            <label>确认新密码<input v-model="changePasswordForm.confirmPassword" type="password" autocomplete="new-password" /></label>
+            <button>修改密码并退出所有会话</button>
+            <p class="hint">新密码至少10个字符，并同时包含字母和数字。</p>
+            <p v-if="accountMessage" class="hint">{{ accountMessage }}</p>
+          </form>
+        </div>
+
+        <template v-if="can('USER_MANAGE')">
+          <div class="grid two">
+            <form class="panel" @submit.prevent="createManagedUser">
+              <h2>创建用户</h2>
+              <label>用户名<input v-model="userCreateForm.username" autocomplete="off" placeholder="3-50位字母、数字或._-" /></label>
+              <label>显示名称<input v-model="userCreateForm.displayName" /></label>
+              <label>角色
+                <select v-model="userCreateForm.role">
+                  <option value="ADMIN">系统管理员</option>
+                  <option value="REVIEW_EXPERT">审图专家</option>
+                  <option value="DESIGN_ENGINEER">设计工程师</option>
+                  <option value="VIEWER">只读访客</option>
+                </select>
+              </label>
+              <label>初始密码<input v-model="userCreateForm.password" type="password" autocomplete="new-password" /></label>
+              <label class="check-row"><input v-model="userCreateForm.enabled" type="checkbox" /> 创建后启用</label>
+              <button :disabled="userManagementLoading">创建用户</button>
+            </form>
+
+            <div class="panel">
+              <h2>编辑用户</h2>
+              <template v-if="selectedManagedUser">
+                <p class="selected-user-title">{{ selectedManagedUser.username }} / {{ roleName(selectedManagedUser.role) }}</p>
+                <form @submit.prevent="updateManagedUser">
+                  <label>显示名称<input v-model="userEditForm.displayName" /></label>
+                  <label>角色
+                    <select v-model="userEditForm.role">
+                      <option value="ADMIN">系统管理员</option>
+                      <option value="REVIEW_EXPERT">审图专家</option>
+                      <option value="DESIGN_ENGINEER">设计工程师</option>
+                      <option value="VIEWER">只读访客</option>
+                    </select>
+                  </label>
+                  <label class="check-row"><input v-model="userEditForm.enabled" type="checkbox" /> 账号启用</label>
+                  <button :disabled="userManagementLoading">保存用户</button>
+                </form>
+                <form class="password-reset-form" @submit.prevent="resetManagedPassword">
+                  <label>重置密码<input v-model="resetPasswordForm.newPassword" type="password" autocomplete="new-password" /></label>
+                  <button class="secondary" :disabled="userManagementLoading">重置并撤销其会话</button>
+                </form>
+              </template>
+              <div v-else class="empty-state">
+                <strong>请选择一个用户</strong>
+                <p>从下方列表选择需要管理的账号。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="section-title">
+              <h2>用户列表</h2>
+              <button type="button" class="secondary" :disabled="userManagementLoading" @click="refreshManagedUsers">刷新</button>
+            </div>
+            <p v-if="userManagementMessage" class="hint">{{ userManagementMessage }}</p>
+            <div class="report-table-wrap">
+              <table class="report-table user-table">
+                <thead>
+                  <tr><th>用户</th><th>角色</th><th>状态</th><th>最后登录</th><th>密码更新时间</th><th>操作</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-if="!managedUsers.length"><td colspan="6">暂无用户</td></tr>
+                  <tr v-for="managedUser in managedUsers" :key="managedUser.id" :class="{ selected: selectedManagedUserId === managedUser.id }">
+                    <td><strong>{{ managedUser.displayName }}</strong><br /><small>{{ managedUser.username }}</small></td>
+                    <td>{{ roleName(managedUser.role) }}</td>
+                    <td><span :class="managedUser.enabled ? 'status-enabled' : 'status-disabled'">{{ managedUser.enabled ? '启用' : '停用' }}</span></td>
+                    <td>{{ formatTime(managedUser.lastLoginAt) }}</td>
+                    <td>{{ formatTime(managedUser.passwordChangedAt) }}</td>
+                    <td><button type="button" class="secondary" @click="fillManagedUserForm(managedUser)">管理</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
       </section>
 
       <section v-if="tab === 'audit' && can('AUDIT_VIEW')">

@@ -9,6 +9,8 @@ metadata:
   name: shipcad-config
   namespace: shipcad-review
 data:
+  SPRING_PROFILES_ACTIVE: prod
+  SHIPCAD_SESSION_HOURS: "8"
   SHIPCAD_WORKER_URL: http://cad-worker:9000
   SHIPCAD_VISION_URL: http://vision-worker:9100
   SHIPCAD_OCR_URL: http://ocr-worker:9200
@@ -80,6 +82,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: shipcad-config
+            - secretRef:
+                name: shipcad-bootstrap-admin
+                optional: true
           ports:
             - containerPort: 8080
           volumeMounts:

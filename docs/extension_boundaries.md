@@ -58,10 +58,10 @@
 
 ## DM8、Redis/Valkey、MinIO
 
-当前状态：H2 本地开发已接入 Flyway 版本化迁移；DM8 已完成真实实例上的 DIsql 脚本、Hibernate 结构校验和 Golden E2E 兼容性验证。审查任务队列已抽象为 `ReviewTaskQueue`，默认本地模式仍使用进程内队列，Redis 协议模式已实现入队、后台消费、处理队列恢复和健康检查；部署骨架使用 Valkey 作为开源 Redis 协议服务。文件系统存储仍是当前默认实现。
+当前状态：H2 本地开发已接入 Flyway 版本化迁移；DM8 已完成 V1/V2 真实实例上的 DIsql 脚本、Hibernate 结构校验和 Golden E2E 兼容性验证，V3 对象存储元数据脚本已在本地 DM8 实例完成 DDL、版本记录、Hibernate `validate` 和健康检查验证。审查任务队列已抽象为 `ReviewTaskQueue`，默认本地模式仍使用进程内队列，Redis 协议模式已实现入队、后台消费、处理队列恢复和健康检查；部署骨架使用 Valkey 作为开源 Redis 协议服务。文件存储已抽象为 `ObjectStorageService`，默认本地文件系统，S3 兼容模式可接 MinIO 或其它 S3-compatible 对象存储，并保留 Worker 本地缓存。
 
 落地路径：
 
 1. 为 DM8 补充备份恢复、故障演练、性能基线和生产部署规范。
 2. 用 Valkey/Redis 协议队列完成真实容器 E2E、任务重试和异常恢复演练；当前实现适合单后端副本或受控试点，多副本高可用后续应评估 Redis Streams、可靠 ACK 或专用消息队列。
-3. MinIO 接管原始图纸、解析结果和报告对象存储。
+3. 用 MinIO 或其它 S3 兼容服务完成真实容器 E2E、权限配置、bucket 生命周期、备份恢复和大文件性能验收；当前报告仍保存于数据库，后续可迁移为对象存储附件。

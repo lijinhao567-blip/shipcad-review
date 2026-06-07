@@ -41,6 +41,8 @@ import com.shipcad.review.repo.ReviewIssueRepository;
 import com.shipcad.review.repo.ReviewRuleRepository;
 import com.shipcad.review.repo.ReviewTaskRepository;
 import com.shipcad.review.repo.ReviewTaskStepRepository;
+import com.shipcad.review.storage.ObjectStorageService;
+import com.shipcad.review.storage.StoredObject;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.io.InputStream;
@@ -56,7 +58,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -88,7 +89,7 @@ public class ReviewPlatformService implements ReviewTaskRunner {
     private final AuditService audit;
     private final ObjectMapper mapper;
     private final ReviewTaskQueue reviewTaskQueue;
-    private final Path storageRoot;
+    private final ObjectStorageService objectStorage;
 
     public ReviewPlatformService(
             ProjectRepository projects,
@@ -114,7 +115,7 @@ public class ReviewPlatformService implements ReviewTaskRunner {
             AuditService audit,
             ObjectMapper mapper,
             ReviewTaskQueue reviewTaskQueue,
-            @Value("${shipcad.storage-root}") String storageRoot
+            ObjectStorageService objectStorage
     ) {
         this.projects = projects;
         this.drawings = drawings;
@@ -139,7 +140,7 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         this.audit = audit;
         this.mapper = mapper;
         this.reviewTaskQueue = reviewTaskQueue;
-        this.storageRoot = Path.of(storageRoot).toAbsolutePath().normalize();
+        this.objectStorage = objectStorage;
     }
 
     @Transactional
@@ -182,31 +183,41 @@ public class ReviewPlatformService implements ReviewTaskRunner {
             throw new IllegalArgumentException("文件超过20MB限制");
         }
         String id = Ids.next("version");
-        Path folder = storageRoot.resolve("uploads").resolve(drawingId);
-        Files.createDirectories(folder);
-        Path target = folder.resolve(id + "_" + file.getOriginalFilename()).normalize();
-        file.transferTo(target);
+        String fileName = safeFileName(file.getOriginalFilename(), "drawing.dxf");
+        String objectKey = "uploads/" + drawingId + "/" + id + "_" + fileName;
+        StoredObject stored = objectStorage.storeMultipart(
+                objectKey,
+                file,
+                contentTypeForFileName(fileName, "application/octet-stream")
+        );
 
         DrawingVersion version = new DrawingVersion();
         version.id = id;
         version.drawingId = drawingId;
         version.versionNo = versionNo;
-        version.fileName = file.getOriginalFilename();
-        version.filePath = target.toString();
-        version.fileSha256 = sha256(target);
+        version.fileName = fileName;
+        version.filePath = stored.localPath().toString();
+        version.storageMode = stored.storageMode();
+        version.fileObjectKey = stored.key();
+        version.fileSha256 = sha256(stored.localPath());
         version.uploadedBy = actor.username;
         version.uploadedAt = Ids.now();
         version.parseStatus = "PENDING";
         version.parseSummaryJson = "{}";
         versions.save(version);
-        audit.record(actor.username, "VERSION_UPLOAD", "version", id, Map.of("fileName", version.fileName, "sha256", version.fileSha256));
+        audit.record(actor.username, "VERSION_UPLOAD", "version", id, Map.of(
+                "fileName", version.fileName,
+                "storageMode", version.storageMode,
+                "objectKey", version.fileObjectKey,
+                "sha256", version.fileSha256
+        ));
         return version;
     }
 
     @Transactional
     public DrawingVersion parseVersion(String versionId, AppUser actor) {
         DrawingVersion version = projectAccess.requireVersion(actor, versionId);
-        WorkerParseResponse parsed = worker.parse(Path.of(version.filePath));
+        WorkerParseResponse parsed = worker.parse(localFileForVersion(version));
         entities.deleteByVersionId(versionId);
         for (WorkerEntity workerEntity : parsed.entities()) {
             ParsedEntity entity = new ParsedEntity();
@@ -231,22 +242,23 @@ public class ReviewPlatformService implements ReviewTaskRunner {
     @Transactional
     public Path renderVersionImage(String versionId, boolean force, AppUser actor) throws IOException {
         DrawingVersion version = projectAccess.requireVersion(actor, versionId);
-        Path target = renderedImagePath(versionId);
-        if (!force && Files.isRegularFile(target) && Files.size(target) > 0) {
-            return target;
+        String objectKey = renderedImageKey(versionId);
+        if (!force && objectStorage.exists(objectKey)) {
+            return objectStorage.resolveLocalPath(objectKey);
         }
-        byte[] png = worker.render(Path.of(version.filePath), DEFAULT_RENDER_WIDTH, DEFAULT_RENDER_HEIGHT);
+        byte[] png = worker.render(localFileForVersion(version), DEFAULT_RENDER_WIDTH, DEFAULT_RENDER_HEIGHT);
         if (png == null || png.length == 0) {
             throw new IllegalStateException("CAD Worker returned an empty rendered image");
         }
-        Files.createDirectories(target.getParent());
-        Files.write(target, png);
+        StoredObject stored = objectStorage.storeBytes(objectKey, png, "image/png");
         audit.record(actor.username, "VERSION_RENDER", "version", versionId, Map.of(
-                "imagePath", target.toString(),
+                "imagePath", stored.localPath().toString(),
+                "storageMode", stored.storageMode(),
+                "objectKey", stored.key(),
                 "width", DEFAULT_RENDER_WIDTH,
                 "height", DEFAULT_RENDER_HEIGHT
         ));
-        return target;
+        return stored.localPath();
     }
 
     @Transactional
@@ -837,8 +849,8 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         return storeEvidenceImage(versionId, file, "ocr", "ocr", "ocr-image.png", "OCR识别");
     }
 
-    private Path renderedImagePath(String versionId) {
-        return storageRoot.resolve("rendered").resolve(versionId).resolve("render.png").toAbsolutePath().normalize();
+    private String renderedImageKey(String versionId) {
+        return "rendered/" + versionId + "/render.png";
     }
 
     private void validateVisionConfidence(double confidence) {
@@ -874,14 +886,12 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         if (file.getSize() > 20L * 1024 * 1024) {
             throw new IllegalArgumentException(label + "图片超过20MB限制");
         }
-        Path folder = storageRoot.resolve(folderName).resolve(versionId).toAbsolutePath().normalize();
-        Files.createDirectories(folder);
-        Path target = folder.resolve(Ids.next(idPrefix) + "_" + fileName).normalize();
-        if (!target.startsWith(folder)) {
-            throw new IllegalArgumentException(label + "文件路径非法");
-        }
-        file.transferTo(target);
-        return target;
+        StoredObject stored = objectStorage.storeMultipart(
+                folderName + "/" + versionId + "/" + Ids.next(idPrefix) + "_" + fileName,
+                file,
+                contentTypeForFileName(fileName, "application/octet-stream")
+        );
+        return stored.localPath();
     }
 
     private String safeFileName(String originalName, String fallback) {
@@ -896,6 +906,34 @@ public class ReviewPlatformService implements ReviewTaskRunner {
             return fallback;
         }
         return value;
+    }
+
+    private String contentTypeForFileName(String fileName, String fallback) {
+        String lower = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".dxf")) {
+            return "application/dxf";
+        }
+        if (lower.endsWith(".png")) {
+            return "image/png";
+        }
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        return fallback;
+    }
+
+    private Path localFileForVersion(DrawingVersion version) {
+        if (version.fileObjectKey != null && !version.fileObjectKey.isBlank()) {
+            try {
+                return objectStorage.resolveLocalPath(version.fileObjectKey);
+            } catch (IOException exception) {
+                throw new IllegalStateException("读取对象存储文件失败", exception);
+            }
+        }
+        if (version.filePath == null || version.filePath.isBlank()) {
+            throw new IllegalArgumentException("图纸文件路径缺失");
+        }
+        return Path.of(version.filePath).toAbsolutePath().normalize();
     }
 
     private String bboxText(List<Double> xyxy) {

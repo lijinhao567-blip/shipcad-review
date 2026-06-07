@@ -17,7 +17,7 @@ project -> drawing -> version upload -> review task -> issues -> remediation -> 
 - CAD Worker: CAD file parsing.
 - Vision Worker: YOLOv8 symbol detection.
 - Database: persistent state.
-- Object storage: future location for drawings, reports, rendered images, and parser artifacts.
+- Object storage: current abstraction for drawings, rendered images, and uploaded Vision/OCR inputs; reports still live in the database for now.
 
 ## 3. Data Objects
 

@@ -14,6 +14,9 @@ public class DrawingVersion {
     public String versionNo;
     public String fileName;
     public String filePath;
+    public String storageMode;
+    @Column(length = 1024)
+    public String fileObjectKey;
     public String fileSha256;
     public String uploadedBy;
     public Instant uploadedAt;

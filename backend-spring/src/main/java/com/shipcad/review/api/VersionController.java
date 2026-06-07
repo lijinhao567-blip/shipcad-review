@@ -13,8 +13,8 @@ import com.shipcad.review.service.AuthService;
 import com.shipcad.review.service.AuthorizationService;
 import com.shipcad.review.service.ProjectAccessService;
 import com.shipcad.review.service.ReviewPlatformService;
+import com.shipcad.review.storage.ObjectStorageService;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,16 +43,19 @@ public class VersionController extends BaseController {
     private final ReviewPlatformService platform;
     private final AuthorizationService access;
     private final ProjectAccessService projectAccess;
+    private final ObjectStorageService objectStorage;
 
     public VersionController(AuthService auth, DrawingVersionRepository versions, ParsedEntityRepository entities,
                              ReviewPlatformService platform, AuthorizationService access,
-                             ProjectAccessService projectAccess) {
+                             ProjectAccessService projectAccess,
+                             ObjectStorageService objectStorage) {
         super(auth);
         this.versions = versions;
         this.entities = entities;
         this.platform = platform;
         this.access = access;
         this.projectAccess = projectAccess;
+        this.objectStorage = objectStorage;
     }
 
     @GetMapping
@@ -169,13 +172,10 @@ public class VersionController extends BaseController {
     }
 
     @GetMapping("/{versionId}/file")
-    public ResponseEntity<Resource> file(@RequestHeader("Authorization") String authorization, @PathVariable String versionId) throws MalformedURLException {
+    public ResponseEntity<Resource> file(@RequestHeader("Authorization") String authorization, @PathVariable String versionId) throws IOException {
         projectAccess.requireVersion(user(authorization), versionId);
         DrawingVersion version = versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
-        if (version.filePath == null || version.filePath.isBlank()) {
-            throw new IllegalArgumentException("图纸文件路径缺失");
-        }
-        Path path = Path.of(version.filePath).toAbsolutePath().normalize();
+        Path path = filePathForDownload(version);
         if (!Files.isRegularFile(path) || !Files.isReadable(path)) {
             throw new IllegalArgumentException("图纸文件不可读取");
         }
@@ -190,6 +190,16 @@ public class VersionController extends BaseController {
                 .contentType(contentType)
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .body(new UrlResource(path.toUri()));
+    }
+
+    private Path filePathForDownload(DrawingVersion version) throws IOException {
+        if (version.fileObjectKey != null && !version.fileObjectKey.isBlank()) {
+            return objectStorage.resolveLocalPath(version.fileObjectKey);
+        }
+        if (version.filePath == null || version.filePath.isBlank()) {
+            throw new IllegalArgumentException("图纸文件路径缺失");
+        }
+        return Path.of(version.filePath).toAbsolutePath().normalize();
     }
 
     private EntityView view(ParsedEntity entity) {

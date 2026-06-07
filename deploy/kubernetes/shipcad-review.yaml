@@ -19,6 +19,14 @@ data:
   SHIPCAD_REVIEW_QUEUE_MODE: redis
   SHIPCAD_REDIS_HOST: valkey
   SHIPCAD_REDIS_PORT: "6379"
+  SHIPCAD_OBJECT_STORAGE_MODE: local
+  SHIPCAD_OBJECT_STORAGE_LOCAL_ROOT: /app/data
+  SHIPCAD_OBJECT_STORAGE_CACHE_ROOT: /app/data/object-cache
+  SHIPCAD_S3_ENDPOINT: http://minio:9000
+  SHIPCAD_S3_REGION: us-east-1
+  SHIPCAD_S3_BUCKET: shipcad-artifacts
+  SHIPCAD_S3_PATH_STYLE: "true"
+  SHIPCAD_S3_CREATE_BUCKET: "false"
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -128,6 +136,9 @@ spec:
                 name: shipcad-database
             - secretRef:
                 name: shipcad-bootstrap-admin
+                optional: true
+            - secretRef:
+                name: shipcad-object-storage
                 optional: true
           env:
             - name: POD_NAME

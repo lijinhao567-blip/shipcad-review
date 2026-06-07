@@ -7,6 +7,7 @@
 - 前端：Vue 3 + TypeScript + Vite + dxf-viewer WebGL正式预览，Canvas仅作诊断视图，工作台提供审图流程状态和当前上下文选择
 - 后端：Spring Boot 3 + Spring Data JPA + Flyway + OpenAPI
 - 审查任务队列：本地默认内存队列；容器和云原生部署可启用 Redis 协议队列，当前部署骨架默认使用 Valkey
+- 对象存储：本地默认文件系统；后端提供 S3 兼容适配，可接 MinIO 或其它 S3-compatible 对象存储
 - CAD Worker：Python + FastAPI + ezdxf + matplotlib 渲染 + LibreDWG 命令行适配
 - Vision Worker：Python + FastAPI + Ultralytics YOLOv8
 - OCR Worker：Python + FastAPI + Tesseract OCR
@@ -16,7 +17,7 @@
 
 ## 架构边界
 
-当前仓库已经按前端、后端、CAD Worker、Vision Worker、OCR Worker 拆分。上传文件先生成版本记录，审查任务进入 `ReviewTaskQueue`，本地开发默认由后端内存队列执行，容器/云原生部署可切换为 Redis 协议队列，再由后台执行器调用 CAD Worker 解析并执行规则审查。审查任务可选自动采集视觉/OCR证据：先将图纸版本渲染为 PNG，再调用 YOLOv8 和 OCR Worker，最后统一进入规则引擎。每个审查任务会记录当前阶段和 PARSE、RENDER、VISION、OCR、RULES 步骤状态，前端提供任务详情页用于查看每一步的状态、时间和错误细节。DWG 解析通过 LibreDWG `dwg2dxf` 适配；训练数据、模型权重和真实图纸不进入仓库。
+当前仓库已经按前端、后端、CAD Worker、Vision Worker、OCR Worker 拆分。上传文件先生成版本记录，原始图纸、渲染图和证据图片进入 `ObjectStorageService`；本地开发默认写入本地文件系统，S3 兼容模式会上传到对象存储并保留一份本地缓存供 CAD/AI Worker 读取。审查任务进入 `ReviewTaskQueue`，本地开发默认由后端内存队列执行，容器/云原生部署可切换为 Redis 协议队列，再由后台执行器调用 CAD Worker 解析并执行规则审查。审查任务可选自动采集视觉/OCR证据：先将图纸版本渲染为 PNG，再调用 YOLOv8 和 OCR Worker，最后统一进入规则引擎。每个审查任务会记录当前阶段和 PARSE、RENDER、VISION、OCR、RULES 步骤状态，前端提供任务详情页用于查看每一步的状态、时间和错误细节。DWG 解析通过 LibreDWG `dwg2dxf` 适配；训练数据、模型权重和真实图纸不进入仓库。
 
 ## 本地启动
 
@@ -122,6 +123,11 @@ $env:SHIPCAD_DATASOURCE_PASSWORD="ReplaceWithDatabasePassword"
 $env:SHIPCAD_REVIEW_QUEUE_MODE="redis"
 $env:SHIPCAD_REDIS_HOST="valkey.example.internal"
 $env:SHIPCAD_REDIS_PORT="6379"
+$env:SHIPCAD_OBJECT_STORAGE_MODE="s3"
+$env:SHIPCAD_S3_ENDPOINT="http://minio.example.internal:9000"
+$env:SHIPCAD_S3_BUCKET="shipcad-artifacts"
+$env:SHIPCAD_S3_ACCESS_KEY="ReplaceWithAccessKey"
+$env:SHIPCAD_S3_SECRET_KEY="ReplaceWithSecretKey"
 $env:SHIPCAD_BOOTSTRAP_ADMIN_USERNAME="admin"
 $env:SHIPCAD_BOOTSTRAP_ADMIN_PASSWORD="ReplaceWithStrongPassword123"
 $env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
@@ -169,6 +175,7 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 - DXF 上传、异步解析和实体几何提取
 - DWG 上传入口和 LibreDWG 转 DXF 解析适配，需要本机安装 `dwg2dxf`
 - CAD Worker 图纸渲染：支持将 DXF/DWG 版本渲染为 PNG，并缓存到 `data/rendered/{versionId}`
+- 对象存储边界：原始图纸、渲染图和 Vision/OCR 输入图片通过统一接口保存；默认本地文件系统，S3 兼容模式可接 MinIO，并保留 Worker 本地缓存
 - 审查任务队列：支持 PENDING、RUNNING、FINISHED、FAILED 状态、阶段/步骤进度、失败重试和可选自动 Vision/OCR 证据采集；默认本地内存队列，Redis 协议模式已抽象为可部署队列适配
 - 系统状态页和审查任务详情页：支持查看组件健康、必需/可选 Worker 状态、任务步骤时间线和失败细节
 - 审图流程工作台：显示系统、登录、项目图纸、版本、审查、问题、报告的当前进度，并可在项目、图纸、版本列表中设置当前上下文
@@ -202,6 +209,10 @@ docker compose --profile vision up --build
 
 # 启动包含 OCR Worker 的 profile
 docker compose --profile ocr up --build
+
+# 启动 MinIO，并把后端切到 S3 兼容对象存储模式
+$env:SHIPCAD_OBJECT_STORAGE_MODE="s3"
+docker compose --profile object-storage up --build
 ```
 
 云原生部署占位文件位于 `deploy/kubernetes/shipcad-review.yaml`，默认使用 `prod` Profile。部署后端前先创建 DM8 连接 Secret：

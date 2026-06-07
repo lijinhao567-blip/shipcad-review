@@ -19,8 +19,8 @@ class DatabaseMigrationTest {
         String url = databaseUrl("empty");
         Flyway flyway = flyway(url, false);
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(2);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(3);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
 
         try (Connection connection = DriverManager.getConnection(url, "sa", "");
              Statement statement = connection.createStatement()) {
@@ -43,6 +43,13 @@ class DatabaseMigrationTest {
                     WHERE table_schema = 'public'
                       AND constraint_type = 'FOREIGN KEY'
                     """)).isGreaterThanOrEqualTo(17);
+            assertThat(singleString(statement, """
+                    SELECT data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'drawing_version'
+                      AND column_name = 'file_object_key'
+                    """)).isEqualTo("character varying");
         }
     }
 
@@ -73,8 +80,8 @@ class DatabaseMigrationTest {
         }
 
         Flyway adopted = flyway(url, true);
-        assertThat(adopted.migrate().migrationsExecuted).isEqualTo(2);
-        assertThat(adopted.info().current().getVersion().getVersion()).isEqualTo("2");
+        assertThat(adopted.migrate().migrationsExecuted).isEqualTo(3);
+        assertThat(adopted.info().current().getVersion().getVersion()).isEqualTo("3");
 
         try (Connection connection = DriverManager.getConnection(url, "sa", "");
              Statement statement = connection.createStatement()) {
@@ -92,6 +99,13 @@ class DatabaseMigrationTest {
                       AND table_name = 'app_user'
                       AND constraint_name = 'uk_app_user_username'
                       AND constraint_type = 'UNIQUE'
+                    """)).isEqualTo(1);
+            assertThat(singleInt(statement, """
+                    SELECT COUNT(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'drawing_version'
+                      AND column_name = 'storage_mode'
                     """)).isEqualTo(1);
         }
     }

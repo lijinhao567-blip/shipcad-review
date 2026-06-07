@@ -37,6 +37,19 @@ spring:
 
 shipcad:
   storage-root: ${SHIPCAD_STORAGE_ROOT:../data}
+  object-storage:
+    mode: ${SHIPCAD_OBJECT_STORAGE_MODE:local}
+    cache-root: ${SHIPCAD_OBJECT_STORAGE_CACHE_ROOT:${shipcad.storage-root}/object-cache}
+    local:
+      root: ${SHIPCAD_OBJECT_STORAGE_LOCAL_ROOT:${shipcad.storage-root}}
+    s3:
+      endpoint: ${SHIPCAD_S3_ENDPOINT:}
+      region: ${SHIPCAD_S3_REGION:us-east-1}
+      bucket: ${SHIPCAD_S3_BUCKET:}
+      access-key: ${SHIPCAD_S3_ACCESS_KEY:}
+      secret-key: ${SHIPCAD_S3_SECRET_KEY:}
+      path-style: ${SHIPCAD_S3_PATH_STYLE:true}
+      create-bucket: ${SHIPCAD_S3_CREATE_BUCKET:false}
   worker-url: ${SHIPCAD_WORKER_URL:http://127.0.0.1:9000}
   vision-url: ${SHIPCAD_VISION_URL:http://127.0.0.1:9100}
   ocr-url: ${SHIPCAD_OCR_URL:http://127.0.0.1:9200}

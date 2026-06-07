@@ -3,6 +3,7 @@ package com.shipcad.review.api;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shipcad.review.service.ReviewTaskQueue;
+import com.shipcad.review.storage.ObjectStorageService;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.net.URI;
@@ -27,6 +28,7 @@ public class HealthController {
     private final ObjectMapper mapper;
     private final HttpClient httpClient;
     private final ReviewTaskQueue reviewTaskQueue;
+    private final ObjectStorageService objectStorage;
     private final String cadWorkerUrl;
     private final String visionWorkerUrl;
     private final String ocrWorkerUrl;
@@ -35,6 +37,7 @@ public class HealthController {
             DataSource dataSource,
             ObjectMapper mapper,
             ReviewTaskQueue reviewTaskQueue,
+            ObjectStorageService objectStorage,
             @Value("${shipcad.worker-url}") String cadWorkerUrl,
             @Value("${shipcad.vision-url}") String visionWorkerUrl,
             @Value("${shipcad.ocr-url}") String ocrWorkerUrl
@@ -43,6 +46,7 @@ public class HealthController {
         this.mapper = mapper;
         this.httpClient = HttpClient.newBuilder().connectTimeout(WORKER_TIMEOUT).build();
         this.reviewTaskQueue = reviewTaskQueue;
+        this.objectStorage = objectStorage;
         this.cadWorkerUrl = cadWorkerUrl;
         this.visionWorkerUrl = visionWorkerUrl;
         this.ocrWorkerUrl = ocrWorkerUrl;
@@ -58,9 +62,11 @@ public class HealthController {
         workers.put("vision", workerHealth("Vision Worker", visionWorkerUrl, false));
         workers.put("ocr", workerHealth("OCR Worker", ocrWorkerUrl, false));
         Map<String, Object> queue = reviewTaskQueue.health();
-        result.put("status", overallStatus(database, workers, queue));
+        Map<String, Object> storage = objectStorage.health();
+        result.put("status", overallStatus(database, workers, queue, storage));
         result.put("database", database);
         result.put("queue", queue);
+        result.put("storage", storage);
         result.put("openapi", Map.of("status", "ok", "url", "/swagger-ui.html"));
         result.put("workers", workers);
         return result;
@@ -130,9 +136,10 @@ public class HealthController {
         }
     }
 
-    private String overallStatus(Map<String, Object> database, Map<String, Object> workers, Map<String, Object> queue) {
+    private String overallStatus(Map<String, Object> database, Map<String, Object> workers, Map<String, Object> queue, Map<String, Object> storage) {
         boolean databaseOk = "ok".equals(database.get("status"));
         boolean queueOk = "ok".equals(queue.get("status"));
+        boolean storageOk = "ok".equals(storage.get("status"));
         boolean requiredWorkersOk = true;
         for (Object value : workers.values()) {
             if (value instanceof Map<?, ?> worker
@@ -142,6 +149,6 @@ public class HealthController {
                 break;
             }
         }
-        return databaseOk && queueOk && requiredWorkersOk ? "ok" : "degraded";
+        return databaseOk && queueOk && storageOk && requiredWorkersOk ? "ok" : "degraded";
     }
 }

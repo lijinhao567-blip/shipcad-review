@@ -15,11 +15,11 @@
 
 ## 数据架构
 
-开发环境使用 H2 + Flyway，生产数据库使用达梦 DM8 + DIsql 版本脚本，当前版本已通过独立 DM8 实例兼容性验证。Hibernate 仅校验结构，不再以 `ddl-auto=update` 修改数据库。核心模型包括用户、持久化会话、角色、项目、项目成员、图纸、图纸版本、解析实体、审查规则、审查任务、审查问题、整改记录、审计日志和报告。
+开发环境使用 H2 + Flyway，生产数据库使用达梦 DM8 + DIsql 版本脚本，当前版本已通过独立 DM8 实例兼容性验证。Hibernate 仅校验结构，不再以 `ddl-auto=update` 修改数据库。核心模型包括用户、持久化会话、角色、项目、项目成员、图纸、图纸版本、解析实体、审查规则、审查任务、审查问题、整改记录、审计日志和报告。图纸版本记录保留 `storageMode` 与 `fileObjectKey`，用于描述原始图纸在本地文件系统或 S3 兼容对象存储中的位置；`filePath` 仍作为 Worker 可读取的本地路径或对象缓存路径。
 
 ## 技术架构
 
-后端按照 Controller / Service / Repository 分层，CAD解析、CAD渲染和视觉识别作为独立Worker能力接入，避免重型CAD/AI依赖污染核心业务服务。上传版本后先入库，审查任务进入 `ReviewTaskQueue`：本地开发默认使用进程内队列，Redis 协议模式使用外部队列保存待处理任务，后端只保留本地执行线程池。任务执行器完成解析；如果任务开启自动 Vision/OCR，则先渲染版本 PNG 并采集任务级证据；随后执行规则、生成问题并回写状态。任务会同步维护 `review_task.stage` 和 `review_task_step`，记录 PARSE、RENDER、VISION、OCR、RULES 每一步的成功、跳过或失败原因，便于排障和验收；前端任务详情页负责展示步骤时间线、错误和 detailJson 摘要。规则通过 Easy Rules 注册和执行，后续可迁移到 Drools 或规则配置中心。文件默认保存到 `data/uploads`，版本渲染图缓存到 `data/rendered/{versionId}`，报告保存到数据库，并通过 `GET /api/reports/{reportId}/download` 提供鉴权 Markdown 附件下载。
+后端按照 Controller / Service / Repository 分层，CAD解析、CAD渲染和视觉识别作为独立Worker能力接入，避免重型CAD/AI依赖污染核心业务服务。上传版本后先通过 `ObjectStorageService` 保存原始图纸：默认本地文件系统模式直接写入 `data/uploads`，S3 兼容模式会上传到对象存储并保留本地缓存路径供 Worker 使用。审查任务进入 `ReviewTaskQueue`：本地开发默认使用进程内队列，Redis 协议模式使用外部队列保存待处理任务，后端只保留本地执行线程池。任务执行器完成解析；如果任务开启自动 Vision/OCR，则先渲染版本 PNG 并采集任务级证据，渲染图和手动上传的视觉/OCR图片也走同一对象存储接口；随后执行规则、生成问题并回写状态。任务会同步维护 `review_task.stage` 和 `review_task_step`，记录 PARSE、RENDER、VISION、OCR、RULES 每一步的成功、跳过或失败原因，便于排障和验收；前端任务详情页负责展示步骤时间线、错误和 detailJson 摘要。规则通过 Easy Rules 注册和执行，后续可迁移到 Drools 或规则配置中心。报告保存到数据库，并通过 `GET /api/reports/{reportId}/download` 提供鉴权 Markdown 附件下载。
 
 版本对比由后端 `VersionCompareService` 基于两个版本的 CAD 结构化解析摘要生成，输出实体数量、图层、实体类型、块参照、文本差异、风险提示和复核重点。前端只渲染后端返回的结构化差异，不在页面中伪造或重新推理审图结论。
 
@@ -70,9 +70,9 @@
 
 - 本地开发：PowerShell 脚本或手动启动前端、后端、CAD Worker、可选 Vision Worker 和可选 OCR Worker。
 - 身份初始化：开发脚本和 Docker Compose 显式启用 `dev` Profile 并创建四个开发账号；生产 `prod` Profile 不创建默认账号，空库首次启动需通过 `SHIPCAD_BOOTSTRAP_ADMIN_*` 环境变量创建初始管理员。
-- 本地健康检查：`/api/health` 聚合数据库、审查任务队列、OpenAPI、CAD Worker 和可选 Vision/OCR Worker 状态；前端“系统状态”页展示同一组状态；`deploy/test-health.ps1` 统一检查 `/api/health`、OpenAPI、Worker `/health`/`/capabilities` 和前端入口；`deploy/run-demo.ps1` 在服务启动后执行 golden dataset 演示验收。
-- 容器部署：`deploy/docker-compose.yml` 构建并启动核心服务，并使用 Valkey 提供 Redis 协议审查任务队列；使用 `--profile vision` 启动 YOLOv8 识别服务，使用 `--profile ocr` 启动 OCR 识别服务。
-- 云原生占位：`deploy/kubernetes/shipcad-review.yaml` 提供 Deployment、Service、ConfigMap、Valkey 和 PVC 骨架；后端 `prod` Profile 从 `shipcad-database` Secret 读取外部 DM8 连接，后续可继续接入 MinIO、Ingress 和更高可用的队列形态。
+- 本地健康检查：`/api/health` 聚合数据库、审查任务队列、对象存储、OpenAPI、CAD Worker 和可选 Vision/OCR Worker 状态；前端“系统状态”页展示同一组状态；`deploy/test-health.ps1` 统一检查 `/api/health`、OpenAPI、Worker `/health`/`/capabilities` 和前端入口；`deploy/run-demo.ps1` 在服务启动后执行 golden dataset 演示验收。
+- 容器部署：`deploy/docker-compose.yml` 构建并启动核心服务，并使用 Valkey 提供 Redis 协议审查任务队列；默认对象存储仍为本地文件系统，设置 `SHIPCAD_OBJECT_STORAGE_MODE=s3` 并启用 `--profile object-storage` 后可使用 MinIO；使用 `--profile vision` 启动 YOLOv8 识别服务，使用 `--profile ocr` 启动 OCR 识别服务。
+- 云原生占位：`deploy/kubernetes/shipcad-review.yaml` 提供 Deployment、Service、ConfigMap、Valkey 和 PVC 骨架；后端 `prod` Profile 从 `shipcad-database` Secret 读取外部 DM8 连接，对象存储默认本地 PVC，可通过 `shipcad-object-storage` Secret 切换到外部 S3/MinIO；后续可继续接入 Ingress 和更高可用的队列形态。
 
 数据库初始化位于应用启动前：H2 由 Flyway 自动迁移，已有开发库通过显式开发基线接管；DM8 由运维人员在部署前按顺序执行 DIsql 脚本并记录 `shipcad_schema_version`。两条路径最终都由 JPA `validate` 校验，避免运行中的应用擅自改变生产结构。
 

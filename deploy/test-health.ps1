@@ -48,6 +48,16 @@ function Test-Endpoint([string]$Name, [string]$Url, [bool]$Required) {
                     }
                     $result.detail = "$($result.detail) $queueDetail".Trim()
                 }
+                if ($body.storage) {
+                    $storageDetail = "storage=$($body.storage.status)"
+                    if ($body.storage.mode) {
+                        $storageDetail = "$storageDetail/$($body.storage.mode)"
+                    }
+                    if ($body.storage.bucket) {
+                        $storageDetail = "$storageDetail bucket=$($body.storage.bucket)"
+                    }
+                    $result.detail = "$($result.detail) $storageDetail".Trim()
+                }
                 if ($body.engine) {
                     $result.detail = "$($result.detail) engine=$($body.engine)".Trim()
                 }

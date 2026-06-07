@@ -141,6 +141,7 @@ class GoldenE2E:
                 raise FileNotFoundError(file_path)
             drawing = self.create_drawing(project_id, case)
             version = self.upload_version(drawing["id"], case, file_path)
+            self.assert_version_storage(version)
             self.file_head_check(version["id"])
             task = self.create_review_task(version["id"])
             finished = self.wait_for_task(task["id"])
@@ -177,6 +178,17 @@ class GoldenE2E:
             return
         if actual_rules != expected_rules:
             raise AssertionError(f"expected rule codes {expected_rules}, got {actual_rules}")
+
+    def assert_version_storage(self, version: dict[str, Any]) -> None:
+        storage_mode = version.get("storageMode") or ""
+        object_key = version.get("fileObjectKey") or ""
+        file_path = version.get("filePath") or ""
+        if storage_mode not in {"local", "s3"}:
+            raise AssertionError(f"version {version.get('id')} returned invalid storageMode={storage_mode!r}")
+        if not object_key:
+            raise AssertionError(f"version {version.get('id')} is missing fileObjectKey")
+        if not file_path:
+            raise AssertionError(f"version {version.get('id')} is missing local filePath/cache path")
 
     def assert_issue_evidence(self, version_id: str, case: dict[str, Any], issues: list[dict[str, Any]]) -> None:
         parsed_entities = {entity["id"]: entity for entity in self.entities(version_id)}

@@ -27,6 +27,7 @@ For a new empty DM8 schema:
 ```text
 start D:\path\to\deploy\database\dm8\V1__initial_schema.sql
 start D:\path\to\deploy\database\dm8\V2__constraints_and_indexes.sql
+start D:\path\to\deploy\database\dm8\V3__object_storage_metadata.sql
 ```
 
 4. Verify the recorded version:
@@ -52,10 +53,16 @@ the schema before applying an upgrade, never rerun an already recorded script,
 and inspect the last successful statement before recovering a failed upgrade.
 
 The DM8 integration was certified on June 7, 2026 against DM8 Pack8 build
-`03134284404-20250930-295335-20164`. Both migration scripts completed without
+`03134284404-20250930-295335-20164`. V1/V2 completed without
 SQL errors, Hibernate `validate` passed with a dedicated `RESOURCE` user, and
 the DXF golden E2E suite passed 11/11 cases. This certifies compatibility, not
 production load, backup, failover, or disaster-recovery readiness.
+
+V3 adds object-storage metadata to `drawing_version`. It was applied on June 8,
+2026 to the local DM8 development instance at `127.0.0.1:5237`; the version
+record and new columns were verified, and the current backend passed Hibernate
+`validate` and `/api/health` against that schema. Apply it before starting code
+that includes the object-storage adapter.
 
 For the local Windows development instance installed at `D:\dm8task`, use:
 

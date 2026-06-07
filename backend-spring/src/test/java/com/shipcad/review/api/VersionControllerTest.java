@@ -2,6 +2,7 @@ package com.shipcad.review.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.shipcad.review.domain.AppUser;
@@ -12,6 +13,7 @@ import com.shipcad.review.service.AuthService;
 import com.shipcad.review.service.AuthorizationService;
 import com.shipcad.review.service.ProjectAccessService;
 import com.shipcad.review.service.ReviewPlatformService;
+import com.shipcad.review.storage.ObjectStorageService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -32,7 +34,8 @@ class VersionControllerTest {
         ReviewPlatformService platform = mock(ReviewPlatformService.class);
         AuthorizationService access = mock(AuthorizationService.class);
         ProjectAccessService projectAccess = mock(ProjectAccessService.class);
-        VersionController controller = new VersionController(auth, versions, entities, platform, access, projectAccess);
+        ObjectStorageService objectStorage = mock(ObjectStorageService.class);
+        VersionController controller = new VersionController(auth, versions, entities, platform, access, projectAccess, objectStorage);
 
         Path file = tempDir.resolve("sample.dxf");
         Files.writeString(file, "0\nSECTION\n0\nEOF\n");
@@ -52,6 +55,35 @@ class VersionControllerTest {
     }
 
     @Test
+    void fileUsesObjectStorageKeyWhenAvailable() throws Exception {
+        AuthService auth = mock(AuthService.class);
+        DrawingVersionRepository versions = mock(DrawingVersionRepository.class);
+        ParsedEntityRepository entities = mock(ParsedEntityRepository.class);
+        ReviewPlatformService platform = mock(ReviewPlatformService.class);
+        AuthorizationService access = mock(AuthorizationService.class);
+        ProjectAccessService projectAccess = mock(ProjectAccessService.class);
+        ObjectStorageService objectStorage = mock(ObjectStorageService.class);
+        VersionController controller = new VersionController(auth, versions, entities, platform, access, projectAccess, objectStorage);
+
+        Path file = tempDir.resolve("stored.dxf");
+        Files.writeString(file, "0\nSECTION\n0\nEOF\n");
+        DrawingVersion version = new DrawingVersion();
+        version.id = "version-1";
+        version.fileName = "stored.dxf";
+        version.fileObjectKey = "uploads/drawing/version-1_stored.dxf";
+
+        when(auth.requireUser("Bearer token")).thenReturn(new AppUser());
+        when(versions.findById("version-1")).thenReturn(Optional.of(version));
+        when(objectStorage.resolveLocalPath(version.fileObjectKey)).thenReturn(file);
+
+        ResponseEntity<Resource> response = controller.file("Bearer token", "version-1");
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().exists()).isTrue();
+        verify(objectStorage).resolveLocalPath(version.fileObjectKey);
+    }
+
+    @Test
     void renderedImageReturnsPngResource() throws Exception {
         AuthService auth = mock(AuthService.class);
         DrawingVersionRepository versions = mock(DrawingVersionRepository.class);
@@ -59,7 +91,8 @@ class VersionControllerTest {
         ReviewPlatformService platform = mock(ReviewPlatformService.class);
         AuthorizationService access = mock(AuthorizationService.class);
         ProjectAccessService projectAccess = mock(ProjectAccessService.class);
-        VersionController controller = new VersionController(auth, versions, entities, platform, access, projectAccess);
+        ObjectStorageService objectStorage = mock(ObjectStorageService.class);
+        VersionController controller = new VersionController(auth, versions, entities, platform, access, projectAccess, objectStorage);
 
         Path file = tempDir.resolve("render.png");
         Files.write(file, new byte[]{(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'});

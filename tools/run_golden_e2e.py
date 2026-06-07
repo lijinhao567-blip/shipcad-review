@@ -132,7 +132,7 @@ class GoldenE2E:
         if len(response.content) == 0:
             raise AssertionError("version file endpoint returned an empty body")
 
-    def run_case(self, project_id: str, manifest_dir: Path, case: dict[str, Any]) -> CaseResult:
+    def run_case(self, project_id: str, manifest_dir: Path, case: dict[str, Any], evict_upload_cache: bool) -> CaseResult:
         case_id = case["id"]
         expected_rules = sorted(case.get("expectedRuleCodes", []))
         try:
@@ -142,7 +142,11 @@ class GoldenE2E:
             drawing = self.create_drawing(project_id, case)
             version = self.upload_version(drawing["id"], case, file_path)
             self.assert_version_storage(version)
+            if evict_upload_cache:
+                self.evict_local_cache(version)
             self.file_head_check(version["id"])
+            if evict_upload_cache:
+                self.evict_local_cache(version)
             task = self.create_review_task(version["id"])
             finished = self.wait_for_task(task["id"])
             if finished["status"] != "FINISHED":
@@ -189,6 +193,14 @@ class GoldenE2E:
             raise AssertionError(f"version {version.get('id')} is missing fileObjectKey")
         if not file_path:
             raise AssertionError(f"version {version.get('id')} is missing local filePath/cache path")
+
+    def evict_local_cache(self, version: dict[str, Any]) -> None:
+        file_path = version.get("filePath") or ""
+        if not file_path:
+            raise AssertionError(f"version {version.get('id')} has no local cache path to evict")
+        path = Path(file_path)
+        if path.exists():
+            path.unlink()
 
     def assert_issue_evidence(self, version_id: str, case: dict[str, Any], issues: list[dict[str, Any]]) -> None:
         parsed_entities = {entity["id"]: entity for entity in self.entities(version_id)}
@@ -327,6 +339,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--password", default="admin123")
     parser.add_argument("--poll-seconds", type=int, default=45)
     parser.add_argument("--keep-going", action="store_true", help="Run remaining cases after a failure")
+    parser.add_argument(
+        "--evict-upload-cache",
+        action="store_true",
+        help="Delete each uploaded version local cache before file download and review, forcing object-storage reads.",
+    )
     return parser.parse_args()
 
 
@@ -340,7 +357,7 @@ def main() -> int:
         runner.login()
         project = runner.create_project()
         for case in cases:
-            result = runner.run_case(project["id"], manifest_path.parent, case)
+            result = runner.run_case(project["id"], manifest_path.parent, case, args.evict_upload_cache)
             results.append(result)
             if not result.ok and not args.keep_going:
                 break

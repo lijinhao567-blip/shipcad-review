@@ -55,6 +55,9 @@
 # 跑 golden dataset + mock Vision/OCR 多模态验收
 .\deploy\run-demo.ps1 -Multimodal
 
+# 跑真实 MinIO/S3 对象存储验收，会临时启动独立 MinIO 和后端
+.\deploy\run-object-storage-e2e.ps1
+
 # 停止由 start-dev.ps1 启动的开发服务
 .\deploy\stop-dev.ps1
 ```
@@ -155,6 +158,15 @@ Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 
 # 生成可人工查阅的双版本演示走查摘要
 .\deploy\run-demo-walkthrough.ps1
+```
+
+真实 MinIO/S3 对象存储验收会临时启动 MinIO API `9002`、MinIO Console `9001` 和独立后端 `8085`，上传 golden DXF 后删除本地缓存，再验证文件下载和审查任务能从对象存储恢复文件：
+
+```powershell
+.\deploy\run-object-storage-e2e.ps1
+
+# 如果 .tools\minio\minio.exe 不存在，可下载到项目 .tools 目录
+.\deploy\run-object-storage-e2e.ps1 -DownloadMinio
 ```
 
 Multimodal evidence E2E needs the backend and CAD Worker running. By default it starts deterministic mock Vision/OCR workers on `127.0.0.1:9100` and `127.0.0.1:9200`, so it can validate review-task orchestration for CAD rendering, YOLO evidence, OCR evidence, rule consumption, and report output without real YOLO weights or Tesseract:

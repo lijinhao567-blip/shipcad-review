@@ -85,4 +85,4 @@
 
 V2 结构加固了用户名、会话 Token、项目成员、知识条款代码和规则代码的唯一性，并为主要资源链增加关联索引与外键。`remediation_record.report_id` 保留为历史引用而未建立外键，因为报告可能被重新生成或移除，整改时间线仍需保留原始引用值。V3 为 `drawing_version` 增加 `storage_mode` 和 `file_object_key`，用于在本地文件系统与 S3 兼容对象存储之间切换，同时保留 `file_path` 作为 Worker 可读取的本地路径或缓存路径。
 
-自动化测试覆盖空 H2 建库和非空历史 H2 接管。2026 年 6 月 7 日已在 DM8 Pack8 `03134284404-20250930-295335-20164` 独立实例完成 V1/V2 脚本执行、17 张表与 19 个外键核验、Hibernate `validate`、健康检查和 Golden E2E 11/11 验证。2026 年 6 月 8 日已在同一本地 DM8 实例执行 V3 对象存储元数据脚本，并通过当前后端 Hibernate `validate` 和 `/api/health` 校验；由于该 prod 库现有账号不是自动化测试账号，Golden E2E 本次在 H2/local object storage 链路重跑 11/11。该结果证明当前版本具备 DM8 功能兼容性，不代表生产压测、备份恢复、高可用或灾难恢复已经完成。
+自动化测试覆盖空 H2 建库和非空历史 H2 接管。2026 年 6 月 7 日已在 DM8 Pack8 `03134284404-20250930-295335-20164` 独立实例完成 V1/V2 脚本执行、17 张表与 19 个外键核验、Hibernate `validate`、健康检查和 Golden E2E 11/11 验证。2026 年 6 月 8 日已在同一本地 DM8 实例执行 V3 对象存储元数据脚本，并通过当前后端 Hibernate `validate` 和 `/api/health` 校验；由于该 prod 库现有账号不是自动化测试账号，DM8 Golden E2E 本次未重跑。对象存储改造后的 Golden E2E 已分别在 H2/local object storage 链路和 H2/MinIO S3 链路通过 11/11。该结果证明当前版本具备 DM8 功能兼容性和基础 S3 链路可用性，不代表生产压测、备份恢复、高可用或灾难恢复已经完成。

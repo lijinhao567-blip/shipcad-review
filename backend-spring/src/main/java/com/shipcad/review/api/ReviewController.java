@@ -12,7 +12,6 @@ import com.shipcad.review.domain.ReviewTaskStep;
 import com.shipcad.review.dto.ApiDtos.IssueUpdateRequest;
 import com.shipcad.review.dto.ApiDtos.ReportRequest;
 import com.shipcad.review.dto.ApiDtos.ReviewTaskRequest;
-import com.shipcad.review.repo.ReportDocumentRepository;
 import com.shipcad.review.repo.ReviewRuleRepository;
 import com.shipcad.review.service.AuthService;
 import com.shipcad.review.service.AuthorizationService;
@@ -36,36 +35,30 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class ReviewController extends BaseController {
     private final ReviewRuleRepository rules;
-    private final ReportDocumentRepository reports;
     private final ReviewPlatformService platform;
     private final AuthorizationService access;
 
-    public ReviewController(AuthService auth, ReviewRuleRepository rules,
-                            ReportDocumentRepository reports, ReviewPlatformService platform,
+    public ReviewController(AuthService auth, ReviewRuleRepository rules, ReviewPlatformService platform,
                             AuthorizationService access) {
         super(auth);
         this.rules = rules;
-        this.reports = reports;
         this.platform = platform;
         this.access = access;
     }
 
     @GetMapping("/review-tasks")
     public List<ReviewTask> tasks(@RequestHeader("Authorization") String authorization, @RequestParam(required = false) String versionId) {
-        user(authorization);
-        return platform.listReviewTasks(versionId);
+        return platform.listReviewTasks(versionId, user(authorization));
     }
 
     @GetMapping("/review-tasks/{taskId}")
     public ReviewTask task(@RequestHeader("Authorization") String authorization, @PathVariable String taskId) {
-        user(authorization);
-        return platform.getReviewTask(taskId);
+        return platform.getReviewTask(taskId, user(authorization));
     }
 
     @GetMapping("/review-tasks/{taskId}/steps")
     public List<ReviewTaskStep> taskSteps(@RequestHeader("Authorization") String authorization, @PathVariable String taskId) {
-        user(authorization);
-        return platform.listReviewTaskSteps(taskId);
+        return platform.listReviewTaskSteps(taskId, user(authorization));
     }
 
     @PostMapping("/review-tasks")
@@ -85,26 +78,22 @@ public class ReviewController extends BaseController {
     @GetMapping("/issues")
     public List<ReviewIssue> issues(@RequestHeader("Authorization") String authorization, @RequestParam(required = false) String taskId,
                                     @RequestParam(required = false) String versionId) {
-        user(authorization);
-        return platform.listIssues(taskId, versionId);
+        return platform.listIssues(taskId, versionId, user(authorization));
     }
 
     @GetMapping("/issues/{issueId}/evidences")
     public List<ReviewEvidence> issueEvidences(@RequestHeader("Authorization") String authorization, @PathVariable String issueId) {
-        user(authorization);
-        return platform.listIssueEvidence(issueId);
+        return platform.listIssueEvidence(issueId, user(authorization));
     }
 
     @GetMapping("/issues/{issueId}/remediations")
     public List<RemediationRecord> issueRemediations(@RequestHeader("Authorization") String authorization, @PathVariable String issueId) {
-        user(authorization);
-        return platform.listIssueRemediations(issueId);
+        return platform.listIssueRemediations(issueId, user(authorization));
     }
 
     @GetMapping("/issues/{issueId}/ai-explanation")
     public AiExplanation issueAiExplanation(@RequestHeader("Authorization") String authorization, @PathVariable String issueId) {
-        user(authorization);
-        return platform.explainIssue(issueId);
+        return platform.explainIssue(issueId, user(authorization));
     }
 
     @PatchMapping("/issues/{issueId}")
@@ -130,14 +119,12 @@ public class ReviewController extends BaseController {
 
     @GetMapping("/reports/{reportId}")
     public ReportDocument report(@RequestHeader("Authorization") String authorization, @PathVariable String reportId) {
-        user(authorization);
-        return reports.findById(reportId).orElseThrow(() -> new IllegalArgumentException("报告不存在"));
+        return platform.getReport(reportId, user(authorization));
     }
 
     @GetMapping("/reports/{reportId}/download")
     public ResponseEntity<String> downloadReport(@RequestHeader("Authorization") String authorization, @PathVariable String reportId) {
-        user(authorization);
-        ReportDocument report = reports.findById(reportId).orElseThrow(() -> new IllegalArgumentException("报告不存在"));
+        ReportDocument report = platform.getReport(reportId, user(authorization));
         String fileName = "shipcad-review-report-" + report.id + ".md";
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/markdown;charset=UTF-8"))

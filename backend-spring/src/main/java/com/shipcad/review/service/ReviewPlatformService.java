@@ -16,6 +16,7 @@ import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewRule;
 import com.shipcad.review.domain.ReviewTask;
 import com.shipcad.review.domain.ReviewTaskStep;
+import com.shipcad.review.domain.UserRole;
 import com.shipcad.review.dto.ApiDtos.DrawingRequest;
 import com.shipcad.review.dto.ApiDtos.IssueUpdateRequest;
 import com.shipcad.review.dto.ApiDtos.OcrRegion;
@@ -86,6 +87,7 @@ public class ReviewPlatformService {
     private final ReviewReportBuilder reportBuilder;
     private final VersionCompareService versionCompareService;
     private final AiGateway aiGateway;
+    private final ProjectAccessService projectAccess;
     private final AuditService audit;
     private final ObjectMapper mapper;
     private final ThreadPoolTaskExecutor reviewTaskExecutor;
@@ -112,6 +114,7 @@ public class ReviewPlatformService {
             ReviewReportBuilder reportBuilder,
             VersionCompareService versionCompareService,
             AiGateway aiGateway,
+            ProjectAccessService projectAccess,
             AuditService audit,
             ObjectMapper mapper,
             ThreadPoolTaskExecutor reviewTaskExecutor,
@@ -137,6 +140,7 @@ public class ReviewPlatformService {
         this.reportBuilder = reportBuilder;
         this.versionCompareService = versionCompareService;
         this.aiGateway = aiGateway;
+        this.projectAccess = projectAccess;
         this.audit = audit;
         this.mapper = mapper;
         this.reviewTaskExecutor = reviewTaskExecutor;
@@ -144,6 +148,7 @@ public class ReviewPlatformService {
         this.storageRoot = Path.of(storageRoot).toAbsolutePath().normalize();
     }
 
+    @Transactional
     public Project createProject(ProjectRequest request, AppUser actor) {
         Project project = new Project();
         project.id = Ids.next("project");
@@ -153,12 +158,13 @@ public class ReviewPlatformService {
         project.description = request.description();
         project.createdAt = Ids.now();
         projects.save(project);
+        projectAccess.addCreatorMembership(project.id, actor);
         audit.record(actor.username, "PROJECT_CREATE", "project", project.id, project);
         return project;
     }
 
     public Drawing createDrawing(DrawingRequest request, AppUser actor) {
-        projects.findById(request.projectId()).orElseThrow(() -> new IllegalArgumentException("项目不存在"));
+        projectAccess.requireProject(actor, request.projectId());
         Drawing drawing = new Drawing();
         drawing.id = Ids.next("drawing");
         drawing.projectId = request.projectId();
@@ -173,7 +179,7 @@ public class ReviewPlatformService {
 
     @Transactional
     public DrawingVersion uploadVersion(String drawingId, String versionNo, MultipartFile file, AppUser actor) throws IOException {
-        drawings.findById(drawingId).orElseThrow(() -> new IllegalArgumentException("图纸不存在"));
+        projectAccess.requireDrawing(actor, drawingId);
         String originalName = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
         if (file.isEmpty() || !(originalName.endsWith(".dxf") || originalName.endsWith(".dwg"))) {
             throw new IllegalArgumentException("当前支持DXF或DWG文件，DWG解析需要安装LibreDWG");
@@ -205,7 +211,7 @@ public class ReviewPlatformService {
 
     @Transactional
     public DrawingVersion parseVersion(String versionId, AppUser actor) {
-        DrawingVersion version = versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        DrawingVersion version = projectAccess.requireVersion(actor, versionId);
         WorkerParseResponse parsed = worker.parse(Path.of(version.filePath));
         entities.deleteByVersionId(versionId);
         for (WorkerEntity workerEntity : parsed.entities()) {
@@ -230,7 +236,7 @@ public class ReviewPlatformService {
 
     @Transactional
     public Path renderVersionImage(String versionId, boolean force, AppUser actor) throws IOException {
-        DrawingVersion version = versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        DrawingVersion version = projectAccess.requireVersion(actor, versionId);
         Path target = renderedImagePath(versionId);
         if (!force && Files.isRegularFile(target) && Files.size(target) > 0) {
             return target;
@@ -251,7 +257,7 @@ public class ReviewPlatformService {
 
     @Transactional
     public List<ReviewEvidence> runVisionDetection(String versionId, MultipartFile file, double confidence, AppUser actor) throws IOException {
-        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        projectAccess.requireVersion(actor, versionId);
         validateVisionConfidence(confidence);
         Path image = storeVisionImage(versionId, file);
         return runVisionDetectionOnImage(versionId, null, image, confidence, actor, "VISION_DETECT", "uploaded-image");
@@ -259,7 +265,7 @@ public class ReviewPlatformService {
 
     @Transactional
     public List<ReviewEvidence> runVisionDetectionFromRenderedImage(String versionId, double confidence, boolean forceRender, AppUser actor) throws IOException {
-        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        projectAccess.requireVersion(actor, versionId);
         validateVisionConfidence(confidence);
         Path image = renderVersionImage(versionId, forceRender, actor);
         return runVisionDetectionOnImage(versionId, null, image, confidence, actor, "VISION_DETECT_RENDERED", "rendered-version-image");
@@ -288,7 +294,7 @@ public class ReviewPlatformService {
 
     @Transactional
     public List<ReviewEvidence> runOcrRecognition(String versionId, MultipartFile file, double confidence, AppUser actor) throws IOException {
-        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        projectAccess.requireVersion(actor, versionId);
         validateOcrConfidence(confidence);
         Path image = storeOcrImage(versionId, file);
         return runOcrRecognitionOnImage(versionId, null, image, confidence, actor, "OCR_RECOGNIZE", "uploaded-image");
@@ -296,7 +302,7 @@ public class ReviewPlatformService {
 
     @Transactional
     public List<ReviewEvidence> runOcrRecognitionFromRenderedImage(String versionId, double confidence, boolean forceRender, AppUser actor) throws IOException {
-        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        projectAccess.requireVersion(actor, versionId);
         validateOcrConfidence(confidence);
         Path image = renderVersionImage(versionId, forceRender, actor);
         return runOcrRecognitionOnImage(versionId, null, image, confidence, actor, "OCR_RECOGNIZE_RENDERED", "rendered-version-image");
@@ -324,18 +330,16 @@ public class ReviewPlatformService {
         return generated;
     }
 
-    public List<ReviewTask> listReviewTasks(String versionId) {
-        List<ReviewTask> result = versionId == null || versionId.isBlank() ? tasks.findAll() : tasks.findByVersionId(versionId);
-        return attachTaskSteps(result);
+    public List<ReviewTask> listReviewTasks(String versionId, AppUser actor) {
+        return attachTaskSteps(projectAccess.listTasks(actor, versionId));
     }
 
-    public ReviewTask getReviewTask(String taskId) {
-        ReviewTask task = tasks.findById(taskId).orElseThrow(() -> new IllegalArgumentException("审查任务不存在"));
-        return attachTaskSteps(task);
+    public ReviewTask getReviewTask(String taskId, AppUser actor) {
+        return attachTaskSteps(projectAccess.requireTask(actor, taskId));
     }
 
-    public List<ReviewTaskStep> listReviewTaskSteps(String taskId) {
-        tasks.findById(taskId).orElseThrow(() -> new IllegalArgumentException("审查任务不存在"));
+    public List<ReviewTaskStep> listReviewTaskSteps(String taskId, AppUser actor) {
+        projectAccess.requireTask(actor, taskId);
         return taskSteps.findByTaskIdOrderByStepOrderAsc(taskId);
     }
 
@@ -357,7 +361,7 @@ public class ReviewPlatformService {
 
     private ReviewTask createReviewTask(String versionId, boolean autoVision, boolean autoOcr, boolean forceRender,
                                         double visionConfidence, double ocrConfidence, AppUser actor) {
-        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+        projectAccess.requireVersion(actor, versionId);
         if (autoVision) {
             validateVisionConfidence(visionConfidence);
         }
@@ -394,7 +398,7 @@ public class ReviewPlatformService {
     }
 
     public ReviewTask retryReviewTask(String taskId, AppUser actor) {
-        ReviewTask oldTask = tasks.findById(taskId).orElseThrow(() -> new IllegalArgumentException("审查任务不存在"));
+        ReviewTask oldTask = projectAccess.requireTask(actor, taskId);
         return createReviewTask(
                 oldTask.versionId,
                 bool(oldTask.autoVision),
@@ -630,30 +634,22 @@ public class ReviewPlatformService {
         taskSteps.save(step);
     }
 
-    public List<ReviewIssue> listIssues(String taskId, String versionId) {
-        List<ReviewIssue> result;
-        if (taskId != null && !taskId.isBlank()) {
-            result = issues.findByTaskId(taskId);
-        } else if (versionId != null && !versionId.isBlank()) {
-            result = issues.findByVersionId(versionId);
-        } else {
-            result = issues.findAll();
-        }
-        return attachEvidence(result);
+    public List<ReviewIssue> listIssues(String taskId, String versionId, AppUser actor) {
+        return attachEvidence(projectAccess.listIssues(actor, taskId, versionId));
     }
 
-    public List<ReviewEvidence> listIssueEvidence(String issueId) {
-        issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
+    public List<ReviewEvidence> listIssueEvidence(String issueId, AppUser actor) {
+        projectAccess.requireIssue(actor, issueId);
         return evidences.findByIssueId(issueId);
     }
 
-    public List<RemediationRecord> listIssueRemediations(String issueId) {
-        issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
+    public List<RemediationRecord> listIssueRemediations(String issueId, AppUser actor) {
+        projectAccess.requireIssue(actor, issueId);
         return remediations.findByIssueIdOrderByCreatedAtAsc(issueId);
     }
 
-    public List<ReviewEvidence> listVersionEvidence(String versionId, EvidenceType type) {
-        versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
+    public List<ReviewEvidence> listVersionEvidence(String versionId, EvidenceType type, AppUser actor) {
+        projectAccess.requireVersion(actor, versionId);
         List<ReviewEvidence> source = evidences.findByVersionId(versionId);
         if (type == null) {
             return source;
@@ -663,16 +659,16 @@ public class ReviewPlatformService {
                 .toList();
     }
 
-    public com.shipcad.review.domain.AiExplanation explainIssue(String issueId) {
-        ReviewIssue issue = issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
+    public com.shipcad.review.domain.AiExplanation explainIssue(String issueId, AppUser actor) {
+        ReviewIssue issue = projectAccess.requireIssue(actor, issueId);
         return aiGateway.explain(attachEvidence(issue));
     }
 
     public ReviewIssue updateIssue(String issueId, IssueUpdateRequest request, AppUser actor) {
-        ReviewIssue issue = issues.findById(issueId).orElseThrow(() -> new IllegalArgumentException("问题不存在"));
+        ReviewIssue issue = projectAccess.requireIssue(actor, issueId);
         IssueStatus fromStatus = issue.status;
         String fromAssignee = issue.assignee;
-        validateReportReference(request.reportId(), issue);
+        validateReportReference(request.reportId(), issue, actor);
         if (request.status() != null) {
             issue.status = request.status();
         }
@@ -700,11 +696,11 @@ public class ReviewPlatformService {
         return attachEvidence(issue);
     }
 
-    private void validateReportReference(String reportId, ReviewIssue issue) {
+    private void validateReportReference(String reportId, ReviewIssue issue, AppUser actor) {
         if (reportId == null || reportId.isBlank()) {
             return;
         }
-        ReportDocument report = reports.findById(reportId).orElseThrow(() -> new IllegalArgumentException("报告不存在"));
+        ReportDocument report = projectAccess.requireReport(actor, reportId);
         if (issue.taskId == null || !issue.taskId.equals(report.taskId)) {
             throw new IllegalArgumentException("报告不属于当前问题所在审查任务");
         }
@@ -726,7 +722,7 @@ public class ReviewPlatformService {
     }
 
     public ReportDocument createReport(String taskId, AppUser actor) {
-        ReviewTask task = tasks.findById(taskId).orElseThrow(() -> new IllegalArgumentException("审查任务不存在"));
+        ReviewTask task = projectAccess.requireTask(actor, taskId);
         if (!"FINISHED".equals(task.status)) {
             throw new IllegalArgumentException("审查任务尚未完成，暂不能生成报告");
         }
@@ -747,12 +743,16 @@ public class ReviewPlatformService {
         return report;
     }
 
-    public VersionCompareResponse compareVersions(String leftId, String rightId) {
-        DrawingVersion leftVersion = versions.findById(leftId).orElseThrow(() -> new IllegalArgumentException("旧版本不存在"));
-        DrawingVersion rightVersion = versions.findById(rightId).orElseThrow(() -> new IllegalArgumentException("新版本不存在"));
+    public VersionCompareResponse compareVersions(String leftId, String rightId, AppUser actor) {
+        DrawingVersion leftVersion = projectAccess.requireVersion(actor, leftId);
+        DrawingVersion rightVersion = projectAccess.requireVersion(actor, rightId);
         WorkerSummary left = fromJson(leftVersion.parseSummaryJson, WorkerSummary.class);
         WorkerSummary right = fromJson(rightVersion.parseSummaryJson, WorkerSummary.class);
         return versionCompareService.compare(leftVersion, left, rightVersion, right);
+    }
+
+    public ReportDocument getReport(String reportId, AppUser actor) {
+        return projectAccess.requireReport(actor, reportId);
     }
 
     public WorkerSummary summaryOf(DrawingVersion version) {
@@ -945,7 +945,9 @@ public class ReviewPlatformService {
 
     private AppUser systemActor(String username) {
         AppUser user = new AppUser();
+        user.id = "internal_review_worker";
         user.username = username;
+        user.role = UserRole.ADMIN;
         return user;
     }
 

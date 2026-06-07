@@ -11,6 +11,7 @@ import com.shipcad.review.repo.DrawingVersionRepository;
 import com.shipcad.review.repo.ParsedEntityRepository;
 import com.shipcad.review.service.AuthService;
 import com.shipcad.review.service.AuthorizationService;
+import com.shipcad.review.service.ProjectAccessService;
 import com.shipcad.review.service.ReviewPlatformService;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -41,20 +42,22 @@ public class VersionController extends BaseController {
     private final ParsedEntityRepository entities;
     private final ReviewPlatformService platform;
     private final AuthorizationService access;
+    private final ProjectAccessService projectAccess;
 
     public VersionController(AuthService auth, DrawingVersionRepository versions, ParsedEntityRepository entities,
-                             ReviewPlatformService platform, AuthorizationService access) {
+                             ReviewPlatformService platform, AuthorizationService access,
+                             ProjectAccessService projectAccess) {
         super(auth);
         this.versions = versions;
         this.entities = entities;
         this.platform = platform;
         this.access = access;
+        this.projectAccess = projectAccess;
     }
 
     @GetMapping
     public List<DrawingVersion> versions(@RequestHeader("Authorization") String authorization, @RequestParam(required = false) String drawingId) {
-        user(authorization);
-        return drawingId == null || drawingId.isBlank() ? versions.findAll() : versions.findByDrawingId(drawingId);
+        return projectAccess.listVersions(user(authorization), drawingId);
     }
 
     @PostMapping("/upload")
@@ -78,13 +81,12 @@ public class VersionController extends BaseController {
 
     @GetMapping("/compare")
     public VersionCompareResponse compare(@RequestHeader("Authorization") String authorization, @RequestParam String leftId, @RequestParam String rightId) {
-        user(authorization);
-        return platform.compareVersions(leftId, rightId);
+        return platform.compareVersions(leftId, rightId, user(authorization));
     }
 
     @GetMapping("/{versionId}/entities")
     public List<EntityView> entities(@RequestHeader("Authorization") String authorization, @PathVariable String versionId) {
-        user(authorization);
+        projectAccess.requireVersion(user(authorization), versionId);
         return entities.findByVersionId(versionId).stream().map(this::view).toList();
     }
 
@@ -142,8 +144,7 @@ public class VersionController extends BaseController {
             @PathVariable String versionId,
             @RequestParam(required = false) EvidenceType type
     ) {
-        user(authorization);
-        return platform.listVersionEvidence(versionId, type);
+        return platform.listVersionEvidence(versionId, type, user(authorization));
     }
 
     @GetMapping("/{versionId}/rendered-image")
@@ -169,7 +170,7 @@ public class VersionController extends BaseController {
 
     @GetMapping("/{versionId}/file")
     public ResponseEntity<Resource> file(@RequestHeader("Authorization") String authorization, @PathVariable String versionId) throws MalformedURLException {
-        user(authorization);
+        projectAccess.requireVersion(user(authorization), versionId);
         DrawingVersion version = versions.findById(versionId).orElseThrow(() -> new IllegalArgumentException("版本不存在"));
         if (version.filePath == null || version.filePath.isBlank()) {
             throw new IllegalArgumentException("图纸文件路径缺失");

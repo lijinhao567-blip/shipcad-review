@@ -8,5 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ReviewIssueRepository extends JpaRepository<ReviewIssue, String> {
     List<ReviewIssue> findByTaskId(String taskId);
     List<ReviewIssue> findByVersionId(String versionId);
+    List<ReviewIssue> findByVersionIdIn(List<String> versionIds);
     long countByStatusNot(IssueStatus status);
 }

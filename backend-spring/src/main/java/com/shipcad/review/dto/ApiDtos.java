@@ -54,6 +54,22 @@ public final class ApiDtos {
     ) {
     }
 
+    public record AddProjectMemberRequest(@NotBlank String userId) {
+    }
+
+    public record ProjectMemberView(
+            String id,
+            String projectId,
+            String userId,
+            String username,
+            String displayName,
+            String role,
+            boolean enabled,
+            Instant createdAt,
+            String createdBy
+    ) {
+    }
+
     public record AuditLogView(
             String id,
             String actor,

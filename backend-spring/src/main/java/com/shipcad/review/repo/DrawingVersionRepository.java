@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface DrawingVersionRepository extends JpaRepository<DrawingVersion, String> {
     List<DrawingVersion> findByDrawingId(String drawingId);
+
+    List<DrawingVersion> findByDrawingIdIn(List<String> drawingIds);
 }

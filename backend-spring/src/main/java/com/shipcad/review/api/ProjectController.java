@@ -3,16 +3,20 @@ package com.shipcad.review.api;
 import com.shipcad.review.domain.Drawing;
 import com.shipcad.review.domain.Permission;
 import com.shipcad.review.domain.Project;
+import com.shipcad.review.dto.ApiDtos.AddProjectMemberRequest;
 import com.shipcad.review.dto.ApiDtos.DrawingRequest;
+import com.shipcad.review.dto.ApiDtos.ProjectMemberView;
 import com.shipcad.review.dto.ApiDtos.ProjectRequest;
-import com.shipcad.review.repo.DrawingRepository;
-import com.shipcad.review.repo.ProjectRepository;
 import com.shipcad.review.service.AuthService;
 import com.shipcad.review.service.AuthorizationService;
+import com.shipcad.review.service.ProjectAccessService;
 import com.shipcad.review.service.ReviewPlatformService;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -23,24 +27,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api")
 public class ProjectController extends BaseController {
-    private final ProjectRepository projects;
-    private final DrawingRepository drawings;
     private final ReviewPlatformService platform;
     private final AuthorizationService access;
+    private final ProjectAccessService projectAccess;
 
-    public ProjectController(AuthService auth, ProjectRepository projects, DrawingRepository drawings,
-                             ReviewPlatformService platform, AuthorizationService access) {
+    public ProjectController(AuthService auth, ReviewPlatformService platform, AuthorizationService access,
+                             ProjectAccessService projectAccess) {
         super(auth);
-        this.projects = projects;
-        this.drawings = drawings;
         this.platform = platform;
         this.access = access;
+        this.projectAccess = projectAccess;
     }
 
     @GetMapping("/projects")
     public List<Project> projects(@RequestHeader("Authorization") String authorization) {
-        user(authorization);
-        return projects.findAll();
+        return projectAccess.listProjects(user(authorization));
     }
 
     @PostMapping("/projects")
@@ -52,8 +53,7 @@ public class ProjectController extends BaseController {
 
     @GetMapping("/drawings")
     public List<Drawing> drawings(@RequestHeader("Authorization") String authorization, @RequestParam(required = false) String projectId) {
-        user(authorization);
-        return projectId == null || projectId.isBlank() ? drawings.findAll() : drawings.findByProjectId(projectId);
+        return projectAccess.listDrawings(user(authorization), projectId);
     }
 
     @PostMapping("/drawings")
@@ -61,5 +61,38 @@ public class ProjectController extends BaseController {
         var actor = user(authorization);
         access.require(actor, Permission.PROJECT_WRITE);
         return platform.createDrawing(request, actor);
+    }
+
+    @GetMapping("/projects/{projectId}/members")
+    public List<ProjectMemberView> members(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable String projectId
+    ) {
+        var actor = user(authorization);
+        access.require(actor, Permission.PROJECT_MEMBER_MANAGE);
+        return projectAccess.listMembers(projectId);
+    }
+
+    @PostMapping("/projects/{projectId}/members")
+    public ProjectMemberView addMember(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable String projectId,
+            @Valid @RequestBody AddProjectMemberRequest request
+    ) {
+        var actor = user(authorization);
+        access.require(actor, Permission.PROJECT_MEMBER_MANAGE);
+        return projectAccess.addMember(projectId, request.userId(), actor);
+    }
+
+    @DeleteMapping("/projects/{projectId}/members/{userId}")
+    public Map<String, String> removeMember(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable String projectId,
+            @PathVariable String userId
+    ) {
+        var actor = user(authorization);
+        access.require(actor, Permission.PROJECT_MEMBER_MANAGE);
+        projectAccess.removeMember(projectId, userId, actor);
+        return Map.of("status", "member_removed");
     }
 }

@@ -2,12 +2,8 @@ package com.shipcad.review.api;
 
 import com.shipcad.review.domain.IssueStatus;
 import com.shipcad.review.domain.ReviewIssue;
-import com.shipcad.review.repo.DrawingRepository;
-import com.shipcad.review.repo.DrawingVersionRepository;
-import com.shipcad.review.repo.ProjectRepository;
-import com.shipcad.review.repo.ReviewIssueRepository;
-import com.shipcad.review.repo.ReviewTaskRepository;
 import com.shipcad.review.service.AuthService;
+import com.shipcad.review.service.ProjectAccessService;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,32 +16,27 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/dashboard")
 public class DashboardController extends BaseController {
-    private final ProjectRepository projects;
-    private final DrawingRepository drawings;
-    private final DrawingVersionRepository versions;
-    private final ReviewTaskRepository tasks;
-    private final ReviewIssueRepository issues;
+    private final ProjectAccessService projectAccess;
 
-    public DashboardController(AuthService auth, ProjectRepository projects, DrawingRepository drawings, DrawingVersionRepository versions,
-                               ReviewTaskRepository tasks, ReviewIssueRepository issues) {
+    public DashboardController(AuthService auth, ProjectAccessService projectAccess) {
         super(auth);
-        this.projects = projects;
-        this.drawings = drawings;
-        this.versions = versions;
-        this.tasks = tasks;
-        this.issues = issues;
+        this.projectAccess = projectAccess;
     }
 
     @GetMapping
     public Map<String, Object> dashboard(@RequestHeader("Authorization") String authorization) {
-        user(authorization);
-        List<ReviewIssue> allIssues = issues.findAll();
+        var actor = user(authorization);
+        var visibleProjects = projectAccess.listProjects(actor);
+        var visibleDrawings = projectAccess.listDrawings(actor, null);
+        var visibleVersions = projectAccess.listVersions(actor, null);
+        var visibleTasks = projectAccess.listTasks(actor, null);
+        List<ReviewIssue> allIssues = projectAccess.listIssues(actor, null, null);
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("projectCount", projects.count());
-        result.put("drawingCount", drawings.count());
-        result.put("versionCount", versions.count());
-        result.put("taskCount", tasks.count());
-        result.put("openIssueCount", issues.countByStatusNot(IssueStatus.CLOSED));
+        result.put("projectCount", visibleProjects.size());
+        result.put("drawingCount", visibleDrawings.size());
+        result.put("versionCount", visibleVersions.size());
+        result.put("taskCount", visibleTasks.size());
+        result.put("openIssueCount", allIssues.stream().filter(issue -> issue.status != IssueStatus.CLOSED).count());
         result.put("issueCountBySeverity", countBy(allIssues, issue -> issue.severity.name()));
         result.put("issueCountByStatus", countBy(allIssues, issue -> issue.status.name()));
         result.put("issueCountByRule", countBy(allIssues, issue -> issue.ruleCode));

@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ReviewTaskRepository extends JpaRepository<ReviewTask, String> {
     List<ReviewTask> findByVersionId(String versionId);
+
+    List<ReviewTask> findByVersionIdIn(List<String> versionIds);
 }

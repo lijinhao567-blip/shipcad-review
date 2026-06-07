@@ -30,6 +30,18 @@ export type ManagedUser = {
   lastLoginAt: string | null
 }
 
+export type ProjectMember = {
+  id: string
+  projectId: string
+  userId: string
+  username: string
+  displayName: string
+  role: string
+  enabled: boolean
+  createdAt: string
+  createdBy: string
+}
+
 export type AuditLog = {
   id: string
   actor: string

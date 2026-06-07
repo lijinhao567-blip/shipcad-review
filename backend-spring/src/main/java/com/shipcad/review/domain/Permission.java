@@ -9,5 +9,6 @@ public enum Permission {
     ISSUE_REVIEW_DECIDE,
     REPORT_GENERATE,
     AUDIT_VIEW,
-    USER_MANAGE
+    USER_MANAGE,
+    PROJECT_MEMBER_MANAGE
 }

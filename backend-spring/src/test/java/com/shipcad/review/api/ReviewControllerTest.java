@@ -7,12 +7,10 @@ import static org.mockito.Mockito.when;
 import com.shipcad.review.domain.AppUser;
 import com.shipcad.review.domain.RemediationRecord;
 import com.shipcad.review.domain.ReportDocument;
-import com.shipcad.review.repo.ReportDocumentRepository;
 import com.shipcad.review.repo.ReviewRuleRepository;
 import com.shipcad.review.service.AuthService;
 import com.shipcad.review.service.AuthorizationService;
 import com.shipcad.review.service.ReviewPlatformService;
-import java.util.Optional;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -23,10 +21,10 @@ class ReviewControllerTest {
     void downloadReportReturnsMarkdownAttachment() {
         AuthService auth = mock(AuthService.class);
         ReviewRuleRepository rules = mock(ReviewRuleRepository.class);
-        ReportDocumentRepository reports = mock(ReportDocumentRepository.class);
         ReviewPlatformService platform = mock(ReviewPlatformService.class);
         AuthorizationService access = mock(AuthorizationService.class);
-        ReviewController controller = new ReviewController(auth, rules, reports, platform, access);
+        ReviewController controller = new ReviewController(auth, rules, platform, access);
+        AppUser actor = new AppUser();
 
         ReportDocument report = new ReportDocument();
         report.id = "report_1";
@@ -34,8 +32,8 @@ class ReviewControllerTest {
         report.versionId = "version_1";
         report.content = "# Review Report\n\n- issue: LAYER_NAME_STANDARD\n";
 
-        when(auth.requireUser("Bearer token")).thenReturn(new AppUser());
-        when(reports.findById("report_1")).thenReturn(Optional.of(report));
+        when(auth.requireUser("Bearer token")).thenReturn(actor);
+        when(platform.getReport("report_1", actor)).thenReturn(report);
 
         ResponseEntity<String> response = controller.downloadReport("Bearer token", "report_1");
 
@@ -49,10 +47,10 @@ class ReviewControllerTest {
     void issueRemediationsReturnsTimeline() {
         AuthService auth = mock(AuthService.class);
         ReviewRuleRepository rules = mock(ReviewRuleRepository.class);
-        ReportDocumentRepository reports = mock(ReportDocumentRepository.class);
         ReviewPlatformService platform = mock(ReviewPlatformService.class);
         AuthorizationService access = mock(AuthorizationService.class);
-        ReviewController controller = new ReviewController(auth, rules, reports, platform, access);
+        ReviewController controller = new ReviewController(auth, rules, platform, access);
+        AppUser actor = new AppUser();
 
         RemediationRecord record = new RemediationRecord();
         record.id = "remediation_1";
@@ -61,8 +59,8 @@ class ReviewControllerTest {
         record.fromStatus = "IN_PROGRESS";
         record.toStatus = "READY_FOR_REVIEW";
 
-        when(auth.requireUser("Bearer token")).thenReturn(new AppUser());
-        when(platform.listIssueRemediations("issue_1")).thenReturn(List.of(record));
+        when(auth.requireUser("Bearer token")).thenReturn(actor);
+        when(platform.listIssueRemediations("issue_1", actor)).thenReturn(List.of(record));
 
         List<RemediationRecord> result = controller.issueRemediations("Bearer token", "issue_1");
 

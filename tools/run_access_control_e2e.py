@@ -69,6 +69,58 @@ class AccessControlE2E:
             },
         )
         self.expect_status(project_response, 200)
+        engineer_project = project_response.json()
+
+        viewer_projects = self.client.get("/api/projects", headers=viewer)
+        self.expect_status(viewer_projects, 200)
+        if engineer_project["id"] in {project["id"] for project in viewer_projects.json()}:
+            raise AssertionError("viewer can see an unassigned engineer project")
+        self.expect_status(
+            self.client.get(
+                "/api/drawings",
+                headers=viewer,
+                params={"projectId": engineer_project["id"]},
+            ),
+            403,
+        )
+
+        viewer_user = next(
+            user for user in self.client.get("/api/users", headers=admin).json()
+            if user["username"] == "viewer"
+        )
+        add_member = self.client.post(
+            f"/api/projects/{engineer_project['id']}/members",
+            headers=admin,
+            json={"userId": viewer_user["id"]},
+        )
+        self.expect_status(add_member, 200)
+        assigned_projects = self.client.get("/api/projects", headers=viewer)
+        self.expect_status(assigned_projects, 200)
+        if engineer_project["id"] not in {project["id"] for project in assigned_projects.json()}:
+            raise AssertionError("viewer cannot see a project after membership assignment")
+        self.expect_status(
+            self.client.get(
+                "/api/drawings",
+                headers=viewer,
+                params={"projectId": engineer_project["id"]},
+            ),
+            200,
+        )
+        self.expect_status(
+            self.client.delete(
+                f"/api/projects/{engineer_project['id']}/members/{viewer_user['id']}",
+                headers=admin,
+            ),
+            200,
+        )
+        self.expect_status(
+            self.client.get(
+                "/api/drawings",
+                headers=viewer,
+                params={"projectId": engineer_project["id"]},
+            ),
+            403,
+        )
 
         self.expect_status(
             self.client.post(
@@ -171,6 +223,7 @@ class AccessControlE2E:
         print("- design engineer: project authoring allowed, review execution denied")
         print("- review expert: review capability present, project authoring denied")
         print("- admin: audit query and denied-attempt traceability confirmed")
+        print("- project scope: membership grant/removal and cross-project denial confirmed")
         print("- identity: user creation, password rotation, disable and logout revocation confirmed")
 
     def assert_role(

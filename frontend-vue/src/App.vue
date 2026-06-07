@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { api, type AccessProfile, type AuditLogPage, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ManagedUser, type ParsedEntity, type Project, type RemediationRecord, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth, type UserView, type VersionCompareResponse } from './api'
+import { api, type AccessProfile, type AuditLogPage, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ManagedUser, type ParsedEntity, type Project, type ProjectMember, type RemediationRecord, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth, type UserView, type VersionCompareResponse } from './api'
 
 const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfViewerPreview.vue'))
 const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
@@ -55,6 +55,10 @@ const changePasswordForm = reactive({ currentPassword: '', newPassword: '', conf
 const userManagementMessage = ref('')
 const accountMessage = ref('')
 const userManagementLoading = ref(false)
+const projectMembers = ref<ProjectMember[]>([])
+const selectedProjectMemberUserId = ref('')
+const projectMemberMessage = ref('')
+const projectMemberLoading = ref(false)
 let previewFileRequestId = 0
 let previewFileVersionId = ''
 
@@ -104,6 +108,10 @@ const entities = ref<ParsedEntity[]>([])
 const versionEvidences = ref<ReviewEvidence[]>([])
 const loading = ref(false)
 const selectedManagedUser = computed(() => managedUsers.value.find((user) => user.id === selectedManagedUserId.value))
+const availableProjectMemberUsers = computed(() => {
+  const assigned = new Set(projectMembers.value.map((member) => member.userId))
+  return managedUsers.value.filter((user) => user.enabled && !assigned.has(user.id))
+})
 const roleLabel = computed(() => {
   return currentUser.value ? roleName(currentUser.value.role) : '未登录'
 })
@@ -130,6 +138,8 @@ function clearSession() {
   sessionExpiresAt.value = ''
   auditPage.value = null
   managedUsers.value = []
+  projectMembers.value = []
+  selectedProjectMemberUserId.value = ''
   loginState.label = '未登录'
 }
 
@@ -749,6 +759,61 @@ async function refreshManagedUsers() {
   }
 }
 
+async function refreshProjectMembers() {
+  if (!can('PROJECT_MEMBER_MANAGE') || !selectedProject.value) {
+    projectMembers.value = []
+    selectedProjectMemberUserId.value = ''
+    return
+  }
+  projectMemberLoading.value = true
+  projectMemberMessage.value = ''
+  try {
+    projectMembers.value = await api.request<ProjectMember[]>(`/api/projects/${selectedProject.value.id}/members`)
+    if (!availableProjectMemberUsers.value.some((user) => user.id === selectedProjectMemberUserId.value)) {
+      selectedProjectMemberUserId.value = availableProjectMemberUsers.value[0]?.id ?? ''
+    }
+  } catch (reason) {
+    projectMemberMessage.value = `项目成员获取失败：${messageOf(reason)}`
+  } finally {
+    projectMemberLoading.value = false
+  }
+}
+
+async function addProjectMember() {
+  if (!selectedProject.value || !selectedProjectMemberUserId.value) return
+  projectMemberLoading.value = true
+  projectMemberMessage.value = ''
+  try {
+    const added = await api.request<ProjectMember>(`/api/projects/${selectedProject.value.id}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId: selectedProjectMemberUserId.value })
+    })
+    await refreshProjectMembers()
+    projectMemberMessage.value = `已将 ${added.displayName} 加入当前项目`
+  } catch (reason) {
+    projectMemberMessage.value = `添加项目成员失败：${messageOf(reason)}`
+  } finally {
+    projectMemberLoading.value = false
+  }
+}
+
+async function removeProjectMember(member: ProjectMember) {
+  if (!selectedProject.value) return
+  projectMemberLoading.value = true
+  projectMemberMessage.value = ''
+  try {
+    await api.request(`/api/projects/${selectedProject.value.id}/members/${member.userId}`, {
+      method: 'DELETE'
+    })
+    await refreshProjectMembers()
+    projectMemberMessage.value = `已移除项目成员：${member.displayName}`
+  } catch (reason) {
+    projectMemberMessage.value = `移除项目成员失败：${messageOf(reason)}`
+  } finally {
+    projectMemberLoading.value = false
+  }
+}
+
 function fillManagedUserForm(user: ManagedUser) {
   selectedManagedUserId.value = user.id
   userEditForm.displayName = user.displayName
@@ -1316,6 +1381,15 @@ watch(tab, (nextTab) => {
   if (nextTab === 'users') {
     refreshManagedUsers().catch(() => undefined)
   }
+  if (nextTab === 'projects' && can('PROJECT_MEMBER_MANAGE')) {
+    refreshManagedUsers().then(refreshProjectMembers).catch(() => undefined)
+  }
+})
+
+watch(() => selectedProject.value?.id, () => {
+  if (tab.value === 'projects' && can('PROJECT_MEMBER_MANAGE')) {
+    refreshProjectMembers().catch(() => undefined)
+  }
 })
 
 onBeforeUnmount(releasePreviewFileUrl)
@@ -1654,6 +1728,47 @@ onMounted(() => {
               <p>当前图纸还没有上传 CAD 版本。</p>
             </div>
           </div>
+        </div>
+        <div v-if="can('PROJECT_MEMBER_MANAGE')" class="panel project-members-panel">
+          <div class="section-title">
+            <div>
+              <h2>项目成员</h2>
+              <p class="hint">{{ selectedProject ? `${selectedProject.name} / ${shortId(selectedProject.id)}` : '请先选择项目' }}</p>
+            </div>
+            <strong>{{ projectMembers.length }} 人</strong>
+          </div>
+          <form class="project-member-add" @submit.prevent="addProjectMember">
+            <label>添加用户
+              <select v-model="selectedProjectMemberUserId" :disabled="projectMemberLoading || !selectedProject">
+                <option value="">请选择用户</option>
+                <option v-for="user in availableProjectMemberUsers" :key="user.id" :value="user.id">
+                  {{ user.displayName }} / {{ user.username }} / {{ roleName(user.role) }}
+                </option>
+              </select>
+            </label>
+            <button :disabled="projectMemberLoading || !selectedProjectMemberUserId">加入项目</button>
+          </form>
+          <p v-if="!availableProjectMemberUsers.length && selectedProject" class="hint">当前没有可继续添加的启用用户。</p>
+          <p v-if="projectMemberMessage" class="hint">{{ projectMemberMessage }}</p>
+          <div class="report-table-wrap">
+            <table class="report-table project-member-table">
+              <thead>
+                <tr><th>成员</th><th>全局角色</th><th>账号状态</th><th>加入时间</th><th>添加人</th><th>操作</th></tr>
+              </thead>
+              <tbody>
+                <tr v-if="!projectMembers.length"><td colspan="6">当前项目尚未分配成员</td></tr>
+                <tr v-for="member in projectMembers" :key="member.id">
+                  <td><strong>{{ member.displayName }}</strong><br /><small>{{ member.username }}</small></td>
+                  <td>{{ roleName(member.role) }}</td>
+                  <td><span :class="member.enabled ? 'status-enabled' : 'status-disabled'">{{ member.enabled ? '启用' : '停用' }}</span></td>
+                  <td>{{ formatTime(member.createdAt) }}</td>
+                  <td>{{ member.createdBy }}</td>
+                  <td><button type="button" class="secondary" :disabled="projectMemberLoading" @click="removeProjectMember(member)">移除</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="hint">项目成员关系只限定数据范围；成员能否上传、审查或关闭问题，仍由其全局角色权限决定。</p>
         </div>
       </section>
 

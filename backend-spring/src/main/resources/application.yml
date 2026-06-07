@@ -9,6 +9,14 @@ spring:
     driver-class-name: ${SHIPCAD_DATASOURCE_DRIVER:org.h2.Driver}
     username: ${SHIPCAD_DATASOURCE_USERNAME:sa}
     password: ${SHIPCAD_DATASOURCE_PASSWORD:}
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${SHIPCAD_REDIS_HOST:127.0.0.1}
+      port: ${SHIPCAD_REDIS_PORT:6379}
+      password: ${SHIPCAD_REDIS_PASSWORD:}
+      timeout: ${SHIPCAD_REDIS_TIMEOUT:2s}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -34,9 +42,14 @@ shipcad:
   ocr-url: ${SHIPCAD_OCR_URL:http://127.0.0.1:9200}
   cors-origin: ${SHIPCAD_CORS_ORIGIN:http://127.0.0.1:5173}
   review-queue:
+    mode: ${SHIPCAD_REVIEW_QUEUE_MODE:in-memory}
     core-size: ${SHIPCAD_REVIEW_QUEUE_CORE_SIZE:2}
     max-size: ${SHIPCAD_REVIEW_QUEUE_MAX_SIZE:4}
     capacity: ${SHIPCAD_REVIEW_QUEUE_CAPACITY:50}
+    redis:
+      queue-key: ${SHIPCAD_REVIEW_QUEUE_REDIS_KEY:shipcad:review:queue}
+      processing-key: ${SHIPCAD_REVIEW_QUEUE_REDIS_PROCESSING_KEY:shipcad:review:processing:local}
+      poll-seconds: ${SHIPCAD_REVIEW_QUEUE_REDIS_POLL_SECONDS:2}
   security:
     session-hours: ${SHIPCAD_SESSION_HOURS:8}
     seed-dev-users: false

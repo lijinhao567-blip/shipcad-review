@@ -6,6 +6,7 @@
 
 - 前端：Vue 3 + TypeScript + Vite + dxf-viewer WebGL正式预览，Canvas仅作诊断视图，工作台提供审图流程状态和当前上下文选择
 - 后端：Spring Boot 3 + Spring Data JPA + Flyway + OpenAPI
+- 审查任务队列：本地默认内存队列；容器和云原生部署可启用 Redis 协议队列，当前部署骨架默认使用 Valkey
 - CAD Worker：Python + FastAPI + ezdxf + matplotlib 渲染 + LibreDWG 命令行适配
 - Vision Worker：Python + FastAPI + Ultralytics YOLOv8
 - OCR Worker：Python + FastAPI + Tesseract OCR
@@ -15,7 +16,7 @@
 
 ## 架构边界
 
-当前仓库已经按前端、后端、CAD Worker、Vision Worker、OCR Worker 拆分。上传文件先生成版本记录，审查任务进入后端任务队列，再由后台线程调用 CAD Worker 解析并执行规则审查。审查任务可选自动采集视觉/OCR证据：先将图纸版本渲染为 PNG，再调用 YOLOv8 和 OCR Worker，最后统一进入规则引擎。每个审查任务会记录当前阶段和 PARSE、RENDER、VISION、OCR、RULES 步骤状态，前端提供任务详情页用于查看每一步的状态、时间和错误细节。DWG 解析通过 LibreDWG `dwg2dxf` 适配；训练数据、模型权重和真实图纸不进入仓库。
+当前仓库已经按前端、后端、CAD Worker、Vision Worker、OCR Worker 拆分。上传文件先生成版本记录，审查任务进入 `ReviewTaskQueue`，本地开发默认由后端内存队列执行，容器/云原生部署可切换为 Redis 协议队列，再由后台执行器调用 CAD Worker 解析并执行规则审查。审查任务可选自动采集视觉/OCR证据：先将图纸版本渲染为 PNG，再调用 YOLOv8 和 OCR Worker，最后统一进入规则引擎。每个审查任务会记录当前阶段和 PARSE、RENDER、VISION、OCR、RULES 步骤状态，前端提供任务详情页用于查看每一步的状态、时间和错误细节。DWG 解析通过 LibreDWG `dwg2dxf` 适配；训练数据、模型权重和真实图纸不进入仓库。
 
 ## 本地启动
 
@@ -95,7 +96,7 @@ npm run dev
 健康检查：
 
 - 核心健康接口：http://127.0.0.1:8080/api/health
-- 前端系统状态页：登录前后均可在“系统状态”查看后端、数据库、OpenAPI、CAD Worker 和可选 Vision/OCR Worker 状态
+- 前端系统状态页：登录前后均可在“系统状态”查看后端、数据库、审查任务队列、OpenAPI、CAD Worker 和可选 Vision/OCR Worker 状态
 - PowerShell 检查：`.\deploy\test-health.ps1`
 
 本地开发默认账号：
@@ -118,6 +119,9 @@ $env:SPRING_PROFILES_ACTIVE="prod"
 $env:SHIPCAD_DATASOURCE_URL="jdbc:dm://dm8.example.internal:5236"
 $env:SHIPCAD_DATASOURCE_USERNAME="SHIPCAD"
 $env:SHIPCAD_DATASOURCE_PASSWORD="ReplaceWithDatabasePassword"
+$env:SHIPCAD_REVIEW_QUEUE_MODE="redis"
+$env:SHIPCAD_REDIS_HOST="valkey.example.internal"
+$env:SHIPCAD_REDIS_PORT="6379"
 $env:SHIPCAD_BOOTSTRAP_ADMIN_USERNAME="admin"
 $env:SHIPCAD_BOOTSTRAP_ADMIN_PASSWORD="ReplaceWithStrongPassword123"
 $env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
@@ -165,7 +169,7 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 - DXF 上传、异步解析和实体几何提取
 - DWG 上传入口和 LibreDWG 转 DXF 解析适配，需要本机安装 `dwg2dxf`
 - CAD Worker 图纸渲染：支持将 DXF/DWG 版本渲染为 PNG，并缓存到 `data/rendered/{versionId}`
-- 审查任务队列：支持 PENDING、RUNNING、FINISHED、FAILED 状态、阶段/步骤进度、失败重试和可选自动 Vision/OCR 证据采集
+- 审查任务队列：支持 PENDING、RUNNING、FINISHED、FAILED 状态、阶段/步骤进度、失败重试和可选自动 Vision/OCR 证据采集；默认本地内存队列，Redis 协议模式已抽象为可部署队列适配
 - 系统状态页和审查任务详情页：支持查看组件健康、必需/可选 Worker 状态、任务步骤时间线和失败细节
 - 审图流程工作台：显示系统、登录、项目图纸、版本、审查、问题、报告的当前进度，并可在项目、图纸、版本列表中设置当前上下文
 - dxf-viewer DXF正式预览，支持图层查看；Canvas仅用于人工诊断解析实体
@@ -190,7 +194,7 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 
 ```powershell
 cd deploy
-# 当前 Compose 编排面向本地开发，会启用 dev Profile 和开发账号
+# 当前 Compose 编排面向本地开发，会启用 dev Profile 和开发账号，并使用 Valkey 作为 Redis 协议审查任务队列
 docker compose up --build
 
 # 启动包含 YOLOv8 Vision Worker 的 profile

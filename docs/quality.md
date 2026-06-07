@@ -7,6 +7,7 @@
 - DWG：安装 LibreDWG 后，验证 DWG 转 DXF 的失败和成功路径。
 - Vision Worker：未配置模型时返回明确错误；配置模型后能返回检测框结构。
 - 后端：登录、持久化会话恢复、注销失效、会话过期、密码修改、账号停用、角色变更、管理员用户管理、项目成员增删、跨项目访问拒绝、项目创建、图纸创建、版本上传、异步审查任务、任务阶段/步骤记录、可选自动 Vision/OCR 证据采集、任务失败重试、问题整改、报告生成、版本对比、聚合健康检查。
+- 审查任务队列：默认内存队列必须保持本地测试和 golden E2E 稳定；Redis 协议队列必须验证入队载荷、容量限制、健康检查、处理队列恢复和消费失败路径。真实 Valkey/Redis 容器 E2E 是后续部署验收项。
 - 前端：构建通过，API 调用路径可配置，系统状态页能展示后端、数据库、OpenAPI 和 Worker 状态；审图流程状态应能反映系统、登录、项目图纸、版本、审查、问题和报告进度；项目、图纸、版本列表切换当前上下文后，应同步影响上传、预览、审查和报告选择；审查任务详情能展示步骤时间线和失败细节；dxf-viewer 能加载上传 DXF 并显示图层；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
 - Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字和实体数量异常。
 - Demo walkthrough：`tools/run_demo_walkthrough.py` 应能用一个真实 DXF 样例走通登录、建项目、建图纸、上传版本、发起审查、生成问题、生成报告，并把项目 ID、图纸 ID、版本 ID、任务步骤、问题证据类型和报告预览写入 `.run/demo-walkthrough-*.md`，用于人工演示核查。
@@ -19,7 +20,7 @@
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
 - 数据库迁移：空 H2 数据库应从零执行全部 Flyway 脚本；非空历史 H2 数据库应基线到版本 `0` 后完成加固迁移；迁移完成后 JPA 结构校验必须通过。DM8 脚本必须在独立测试实例验证版本记录、后端启动、核心 CRUD 和 E2E 后才能标记为生产认证。
 - DM8 兼容性基线：2026 年 6 月 7 日在 DM8 Pack8 `03134284404-20250930-295335-20164` 完成 V1/V2、Hibernate `validate`、健康检查和 Golden E2E 11/11；生产压测、备份恢复与高可用仍是独立验收项。
-- 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环，`deploy/run-demo-walkthrough.ps1` 应能生成单样例演示摘要。
+- 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、审查任务队列、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、审查任务队列、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环，`deploy/run-demo-walkthrough.ps1` 应能生成单样例演示摘要。
 
 ## Evidence Regression Checks
 
@@ -32,6 +33,7 @@
 - Version-level OCR regions should be stored as `OCR_TEXT` evidence and remain separate from `ReviewIssue` until rules explicitly consume them.
 - Automatic review-task detections should carry `taskId`; RuleEngine should consume manual version-level evidence plus current-task automatic evidence, not stale automatic evidence from earlier tasks.
 - Review tasks should expose `review_task.stage` and ordered `review_task_step` rows. Default rule-only tasks should mark PARSE and RULES as `SUCCESS`, and RENDER/VISION/OCR as `SKIPPED`; automatic multimodal tasks should mark RENDER/VISION/OCR as `SUCCESS` or `FAILED` instead of silently skipping them.
+- Review task queue implementations should expose health details through `/api/health`; the default in-memory mode should report executor activity and queued count, and Redis mode should report queue key, processing key, worker status, Redis ping, queued count, and processing count.
 - Review task detail UI should display the selected task status, stage, version, issue count, evidence count, ordered steps, timestamps, error message, and detail JSON summary.
 - Frontend workflow UI should not create fake demo state. It may guide tab navigation and local selection, but all status values must come from authenticated API state, health checks, current selections, review tasks, issues, or generated reports.
 - `OCR_PLACEHOLDER_TEXT` should generate an issue-level `OCR_TEXT` evidence reference with `sourceEvidenceId` when OCR text contains unfinished placeholders.

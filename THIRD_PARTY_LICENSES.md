@@ -8,6 +8,8 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 |---|---|---|
 | Spring Boot | Backend framework | Apache-2.0 |
 | Spring Data JPA | Persistence layer | Apache-2.0 |
+| Spring Data Redis | Redis protocol queue integration | Apache-2.0 |
+| Lettuce | Redis client used by Spring Data Redis | MIT |
 | Flyway Community | H2 schema migration | Apache-2.0 |
 | springdoc-openapi | OpenAPI UI | Apache-2.0 |
 | Easy Rules | Rule engine | MIT |
@@ -22,6 +24,7 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 | mlightcad/cad-viewer | Candidate DWG/DXF web viewer | MIT |
 | dxf-viewer | Main DXF WebGL preview viewer | MPL-2.0 |
 | Matplotlib | CAD Worker DXF-to-PNG rendering | Matplotlib License / PSF-style |
+| Valkey | Redis protocol task queue service in deployment skeletons | BSD-3-Clause |
 
 ## CAD And AI
 

@@ -57,14 +57,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
-public class ReviewPlatformService {
+public class ReviewPlatformService implements ReviewTaskRunner {
     private static final int DEFAULT_RENDER_WIDTH = 1600;
     private static final int DEFAULT_RENDER_HEIGHT = 1200;
 
@@ -90,8 +87,7 @@ public class ReviewPlatformService {
     private final ProjectAccessService projectAccess;
     private final AuditService audit;
     private final ObjectMapper mapper;
-    private final ThreadPoolTaskExecutor reviewTaskExecutor;
-    private final TransactionTemplate transactionTemplate;
+    private final ReviewTaskQueue reviewTaskQueue;
     private final Path storageRoot;
 
     public ReviewPlatformService(
@@ -117,8 +113,7 @@ public class ReviewPlatformService {
             ProjectAccessService projectAccess,
             AuditService audit,
             ObjectMapper mapper,
-            ThreadPoolTaskExecutor reviewTaskExecutor,
-            PlatformTransactionManager transactionManager,
+            ReviewTaskQueue reviewTaskQueue,
             @Value("${shipcad.storage-root}") String storageRoot
     ) {
         this.projects = projects;
@@ -143,8 +138,7 @@ public class ReviewPlatformService {
         this.projectAccess = projectAccess;
         this.audit = audit;
         this.mapper = mapper;
-        this.reviewTaskExecutor = reviewTaskExecutor;
-        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.reviewTaskQueue = reviewTaskQueue;
         this.storageRoot = Path.of(storageRoot).toAbsolutePath().normalize();
     }
 
@@ -390,10 +384,20 @@ public class ReviewPlatformService {
                 "ocrConfidence", ocrConfidence
         ));
 
-        String actorUsername = actor.username;
-        reviewTaskExecutor.execute(() ->
-                transactionTemplate.executeWithoutResult(status -> runQueuedReviewTask(task.id, actorUsername))
-        );
+        try {
+            reviewTaskQueue.enqueue(task.id, actor.username);
+        } catch (RuntimeException exception) {
+            task.status = "FAILED";
+            task.stage = "QUEUE_FAILED";
+            task.finishedAt = Ids.now();
+            task.errorMessage = "审查任务入队失败: " + messageOf(exception);
+            tasks.save(task);
+            audit.record(actor.username, "REVIEW_QUEUE_FAILED", "task", task.id, Map.of(
+                    "versionId", versionId,
+                    "error", task.errorMessage
+            ));
+            throw exception;
+        }
         return task;
     }
 
@@ -410,8 +414,12 @@ public class ReviewPlatformService {
         );
     }
 
-    private void runQueuedReviewTask(String taskId, String actorUsername) {
+    @Override
+    public void runQueuedReviewTask(String taskId, String actorUsername) {
         ReviewTask task = tasks.findById(taskId).orElseThrow(() -> new IllegalArgumentException("审查任务不存在"));
+        if ("FINISHED".equals(task.status) || "FAILED".equals(task.status)) {
+            return;
+        }
         task.status = "RUNNING";
         task.stage = "PARSING";
         task.startedAt = Ids.now();

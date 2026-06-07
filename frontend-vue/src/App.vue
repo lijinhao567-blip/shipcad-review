@@ -199,6 +199,7 @@ const systemHealthItems = computed(() => {
       endpoint: '/api/health'
     },
     healthItem('database', '数据库', health.database, true),
+    healthItem('queue', '审查任务队列', health.queue, true),
     healthItem('openapi', 'OpenAPI 文档', health.openapi, true),
     healthItem('cad', 'CAD Worker', health.workers?.cad, true),
     healthItem('vision', 'Vision Worker', health.workers?.vision, false),
@@ -327,6 +328,10 @@ function healthDetail(component: HealthComponent | undefined): string {
   const health = compactValue(component.health)
   if (capabilities) parts.push(`能力：${capabilities}`)
   else if (health) parts.push(`状态：${health}`)
+  else {
+    const componentSummary = compactValue(component)
+    if (componentSummary) parts.push(`状态：${componentSummary}`)
+  }
   return parts.join('；') || '状态已返回，暂无更多细节'
 }
 
@@ -337,7 +342,7 @@ function compactValue(value: unknown): string {
   if (Array.isArray(value)) return shorten(value.map((item) => compactValue(item)).filter(Boolean).join(', '))
   if (typeof value === 'object') {
     const record = value as Record<string, unknown>
-    const preferredKeys = ['status', 'engine', 'engineAvailable', 'modelConfigured', 'modelPath', 'commandAvailable', 'formats', 'version']
+    const preferredKeys = ['status', 'mode', 'queuedCount', 'processingCount', 'localQueuedCount', 'activeCount', 'workerRunning', 'engine', 'engineAvailable', 'modelConfigured', 'modelPath', 'commandAvailable', 'formats', 'version']
     const preferred = preferredKeys
       .filter((key) => record[key] != null)
       .map((key) => `${key}=${compactValue(record[key])}`)
@@ -1481,7 +1486,7 @@ onMounted(() => {
             <h2>系统状态</h2>
             <button type="button" :disabled="healthLoading" @click="refreshSystemHealth">{{ healthLoading ? '检查中' : '重新检查' }}</button>
           </div>
-          <p class="hint">这里用于确认后端、数据库、OpenAPI 和 Worker 的真实连通性。Vision/OCR 是可选能力，未启动时会显示不可用，但不会阻断核心 CAD 审查链路。</p>
+          <p class="hint">这里用于确认后端、数据库、审查任务队列、OpenAPI 和 Worker 的真实连通性。Vision/OCR 是可选能力，未启动时会显示不可用，但不会阻断核心 CAD 审查链路。</p>
           <p v-if="healthMessage" class="error">{{ healthMessage }}</p>
           <div v-if="systemHealthItems.length" class="health-grid">
             <div v-for="item in systemHealthItems" :key="item.key" :class="healthStatusClass(item.status)">

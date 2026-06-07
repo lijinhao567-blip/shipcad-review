@@ -35,6 +35,19 @@ function Test-Endpoint([string]$Name, [string]$Url, [bool]$Required) {
                 if ($body.database) {
                     $result.detail = "$($result.detail) database=$($body.database.status)".Trim()
                 }
+                if ($body.queue) {
+                    $queueDetail = "queue=$($body.queue.status)"
+                    if ($body.queue.mode) {
+                        $queueDetail = "$queueDetail/$($body.queue.mode)"
+                    }
+                    if ($null -ne $body.queue.queuedCount) {
+                        $queueDetail = "$queueDetail queued=$($body.queue.queuedCount)"
+                    }
+                    if ($null -ne $body.queue.processingCount) {
+                        $queueDetail = "$queueDetail processing=$($body.queue.processingCount)"
+                    }
+                    $result.detail = "$($result.detail) $queueDetail".Trim()
+                }
                 if ($body.engine) {
                     $result.detail = "$($result.detail) engine=$($body.engine)".Trim()
                 }

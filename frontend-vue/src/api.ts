@@ -62,12 +62,19 @@ export type AuditLogPage = {
 
 export type HealthComponent = {
   status?: string
+  mode?: string
   name?: string
   required?: boolean
   baseUrl?: string
   url?: string
   statusCode?: number
   capabilitiesStatusCode?: number
+  activeCount?: number
+  queuedCount?: number
+  processingCount?: number
+  localQueuedCount?: number
+  remainingCapacity?: number
+  workerRunning?: boolean
   error?: string
   health?: unknown
   capabilities?: unknown
@@ -77,6 +84,7 @@ export type SystemHealth = {
   status: string
   time: string
   database?: HealthComponent
+  queue?: HealthComponent
   openapi?: HealthComponent
   workers?: Record<string, HealthComponent>
 }

@@ -30,15 +30,10 @@ public class DataInitializer {
 
     @PostConstruct
     public void init() {
-        if (users.findByUsername("admin").isEmpty()) {
-            AppUser user = new AppUser();
-            user.id = "user_admin";
-            user.username = "admin";
-            user.displayName = "系统管理员";
-            user.role = UserRole.ADMIN;
-            user.passwordHash = auth.encode("admin123");
-            users.save(user);
-        }
+        addUserIfMissing("user_admin", "admin", "系统管理员", UserRole.ADMIN, "admin123");
+        addUserIfMissing("user_expert", "expert", "审图专家", UserRole.REVIEW_EXPERT, "expert123");
+        addUserIfMissing("user_engineer", "engineer", "设计工程师", UserRole.DESIGN_ENGINEER, "engineer123");
+        addUserIfMissing("user_viewer", "viewer", "只读访客", UserRole.VIEWER, "viewer123");
 
         addClauseIfMissing("BASIS_LAYER_NAMING", "图层命名约定依据",
                 "项目内部审查依据：图层名称应采用约定的专业或用途前缀，便于图纸结构化解析、问题定位和后续版本对比。",
@@ -89,6 +84,19 @@ public class DataInitializer {
         addRuleIfMissing("DIMENSION_LAYER_STANDARD", "尺寸标注图层规范检查", "检查尺寸标注是否位于 DIM-* 图层。", Severity.MEDIUM, "BASIS_DIMENSION_EVIDENCE");
         addRuleIfMissing("OCR_PLACEHOLDER_TEXT", "OCR占位文本检查", "检查OCR文字证据中是否存在 TBD、待定、XXX 等未完成标注。", Severity.MEDIUM, "BASIS_OCR_TEXT_EVIDENCE");
         addRuleIfMissing("YOLO_TITLE_BLOCK_CAD_MISSING", "视觉标题栏与CAD解析交叉校验", "检查YOLO识别到标题栏但CAD解析未提取标题栏块的证据冲突。", Severity.MEDIUM, "BASIS_VISUAL_CAD_CROSS_CHECK");
+    }
+
+    private void addUserIfMissing(String id, String username, String displayName, UserRole role, String password) {
+        if (users.findByUsername(username).isPresent()) {
+            return;
+        }
+        AppUser user = new AppUser();
+        user.id = id;
+        user.username = username;
+        user.displayName = displayName;
+        user.role = role;
+        user.passwordHash = auth.encode(password);
+        users.save(user);
     }
 
     private void addClauseIfMissing(String code, String title, String content, String source, String tags, String remediationHint) {

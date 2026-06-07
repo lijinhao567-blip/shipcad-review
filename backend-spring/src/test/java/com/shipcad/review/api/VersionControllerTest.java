@@ -9,6 +9,7 @@ import com.shipcad.review.domain.DrawingVersion;
 import com.shipcad.review.repo.DrawingVersionRepository;
 import com.shipcad.review.repo.ParsedEntityRepository;
 import com.shipcad.review.service.AuthService;
+import com.shipcad.review.service.AuthorizationService;
 import com.shipcad.review.service.ReviewPlatformService;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,7 +29,8 @@ class VersionControllerTest {
         DrawingVersionRepository versions = mock(DrawingVersionRepository.class);
         ParsedEntityRepository entities = mock(ParsedEntityRepository.class);
         ReviewPlatformService platform = mock(ReviewPlatformService.class);
-        VersionController controller = new VersionController(auth, versions, entities, platform);
+        AuthorizationService access = mock(AuthorizationService.class);
+        VersionController controller = new VersionController(auth, versions, entities, platform, access);
 
         Path file = tempDir.resolve("sample.dxf");
         Files.writeString(file, "0\nSECTION\n0\nEOF\n");
@@ -53,7 +55,8 @@ class VersionControllerTest {
         DrawingVersionRepository versions = mock(DrawingVersionRepository.class);
         ParsedEntityRepository entities = mock(ParsedEntityRepository.class);
         ReviewPlatformService platform = mock(ReviewPlatformService.class);
-        VersionController controller = new VersionController(auth, versions, entities, platform);
+        AuthorizationService access = mock(AuthorizationService.class);
+        VersionController controller = new VersionController(auth, versions, entities, platform, access);
 
         Path file = tempDir.resolve("render.png");
         Files.write(file, new byte[]{(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'});

@@ -15,7 +15,7 @@
 - 版本对比：`GET /api/versions/compare` 应返回结构化版本差异，包括实体数量变化、图层新增/删除、图层实体数量变化、实体类型变化、块参照变化、文本变化、风险提示和复核重点；前端应以摘要、指标和表格展示，而不是只输出原始 JSON。
 - Vision evidence：配置模型后，`POST /api/versions/{versionId}/vision-detect` 和 `POST /api/versions/{versionId}/vision-detect-rendered` 应能保存 `YOLO_SYMBOL` evidence；未配置模型时应返回明确错误，不能伪造检测结果。
 - OCR evidence：配置 Tesseract 后，`POST /api/versions/{versionId}/ocr-recognize` 和 `POST /api/versions/{versionId}/ocr-recognize-rendered` 应能保存 `OCR_TEXT` evidence；未安装 OCR 引擎时应返回明确错误，不能伪造识别文本。
-- 安全：Token 鉴权、文件类型限制、20MB 限制、审计日志。
+- 安全：Token 鉴权、四角色操作级权限矩阵、403 越权拒绝、越权行为审计、文件类型限制、20MB 限制、审计日志分页查询。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
 - 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环，`deploy/run-demo-walkthrough.ps1` 应能生成单样例演示摘要。
 
@@ -38,6 +38,7 @@
 - `tools/run_multimodal_evidence_e2e.py` verifies the live API chain for review-task automatic rendering, task-scoped `YOLO_SYMBOL` and `OCR_TEXT` evidence, rule consumption, issue-level `sourceEvidenceId` references, AI explanations, and report output. Its default mock workers are deterministic integration substitutes; they do not validate real model accuracy.
 - `tools/run_demo_walkthrough.py` verifies one live rule-only review path, then uploads a second version and writes a human-readable Markdown summary for presentation and handoff checks.
 - `tools/run_demo_walkthrough.py` also uploads a second DXF version, reviews it, calls `GET /api/versions/compare`, and records the version comparison summary in the walkthrough artifact.
+- `tools/run_access_control_e2e.py` verifies role restoration through `/api/auth/me`, viewer read-only access, design engineer authoring boundaries, review expert separation, HTTP 403 responses, and administrator audit visibility for denied attempts.
 
 ## 验收目标
 

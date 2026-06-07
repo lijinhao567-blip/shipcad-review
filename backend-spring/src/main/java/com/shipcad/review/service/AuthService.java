@@ -10,11 +10,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthService {
     private final AppUserRepository users;
+    private final AuditService audit;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     private final Map<String, String> sessions = new ConcurrentHashMap<>();
 
-    public AuthService(AppUserRepository users) {
+    public AuthService(AppUserRepository users, AuditService audit) {
         this.users = users;
+        this.audit = audit;
     }
 
     public String encode(String password) {
@@ -28,6 +30,7 @@ public class AuthService {
         }
         String token = Ids.next("token");
         sessions.put(token, user.id);
+        audit.record(user.username, "LOGIN_SUCCESS", "user", user.id, Map.of("role", user.role.name()));
         return new LoginResult(token, user);
     }
 

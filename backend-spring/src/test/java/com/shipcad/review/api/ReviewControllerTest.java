@@ -10,6 +10,7 @@ import com.shipcad.review.domain.ReportDocument;
 import com.shipcad.review.repo.ReportDocumentRepository;
 import com.shipcad.review.repo.ReviewRuleRepository;
 import com.shipcad.review.service.AuthService;
+import com.shipcad.review.service.AuthorizationService;
 import com.shipcad.review.service.ReviewPlatformService;
 import java.util.Optional;
 import java.util.List;
@@ -24,7 +25,8 @@ class ReviewControllerTest {
         ReviewRuleRepository rules = mock(ReviewRuleRepository.class);
         ReportDocumentRepository reports = mock(ReportDocumentRepository.class);
         ReviewPlatformService platform = mock(ReviewPlatformService.class);
-        ReviewController controller = new ReviewController(auth, rules, reports, platform);
+        AuthorizationService access = mock(AuthorizationService.class);
+        ReviewController controller = new ReviewController(auth, rules, reports, platform, access);
 
         ReportDocument report = new ReportDocument();
         report.id = "report_1";
@@ -49,7 +51,8 @@ class ReviewControllerTest {
         ReviewRuleRepository rules = mock(ReviewRuleRepository.class);
         ReportDocumentRepository reports = mock(ReportDocumentRepository.class);
         ReviewPlatformService platform = mock(ReviewPlatformService.class);
-        ReviewController controller = new ReviewController(auth, rules, reports, platform);
+        AuthorizationService access = mock(AuthorizationService.class);
+        ReviewController controller = new ReviewController(auth, rules, reports, platform, access);
 
         RemediationRecord record = new RemediationRecord();
         record.id = "remediation_1";

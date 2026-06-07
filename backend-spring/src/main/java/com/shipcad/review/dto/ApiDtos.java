@@ -2,6 +2,7 @@ package com.shipcad.review.dto;
 
 import com.shipcad.review.domain.IssueStatus;
 import jakarta.validation.constraints.NotBlank;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -12,10 +13,27 @@ public final class ApiDtos {
     public record LoginRequest(@NotBlank String username, @NotBlank String password) {
     }
 
-    public record LoginResponse(String token, UserView user) {
+    public record LoginResponse(String token, UserView user, List<String> permissions) {
     }
 
     public record UserView(String id, String username, String displayName, String role) {
+    }
+
+    public record AccessView(UserView user, List<String> permissions) {
+    }
+
+    public record AuditLogView(
+            String id,
+            String actor,
+            String action,
+            String targetType,
+            String targetId,
+            String detailJson,
+            Instant createdAt
+    ) {
+    }
+
+    public record AuditLogPage(List<AuditLogView> items, long total, int page, int size, int totalPages) {
     }
 
     public record ProjectRequest(@NotBlank String name, String shipNo, String owner, String description) {

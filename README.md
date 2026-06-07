@@ -47,6 +47,9 @@
 # 生成双版本 Markdown 演示走查摘要（输出到 .run/）
 .\deploy\run-demo-walkthrough.ps1
 
+# 验证四类角色权限边界和审计日志
+.\deploy\run-access-control-e2e.ps1
+
 # 跑 golden dataset + mock Vision/OCR 多模态验收
 .\deploy\run-demo.ps1 -Multimodal
 
@@ -94,11 +97,16 @@ npm run dev
 - 前端系统状态页：登录前后均可在“系统状态”查看后端、数据库、OpenAPI、CAD Worker 和可选 Vision/OCR Worker 状态
 - PowerShell 检查：`.\deploy\test-health.ps1`
 
-默认账号：
+本地开发默认账号：
 
 ```text
-admin / admin123
+admin / admin123       系统管理员
+expert / expert123     审图专家
+engineer / engineer123 设计工程师
+viewer / viewer123     只读访客
 ```
+
+这些账号仅用于本地开发和自动化验收，生产部署必须替换默认凭据，并接入持久会话或企业身份源。
 
 ## 验证
 
@@ -149,6 +157,7 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 - OCR Worker 骨架：支持使用版本渲染图或手动上传图像生成文字区域，需安装 Tesseract OCR
 - Easy Rules 规则审查：图层命名、空图层、标题栏、版次格式、占位文本、实体数量、OCR占位文本、YOLO/CAD标题栏交叉校验
 - 带时间线的整改闭环、按来源分组的证据链展示、审查报告、服务端 Markdown 附件下载、统计看板和结构化版本对比
+- 四角色操作级权限控制：管理员、审图专家、设计工程师、只读访客；管理员可筛选查看关键操作与越权拒绝审计日志
 
 ## 下一阶段重点
 

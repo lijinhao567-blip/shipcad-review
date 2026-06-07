@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { api, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ParsedEntity, type Project, type RemediationRecord, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth, type VersionCompareResponse } from './api'
+import { api, type AccessProfile, type AuditLogPage, type Dashboard, type Drawing, type DrawingVersion, type HealthComponent, type ParsedEntity, type Project, type RemediationRecord, type ReportDocument, type ReviewEvidence, type ReviewIssue, type ReviewTask, type ReviewTaskStep, type SystemHealth, type UserView, type VersionCompareResponse } from './api'
 
 const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfViewerPreview.vue'))
 const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
 
-const tab = ref<'dashboard' | 'projects' | 'issues' | 'reports' | 'status'>('dashboard')
+const tab = ref<'dashboard' | 'projects' | 'issues' | 'reports' | 'status' | 'audit'>('dashboard')
 const loginState = reactive({ username: 'admin', password: 'admin123', label: '未登录' })
 const authenticated = ref(Boolean(api.token))
+const currentUser = ref<UserView | null>(null)
+const permissions = ref<string[]>([])
 const projectForm = reactive({ name: 'A22船舶审图试点', shipNo: 'S-2026-001', owner: '设计院审图组', description: 'DXF优先的AI辅助审图试点项目' })
 const drawingForm = reactive({ projectId: '', drawingNo: 'A22-SEC-001', title: '船体分段结构图', discipline: '船体结构' })
 const uploadForm = reactive({ drawingId: '', versionNo: 'V1', file: null as File | null })
@@ -39,6 +41,10 @@ const reportActionMessage = ref('')
 const systemHealth = ref<SystemHealth | null>(null)
 const healthLoading = ref(false)
 const healthMessage = ref('')
+const auditFilters = reactive({ actor: '', action: '', targetType: '' })
+const auditPage = ref<AuditLogPage | null>(null)
+const auditLoading = ref(false)
+const auditMessage = ref('')
 let previewFileRequestId = 0
 let previewFileVersionId = ''
 
@@ -87,6 +93,37 @@ const issues = ref<ReviewIssue[]>([])
 const entities = ref<ParsedEntity[]>([])
 const versionEvidences = ref<ReviewEvidence[]>([])
 const loading = ref(false)
+const roleLabel = computed(() => {
+  const labels: Record<string, string> = {
+    ADMIN: '系统管理员',
+    REVIEW_EXPERT: '审图专家',
+    DESIGN_ENGINEER: '设计工程师',
+    VIEWER: '只读访客'
+  }
+  return currentUser.value ? labels[currentUser.value.role] ?? currentUser.value.role : '未登录'
+})
+
+function can(permission: string): boolean {
+  return permissions.value.includes(permission)
+}
+
+function applyAccessProfile(profile: AccessProfile) {
+  currentUser.value = profile.user
+  permissions.value = profile.permissions ?? []
+  authenticated.value = true
+  loginState.username = profile.user.username
+  loginState.password = ''
+  loginState.label = `已登录：${profile.user.displayName}`
+}
+
+function clearSession() {
+  api.clearToken()
+  authenticated.value = false
+  currentUser.value = null
+  permissions.value = []
+  auditPage.value = null
+  loginState.label = '未登录'
+}
 
 const selectedProject = computed(() => projects.value.find((item) => item.id === drawingForm.projectId) ?? projects.value[0])
 const selectedProjectDrawings = computed(() => selectedProject.value ? drawings.value.filter((item) => item.projectId === selectedProject.value?.id) : drawings.value)
@@ -148,6 +185,7 @@ const workflowSteps = computed<WorkflowStep[]>(() => {
   const taskComplete = selectedTaskDetail.value?.status === 'FINISHED'
   const issueReady = reviewReady && (taskComplete || selectedTaskDetail.value?.status === 'FAILED')
   const reportReady = Boolean(reportContent.value)
+  const reportCanGenerate = Boolean(reportCandidateTask.value && can('REPORT_GENERATE'))
   return [
     {
       key: 'status',
@@ -194,8 +232,8 @@ const workflowSteps = computed<WorkflowStep[]>(() => {
     {
       key: 'reports',
       label: '报告',
-      detail: reportReady ? '已生成' : reportCandidateTask.value ? '可生成' : '待任务',
-      state: reportReady ? 'done' : reportCandidateTask.value ? 'current' : 'blocked',
+      detail: reportReady ? '已生成' : reportCanGenerate ? '可生成' : reportCandidateTask.value ? '待审图专家生成' : '待任务',
+      state: reportReady ? 'done' : reportCanGenerate ? 'current' : 'blocked',
       disabled: !reportCandidateTask.value && !reportReady
     }
   ]
@@ -649,6 +687,38 @@ async function refreshSystemHealth() {
   }
 }
 
+async function refreshAudit(page = auditPage.value?.page ?? 0) {
+  if (!can('AUDIT_VIEW')) {
+    auditPage.value = null
+    return
+  }
+  const params = new URLSearchParams({
+    page: String(Math.max(0, page)),
+    size: '50'
+  })
+  if (auditFilters.actor.trim()) params.set('actor', auditFilters.actor.trim())
+  if (auditFilters.action.trim()) params.set('action', auditFilters.action.trim())
+  if (auditFilters.targetType.trim()) params.set('targetType', auditFilters.targetType.trim())
+  auditLoading.value = true
+  auditMessage.value = ''
+  try {
+    auditPage.value = await api.request<AuditLogPage>(`/api/audit-logs?${params.toString()}`)
+  } catch (reason) {
+    auditMessage.value = `审计日志获取失败：${messageOf(reason)}`
+  } finally {
+    auditLoading.value = false
+  }
+}
+
+function auditDetail(detailJson: string): string {
+  if (!detailJson) return '-'
+  try {
+    return JSON.stringify(JSON.parse(detailJson))
+  } catch {
+    return detailJson
+  }
+}
+
 function releasePreviewFileUrl() {
   if (previewFileUrl.value) URL.revokeObjectURL(previewFileUrl.value)
   previewFileUrl.value = ''
@@ -683,10 +753,28 @@ async function refreshPreview(resetDiagnostics = false) {
 }
 
 async function login() {
-  const result = await api.login(loginState.username, loginState.password)
-  authenticated.value = true
-  loginState.label = `已登录：${result.user.displayName}`
-  await refreshAll()
+  try {
+    const result = await api.login(loginState.username, loginState.password)
+    applyAccessProfile({ user: result.user, permissions: result.permissions })
+    await refreshAll()
+  } catch (reason) {
+    clearSession()
+    loginState.label = `登录失败：${messageOf(reason)}`
+  }
+}
+
+function logout() {
+  clearSession()
+  dashboard.value = null
+  projects.value = []
+  drawings.value = []
+  versions.value = []
+  tasks.value = []
+  issues.value = []
+  entities.value = []
+  versionEvidences.value = []
+  releasePreviewFileUrl()
+  tab.value = 'dashboard'
 }
 
 async function createProject() {
@@ -1081,17 +1169,23 @@ watch(previewVersionId, () => {
   })
 })
 
+watch(tab, (nextTab) => {
+  if (nextTab === 'audit') {
+    refreshAudit(0).catch(() => undefined)
+  }
+})
+
 onBeforeUnmount(releasePreviewFileUrl)
 
 onMounted(() => {
   refreshSystemHealth().catch(() => undefined)
   if (api.token) {
-    authenticated.value = true
-    loginState.label = '已读取本地登录状态'
-    refreshAll().catch(() => {
-      authenticated.value = false
-      localStorage.removeItem('shipcad_token')
-    })
+    api.request<AccessProfile>('/api/auth/me')
+      .then((profile) => {
+        applyAccessProfile(profile)
+        return refreshAll()
+      })
+      .catch(() => clearSession())
   }
 })
 </script>
@@ -1107,8 +1201,12 @@ onMounted(() => {
       <form class="login panel" @submit.prevent="login">
         <label>账号<input v-model="loginState.username" /></label>
         <label>密码<input v-model="loginState.password" type="password" /></label>
-        <button>登录</button>
+        <div class="login-actions">
+          <button>登录</button>
+          <button v-if="authenticated" type="button" class="secondary" @click="logout">退出</button>
+        </div>
         <span>{{ loginState.label }}</span>
+        <span v-if="currentUser">{{ roleLabel }} / {{ currentUser.username }}</span>
       </form>
 
       <nav>
@@ -1116,13 +1214,17 @@ onMounted(() => {
         <button :class="{ active: tab === 'projects' }" @click="tab = 'projects'">项目与图纸</button>
         <button :class="{ active: tab === 'issues' }" @click="tab = 'issues'">问题闭环</button>
         <button :class="{ active: tab === 'reports' }" @click="tab = 'reports'">报告与对比</button>
+        <button v-if="can('AUDIT_VIEW')" :class="{ active: tab === 'audit' }" @click="tab = 'audit'">审计日志</button>
         <button :class="{ active: tab === 'status' }" @click="tab = 'status'">系统状态</button>
       </nav>
     </aside>
 
     <section class="content">
       <div class="topline">
-        <strong>{{ loading ? '同步中...' : '商业化MVP工作台' }}</strong>
+        <div>
+          <strong>{{ loading ? '同步中...' : '商业化MVP工作台' }}</strong>
+          <span class="role-badge">{{ roleLabel }}</span>
+        </div>
         <button @click="refreshAll">刷新</button>
       </div>
 
@@ -1205,8 +1307,49 @@ onMounted(() => {
         </div>
       </section>
 
+      <section v-if="tab === 'audit' && can('AUDIT_VIEW')">
+        <div class="panel">
+          <div class="section-title">
+            <div>
+              <h2>审计日志</h2>
+              <p class="hint">记录项目、图纸、版本、审查、整改、报告以及越权拒绝等关键操作。</p>
+            </div>
+            <strong>{{ auditPage?.total ?? 0 }} 条</strong>
+          </div>
+          <form class="audit-filters" @submit.prevent="refreshAudit(0)">
+            <label>操作人<input v-model="auditFilters.actor" placeholder="例如 admin" /></label>
+            <label>动作<input v-model="auditFilters.action" placeholder="例如 REVIEW_QUEUED" /></label>
+            <label>对象类型<input v-model="auditFilters.targetType" placeholder="例如 task" /></label>
+            <button :disabled="auditLoading">{{ auditLoading ? '查询中' : '查询' }}</button>
+          </form>
+          <p v-if="auditMessage" class="error">{{ auditMessage }}</p>
+          <div class="report-table-wrap audit-table-wrap">
+            <table class="report-table audit-table">
+              <thead>
+                <tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th><th>详情</th></tr>
+              </thead>
+              <tbody>
+                <tr v-if="!auditPage?.items.length"><td colspan="5">暂无匹配的审计记录</td></tr>
+                <tr v-for="log in auditPage?.items ?? []" :key="log.id">
+                  <td>{{ formatTime(log.createdAt) }}</td>
+                  <td>{{ log.actor }}</td>
+                  <td><strong>{{ log.action }}</strong></td>
+                  <td>{{ log.targetType }} / {{ shortId(log.targetId) }}</td>
+                  <td><code>{{ auditDetail(log.detailJson) }}</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="audit-pagination">
+            <button type="button" class="secondary" :disabled="auditLoading || !auditPage || auditPage.page <= 0" @click="refreshAudit((auditPage?.page ?? 0) - 1)">上一页</button>
+            <span>第 {{ (auditPage?.page ?? 0) + 1 }} / {{ Math.max(1, auditPage?.totalPages ?? 1) }} 页</span>
+            <button type="button" class="secondary" :disabled="auditLoading || !auditPage || auditPage.page + 1 >= auditPage.totalPages" @click="refreshAudit((auditPage?.page ?? 0) + 1)">下一页</button>
+          </div>
+        </div>
+      </section>
+
       <section v-if="tab === 'projects'">
-        <div class="grid two">
+        <div v-if="can('PROJECT_WRITE')" class="grid two">
           <form class="panel" @submit.prevent="createProject">
             <h2>创建项目</h2>
             <label>项目名称<input v-model="projectForm.name" /></label>
@@ -1224,7 +1367,11 @@ onMounted(() => {
             <button>创建图纸</button>
           </form>
         </div>
-        <form class="panel inline" @submit.prevent="uploadVersion">
+        <div v-else class="panel access-note">
+          <strong>当前角色为只读项目视图</strong>
+          <span>创建项目和图纸需要设计工程师或管理员权限。</span>
+        </div>
+        <form v-if="can('VERSION_UPLOAD')" class="panel inline" @submit.prevent="uploadVersion">
           <h2>上传CAD版本</h2>
           <select v-model="uploadForm.drawingId"><option v-for="d in drawings" :key="d.id" :value="d.id">{{ d.drawingNo }} {{ d.title }}</option></select>
           <input v-model="uploadForm.versionNo" />
@@ -1268,7 +1415,7 @@ onMounted(() => {
       </section>
 
       <section v-if="tab === 'issues'">
-        <form class="panel review-task-form" @submit.prevent="runReview">
+        <form v-if="can('REVIEW_EXECUTE')" class="panel review-task-form" @submit.prevent="runReview">
           <h2>发起审查任务</h2>
           <div class="review-task-grid">
             <label>版本<select v-model="selectedReviewVersion"><option v-for="v in versions" :key="v.id" :value="v.id">{{ versionLabel(v) }}</option></select></label>
@@ -1280,6 +1427,10 @@ onMounted(() => {
             <button>发起审查</button>
           </div>
         </form>
+        <div v-else class="panel access-note">
+          <strong>审查任务由审图专家发起</strong>
+          <span>你仍可查看任务、问题与证据；设计工程师可进入整改流程。</span>
+        </div>
         <div class="panel">
           <h2>审查任务队列</h2>
           <div v-for="task in tasks" :key="task.id" class="task-row" :class="{ selected: selectedTaskDetailId === task.id }">
@@ -1298,7 +1449,7 @@ onMounted(() => {
             </div>
             <div class="task-actions">
               <button type="button" class="secondary" @click="selectTaskDetail(task)">详情</button>
-              <button v-if="task.status === 'FAILED'" @click="retryTask(task)">重试</button>
+              <button v-if="task.status === 'FAILED' && can('REVIEW_EXECUTE')" @click="retryTask(task)">重试</button>
             </div>
           </div>
         </div>
@@ -1360,7 +1511,7 @@ onMounted(() => {
                 {{ showCanvasDiagnostics ? '关闭Canvas诊断' : '打开Canvas诊断' }}
               </button>
             </div>
-            <form class="vision-panel" @submit.prevent="runVisionDetection">
+            <form v-if="can('EVIDENCE_COLLECT')" class="vision-panel" @submit.prevent="runVisionDetection">
               <div class="diagnostic-title">
                 <strong>YOLOv8视觉证据</strong>
                 <span>可直接使用当前版本渲染图，也可上传PNG/JPG图像做人工对照。</span>
@@ -1379,7 +1530,7 @@ onMounted(() => {
                 </ul>
               </div>
             </form>
-            <form class="ocr-panel" @submit.prevent="runOcrRecognition">
+            <form v-if="can('EVIDENCE_COLLECT')" class="ocr-panel" @submit.prevent="runOcrRecognition">
               <div class="diagnostic-title">
                 <strong>OCR文字证据</strong>
                 <span>可直接使用当前版本渲染图，也可上传PNG/JPG图像做人工对照。</span>
@@ -1417,17 +1568,18 @@ onMounted(() => {
                 </div>
                 <span>{{ shortId(selectedIssue.id) }}</span>
               </div>
-              <div class="remediation-form">
+              <div v-if="can('ISSUE_REMEDIATE')" class="remediation-form">
                 <label>经办人<input v-model="remediationForm.assignee" placeholder="例如：设计工程师A" /></label>
                 <label>报告引用<input v-model="remediationForm.reportId" :placeholder="selectedIssueReportRef || '可选：先生成报告后自动引用'" /></label>
                 <label class="remediation-note">整改/复核说明<textarea v-model="remediationForm.note" placeholder="记录整改措施、复核意见、关闭依据或重新打开原因"></textarea></label>
               </div>
-              <div class="actions remediation-actions">
+              <div v-if="can('ISSUE_REMEDIATE')" class="actions remediation-actions">
                 <button type="button" :disabled="remediationLoading" @click="applyIssueWorkflow('IN_PROGRESS')">开始整改</button>
                 <button type="button" :disabled="remediationLoading" @click="applyIssueWorkflow('READY_FOR_REVIEW')">提交复核</button>
-                <button type="button" :disabled="remediationLoading" @click="applyIssueWorkflow('CLOSED')">关闭问题</button>
-                <button type="button" class="secondary" :disabled="remediationLoading" @click="applyIssueWorkflow('OPEN')">重新打开</button>
+                <button v-if="can('ISSUE_REVIEW_DECIDE')" type="button" :disabled="remediationLoading" @click="applyIssueWorkflow('CLOSED')">关闭问题</button>
+                <button v-if="can('ISSUE_REVIEW_DECIDE')" type="button" class="secondary" :disabled="remediationLoading" @click="applyIssueWorkflow('OPEN')">重新打开</button>
               </div>
+              <p v-else class="hint">当前角色可查看整改时间线，但不能修改问题状态。</p>
               <p v-if="remediationMessage" class="hint">{{ remediationMessage }}</p>
               <div class="remediation-timeline">
                 <strong>整改时间线</strong>
@@ -1470,7 +1622,7 @@ onMounted(() => {
                 <p>{{ issue.aiExplanation.reviewFocus }}</p>
               </div>
               <div class="actions">
-                <button type="button" @click.stop="selectIssue(issue)">处理</button>
+                <button type="button" @click.stop="selectIssue(issue)">{{ can('ISSUE_REMEDIATE') ? '处理' : '查看' }}</button>
               </div>
             </div>
           </div>
@@ -1479,11 +1631,15 @@ onMounted(() => {
 
       <section v-if="tab === 'reports'">
         <div class="grid two">
-          <form class="panel" @submit.prevent="createReport">
+          <form v-if="can('REPORT_GENERATE')" class="panel" @submit.prevent="createReport">
             <h2>审查报告</h2>
             <label>任务<select v-model="selectedTask"><option v-for="t in tasks" :key="t.id" :value="t.id">{{ taskLabel(t) }}</option></select></label>
             <button>生成报告</button>
           </form>
+          <div v-else class="panel access-note">
+            <strong>报告生成需要审图权限</strong>
+            <span>已生成报告仍可查看和下载；新报告由审图专家或管理员生成。</span>
+          </div>
           <form class="panel" @submit.prevent="compareVersions">
             <h2>版本对比</h2>
             <label>旧版本<select v-model="compare.leftId"><option v-for="v in selectedDrawingVersions" :key="v.id" :value="v.id">{{ versionLabel(v) }}</option></select></label>

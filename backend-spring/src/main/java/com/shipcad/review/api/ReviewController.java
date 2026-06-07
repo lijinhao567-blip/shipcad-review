@@ -3,6 +3,7 @@ package com.shipcad.review.api;
 import com.shipcad.review.domain.ReportDocument;
 import com.shipcad.review.domain.AiExplanation;
 import com.shipcad.review.domain.RemediationRecord;
+import com.shipcad.review.domain.Permission;
 import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.domain.ReviewIssue;
 import com.shipcad.review.domain.ReviewRule;
@@ -14,6 +15,7 @@ import com.shipcad.review.dto.ApiDtos.ReviewTaskRequest;
 import com.shipcad.review.repo.ReportDocumentRepository;
 import com.shipcad.review.repo.ReviewRuleRepository;
 import com.shipcad.review.service.AuthService;
+import com.shipcad.review.service.AuthorizationService;
 import com.shipcad.review.service.ReviewPlatformService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -36,13 +38,16 @@ public class ReviewController extends BaseController {
     private final ReviewRuleRepository rules;
     private final ReportDocumentRepository reports;
     private final ReviewPlatformService platform;
+    private final AuthorizationService access;
 
     public ReviewController(AuthService auth, ReviewRuleRepository rules,
-                            ReportDocumentRepository reports, ReviewPlatformService platform) {
+                            ReportDocumentRepository reports, ReviewPlatformService platform,
+                            AuthorizationService access) {
         super(auth);
         this.rules = rules;
         this.reports = reports;
         this.platform = platform;
+        this.access = access;
     }
 
     @GetMapping("/review-tasks")
@@ -65,12 +70,16 @@ public class ReviewController extends BaseController {
 
     @PostMapping("/review-tasks")
     public ReviewTask createTask(@RequestHeader("Authorization") String authorization, @Valid @RequestBody ReviewTaskRequest request) {
-        return platform.createReviewTask(request, user(authorization));
+        var actor = user(authorization);
+        access.require(actor, Permission.REVIEW_EXECUTE);
+        return platform.createReviewTask(request, actor);
     }
 
     @PostMapping("/review-tasks/{taskId}/retry")
     public ReviewTask retryTask(@RequestHeader("Authorization") String authorization, @PathVariable String taskId) {
-        return platform.retryReviewTask(taskId, user(authorization));
+        var actor = user(authorization);
+        access.require(actor, Permission.REVIEW_EXECUTE);
+        return platform.retryReviewTask(taskId, actor);
     }
 
     @GetMapping("/issues")
@@ -101,7 +110,9 @@ public class ReviewController extends BaseController {
     @PatchMapping("/issues/{issueId}")
     public ReviewIssue updateIssue(@RequestHeader("Authorization") String authorization, @PathVariable String issueId,
                                    @RequestBody IssueUpdateRequest request) {
-        return platform.updateIssue(issueId, request, user(authorization));
+        var actor = user(authorization);
+        access.requireIssueUpdate(actor, request.status());
+        return platform.updateIssue(issueId, request, actor);
     }
 
     @GetMapping("/rules")
@@ -112,7 +123,9 @@ public class ReviewController extends BaseController {
 
     @PostMapping("/reports")
     public ReportDocument createReport(@RequestHeader("Authorization") String authorization, @Valid @RequestBody ReportRequest request) {
-        return platform.createReport(request.taskId(), user(authorization));
+        var actor = user(authorization);
+        access.require(actor, Permission.REPORT_GENERATE);
+        return platform.createReport(request.taskId(), actor);
     }
 
     @GetMapping("/reports/{reportId}")

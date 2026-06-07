@@ -3,12 +3,14 @@ package com.shipcad.review.api;
 import com.shipcad.review.domain.DrawingVersion;
 import com.shipcad.review.domain.EvidenceType;
 import com.shipcad.review.domain.ParsedEntity;
+import com.shipcad.review.domain.Permission;
 import com.shipcad.review.domain.ReviewEvidence;
 import com.shipcad.review.dto.ApiDtos.EntityView;
 import com.shipcad.review.dto.ApiDtos.VersionCompareResponse;
 import com.shipcad.review.repo.DrawingVersionRepository;
 import com.shipcad.review.repo.ParsedEntityRepository;
 import com.shipcad.review.service.AuthService;
+import com.shipcad.review.service.AuthorizationService;
 import com.shipcad.review.service.ReviewPlatformService;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -38,12 +40,15 @@ public class VersionController extends BaseController {
     private final DrawingVersionRepository versions;
     private final ParsedEntityRepository entities;
     private final ReviewPlatformService platform;
+    private final AuthorizationService access;
 
-    public VersionController(AuthService auth, DrawingVersionRepository versions, ParsedEntityRepository entities, ReviewPlatformService platform) {
+    public VersionController(AuthService auth, DrawingVersionRepository versions, ParsedEntityRepository entities,
+                             ReviewPlatformService platform, AuthorizationService access) {
         super(auth);
         this.versions = versions;
         this.entities = entities;
         this.platform = platform;
+        this.access = access;
     }
 
     @GetMapping
@@ -59,12 +64,16 @@ public class VersionController extends BaseController {
             @RequestParam String versionNo,
             @RequestParam MultipartFile file
     ) throws IOException {
-        return platform.uploadVersion(drawingId, versionNo, file, user(authorization));
+        var actor = user(authorization);
+        access.require(actor, Permission.VERSION_UPLOAD);
+        return platform.uploadVersion(drawingId, versionNo, file, actor);
     }
 
     @PostMapping("/parse")
     public DrawingVersion parse(@RequestHeader("Authorization") String authorization, @RequestParam String versionId) {
-        return platform.parseVersion(versionId, user(authorization));
+        var actor = user(authorization);
+        access.require(actor, Permission.EVIDENCE_COLLECT);
+        return platform.parseVersion(versionId, actor);
     }
 
     @GetMapping("/compare")
@@ -86,7 +95,9 @@ public class VersionController extends BaseController {
             @RequestParam MultipartFile file,
             @RequestParam(defaultValue = "0.25") double confidence
     ) throws IOException {
-        return platform.runVisionDetection(versionId, file, confidence, user(authorization));
+        var actor = user(authorization);
+        access.require(actor, Permission.EVIDENCE_COLLECT);
+        return platform.runVisionDetection(versionId, file, confidence, actor);
     }
 
     @PostMapping("/{versionId}/vision-detect-rendered")
@@ -96,7 +107,9 @@ public class VersionController extends BaseController {
             @RequestParam(defaultValue = "0.25") double confidence,
             @RequestParam(defaultValue = "false") boolean forceRender
     ) throws IOException {
-        return platform.runVisionDetectionFromRenderedImage(versionId, confidence, forceRender, user(authorization));
+        var actor = user(authorization);
+        access.require(actor, Permission.EVIDENCE_COLLECT);
+        return platform.runVisionDetectionFromRenderedImage(versionId, confidence, forceRender, actor);
     }
 
     @PostMapping("/{versionId}/ocr-recognize")
@@ -106,7 +119,9 @@ public class VersionController extends BaseController {
             @RequestParam MultipartFile file,
             @RequestParam(defaultValue = "0.5") double confidence
     ) throws IOException {
-        return platform.runOcrRecognition(versionId, file, confidence, user(authorization));
+        var actor = user(authorization);
+        access.require(actor, Permission.EVIDENCE_COLLECT);
+        return platform.runOcrRecognition(versionId, file, confidence, actor);
     }
 
     @PostMapping("/{versionId}/ocr-recognize-rendered")
@@ -116,7 +131,9 @@ public class VersionController extends BaseController {
             @RequestParam(defaultValue = "0.5") double confidence,
             @RequestParam(defaultValue = "false") boolean forceRender
     ) throws IOException {
-        return platform.runOcrRecognitionFromRenderedImage(versionId, confidence, forceRender, user(authorization));
+        var actor = user(authorization);
+        access.require(actor, Permission.EVIDENCE_COLLECT);
+        return platform.runOcrRecognitionFromRenderedImage(versionId, confidence, forceRender, actor);
     }
 
     @GetMapping("/{versionId}/evidences")
@@ -135,7 +152,9 @@ public class VersionController extends BaseController {
             @PathVariable String versionId,
             @RequestParam(defaultValue = "false") boolean force
     ) throws IOException {
-        Path path = platform.renderVersionImage(versionId, force, user(authorization));
+        var actor = user(authorization);
+        access.require(actor, Permission.EVIDENCE_COLLECT);
+        Path path = platform.renderVersionImage(versionId, force, actor);
         if (!Files.isRegularFile(path) || !Files.isReadable(path)) {
             throw new IllegalArgumentException("渲染图不可读取");
         }

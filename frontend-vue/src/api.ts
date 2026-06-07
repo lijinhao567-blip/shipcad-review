@@ -1,6 +1,37 @@
+export type UserView = {
+  id: string
+  username: string
+  displayName: string
+  role: string
+}
+
 export type LoginResponse = {
   token: string
-  user: { id: string; username: string; displayName: string; role: string }
+  user: UserView
+  permissions: string[]
+}
+
+export type AccessProfile = {
+  user: UserView
+  permissions: string[]
+}
+
+export type AuditLog = {
+  id: string
+  actor: string
+  action: string
+  targetType: string
+  targetId: string
+  detailJson: string
+  createdAt: string
+}
+
+export type AuditLogPage = {
+  items: AuditLog[]
+  total: number
+  page: number
+  size: number
+  totalPages: number
 }
 
 export type HealthComponent = {
@@ -273,6 +304,11 @@ export class ApiClient {
     this.token = result.token
     localStorage.setItem('shipcad_token', this.token)
     return result
+  }
+
+  clearToken(): void {
+    this.token = ''
+    localStorage.removeItem('shipcad_token')
   }
 }
 

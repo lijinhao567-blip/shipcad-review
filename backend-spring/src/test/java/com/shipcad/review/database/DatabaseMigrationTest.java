@@ -49,11 +49,11 @@ class DatabaseMigrationTest {
     @Test
     void damengRuntimeAdaptersLoadWithTheManagedHibernateVersion() throws Exception {
         Class.forName("dm.jdbc.driver.DmDriver");
-        Class<?> dialectType = Class.forName("org.hibernate.dialect.DmDialect");
-        Object dialect = dialectType.getDeclaredConstructor().newInstance();
+        ShipCadDmDialect dialect = new ShipCadDmDialect();
 
-        assertThat((Integer) dialectType.getMethod("getMaxVarcharLength").invoke(dialect))
-                .isGreaterThan(0);
+        assertThat(dialect.getMaxVarcharLength()).isGreaterThan(0);
+        assertThat(dialect.getSequenceSupport().supportsSequences()).isFalse();
+        assertThat(dialect.getQuerySequencesString()).isNull();
     }
 
     @Test

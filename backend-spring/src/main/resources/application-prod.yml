@@ -5,7 +5,7 @@ spring:
     username: ${SHIPCAD_DATASOURCE_USERNAME}
     password: ${SHIPCAD_DATASOURCE_PASSWORD}
   jpa:
-    database-platform: ${SHIPCAD_HIBERNATE_DIALECT:org.hibernate.dialect.DmDialect}
+    database-platform: ${SHIPCAD_HIBERNATE_DIALECT:com.shipcad.review.database.ShipCadDmDialect}
     hibernate:
       ddl-auto: validate
   flyway:

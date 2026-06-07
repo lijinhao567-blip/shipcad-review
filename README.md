@@ -10,7 +10,7 @@
 - Vision Worker：Python + FastAPI + Ultralytics YOLOv8
 - OCR Worker：Python + FastAPI + Tesseract OCR
 - 规则引擎：Easy Rules
-- 开发数据库：H2 + Flyway；生产目标：达梦 DM8 + 显式 DIsql 版本脚本
+- 开发数据库：H2 + Flyway；生产数据库：达梦 DM8 + 显式 DIsql 版本脚本
 - 部署目标：开源自托管、私有化内网部署
 
 ## 架构边界
@@ -123,7 +123,7 @@ $env:SHIPCAD_BOOTSTRAP_ADMIN_PASSWORD="ReplaceWithStrongPassword123"
 $env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
 ```
 
-生产密码要求为 10-128 个字符，并同时包含字母和数字。首次启动前必须按 `deploy/database/README.md` 在空 DM8 模式中依次执行版本脚本；生产 Profile 使用达梦 JDBC Driver 和 Hibernate 6.6 方言，并通过 `ddl-auto=validate` 拒绝不完整结构。
+生产密码要求为 10-128 个字符，并同时包含字母和数字。首次启动前必须按 `deploy/database/README.md` 在空 DM8 模式中依次执行版本脚本；生产 Profile 使用达梦 JDBC Driver 和基于官方 Hibernate 6.6 方言的项目适配层，并通过 `ddl-auto=validate` 拒绝不完整结构。
 
 ## 验证
 

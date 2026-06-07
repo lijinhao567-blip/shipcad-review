@@ -40,9 +40,28 @@ ORDER BY version_no;
 5. Start the backend with the `prod` profile. JPA validates the schema and
 fails startup if required tables or columns are missing.
 
+The default production dialect is
+`com.shipcad.review.database.ShipCadDmDialect`. It extends the official DM8
+Hibernate 6.6 dialect but disables sequence discovery because all current
+entity identifiers are assigned by the application. This avoids granting the
+application user access to `SYS.SYSOBJECTS`. Revisit this boundary before
+introducing database-generated sequence identifiers.
+
 DM8 DDL may commit independently depending on server configuration. Back up
 the schema before applying an upgrade, never rerun an already recorded script,
 and inspect the last successful statement before recovering a failed upgrade.
 
-The repository can validate H2 migrations automatically. DM8 scripts require
-an actual DM8 test instance before they can be marked production-certified.
+The DM8 integration was certified on June 7, 2026 against DM8 Pack8 build
+`03134284404-20250930-295335-20164`. Both migration scripts completed without
+SQL errors, Hibernate `validate` passed with a dedicated `RESOURCE` user, and
+the DXF golden E2E suite passed 11/11 cases. This certifies compatibility, not
+production load, backup, failover, or disaster-recovery readiness.
+
+For the local Windows development instance installed at `D:\dm8task`, use:
+
+```powershell
+.\deploy\database\dm8\start-local-instance.ps1
+.\deploy\database\dm8\stop-local-instance.ps1
+```
+
+These scripts contain no credentials and only manage the project port `5237`.

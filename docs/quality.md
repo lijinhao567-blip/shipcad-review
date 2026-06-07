@@ -18,6 +18,7 @@
 - 安全：数据库持久化且仅存摘要的 Token 会话、过期与主动撤销、禁用账号拒绝登录、密码策略、四角色操作级权限矩阵、项目级数据隔离、图纸文件及下游资源范围校验、403 越权拒绝、越权与登录失败审计、文件类型限制、20MB 限制、审计日志分页查询。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
 - 数据库迁移：空 H2 数据库应从零执行全部 Flyway 脚本；非空历史 H2 数据库应基线到版本 `0` 后完成加固迁移；迁移完成后 JPA 结构校验必须通过。DM8 脚本必须在独立测试实例验证版本记录、后端启动、核心 CRUD 和 E2E 后才能标记为生产认证。
+- DM8 兼容性基线：2026 年 6 月 7 日在 DM8 Pack8 `03134284404-20250930-295335-20164` 完成 V1/V2、Hibernate `validate`、健康检查和 Golden E2E 11/11；生产压测、备份恢复与高可用仍是独立验收项。
 - 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环，`deploy/run-demo-walkthrough.ps1` 应能生成单样例演示摘要。
 
 ## Evidence Regression Checks

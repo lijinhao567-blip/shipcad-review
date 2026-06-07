@@ -58,10 +58,10 @@
 
 ## DM8、Redis、MinIO
 
-当前状态：H2 本地开发已接入 Flyway 版本化迁移；DM8 已提供生产 profile、JDBC/Dialect 依赖和 DIsql 脚本，但仍需要真实 DM8 实例完成兼容性认证。文件系统存储和内存任务队列仍是当前默认实现。
+当前状态：H2 本地开发已接入 Flyway 版本化迁移；DM8 已完成真实实例上的 DIsql 脚本、Hibernate 结构校验和 Golden E2E 兼容性验证。文件系统存储和内存任务队列仍是当前默认实现。
 
 落地路径：
 
-1. 使用真实 DM8 实例执行 `deploy/database/dm8` 脚本，验证约束、索引、事务和 Hibernate `validate`。
+1. 为 DM8 补充备份恢复、故障演练、性能基线和生产部署规范。
 2. Redis 接管分布式任务状态和队列削峰。
 3. MinIO 接管原始图纸、解析结果和报告对象存储。

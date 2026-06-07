@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: ${SHIPCAD_DATASOURCE_URL}
+    driver-class-name: ${SHIPCAD_DATASOURCE_DRIVER:dm.jdbc.driver.DmDriver}
+    username: ${SHIPCAD_DATASOURCE_USERNAME}
+    password: ${SHIPCAD_DATASOURCE_PASSWORD}
+  jpa:
+    database-platform: ${SHIPCAD_HIBERNATE_DIALECT:org.hibernate.dialect.DmDialect}
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: false

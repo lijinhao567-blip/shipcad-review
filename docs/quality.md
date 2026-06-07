@@ -17,6 +17,7 @@
 - OCR evidence：配置 Tesseract 后，`POST /api/versions/{versionId}/ocr-recognize` 和 `POST /api/versions/{versionId}/ocr-recognize-rendered` 应能保存 `OCR_TEXT` evidence；未安装 OCR 引擎时应返回明确错误，不能伪造识别文本。
 - 安全：数据库持久化且仅存摘要的 Token 会话、过期与主动撤销、禁用账号拒绝登录、密码策略、四角色操作级权限矩阵、项目级数据隔离、图纸文件及下游资源范围校验、403 越权拒绝、越权与登录失败审计、文件类型限制、20MB 限制、审计日志分页查询。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
+- 数据库迁移：空 H2 数据库应从零执行全部 Flyway 脚本；非空历史 H2 数据库应基线到版本 `0` 后完成加固迁移；迁移完成后 JPA 结构校验必须通过。DM8 脚本必须在独立测试实例验证版本记录、后端启动、核心 CRUD 和 E2E 后才能标记为生产认证。
 - 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环，`deploy/run-demo-walkthrough.ps1` 应能生成单样例演示摘要。
 
 ## Evidence Regression Checks
@@ -40,6 +41,7 @@
 - `tools/run_demo_walkthrough.py` also uploads a second DXF version, reviews it, calls `GET /api/versions/compare`, and records the version comparison summary in the walkthrough artifact.
 - `tools/run_access_control_e2e.py` verifies role restoration through `/api/auth/me`, viewer read-only access, design engineer authoring boundaries, review expert separation, project membership grant/removal, cross-project HTTP 403 responses, administrator audit visibility, managed-user creation, own-password change, account disabling, logout, and immediate session invalidation.
 - `ProjectAccessIntegrationTest` verifies project membership filtering and descendant authorization for drawings, versions, tasks, issues and reports, including `DATA_ACCESS_DENIED` auditing.
+- `DatabaseMigrationTest` verifies clean H2 bootstrap, legacy non-empty schema adoption, enum normalization, unique constraints, foreign keys, and migration version tracking.
 
 ## 验收目标
 

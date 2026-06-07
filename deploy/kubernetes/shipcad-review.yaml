@@ -83,6 +83,8 @@ spec:
             - configMapRef:
                 name: shipcad-config
             - secretRef:
+                name: shipcad-database
+            - secretRef:
                 name: shipcad-bootstrap-admin
                 optional: true
           ports:

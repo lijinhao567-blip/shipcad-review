@@ -4,6 +4,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import java.sql.Types;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @Entity
 public class ReviewRule {
@@ -13,6 +15,7 @@ public class ReviewRule {
     public String name;
     public String description;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(Types.VARCHAR)
     public Severity severity;
     public boolean enabled;
     public String knowledgeClauseCode;

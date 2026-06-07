@@ -11,11 +11,17 @@ spring:
     password: ${SHIPCAD_DATASOURCE_PASSWORD:}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    enabled: ${SHIPCAD_FLYWAY_ENABLED:true}
+    locations: classpath:db/migration/h2
+    validate-on-migrate: true
+    baseline-on-migrate: ${SHIPCAD_FLYWAY_BASELINE_ON_MIGRATE:false}
+    baseline-version: 0
   servlet:
     multipart:
       max-file-size: 20MB

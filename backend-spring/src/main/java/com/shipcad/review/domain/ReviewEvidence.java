@@ -6,7 +6,9 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
+import java.sql.Types;
 import java.time.Instant;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @Entity
 public class ReviewEvidence {
@@ -17,6 +19,7 @@ public class ReviewEvidence {
     public String versionId;
     public String ruleCode;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(Types.VARCHAR)
     public EvidenceType evidenceType;
     public String sourceId;
     public String sourceLabel;

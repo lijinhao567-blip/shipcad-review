@@ -15,7 +15,7 @@
 
 ## 数据架构
 
-开发环境使用 H2，生产目标为达梦 DM8。核心模型包括用户、持久化会话、角色、项目、项目成员、图纸、图纸版本、解析实体、审查规则、审查任务、审查问题、整改记录、审计日志和报告。
+开发环境使用 H2 + Flyway，生产目标为达梦 DM8 + DIsql 版本脚本。Hibernate 仅校验结构，不再以 `ddl-auto=update` 修改数据库。核心模型包括用户、持久化会话、角色、项目、项目成员、图纸、图纸版本、解析实体、审查规则、审查任务、审查问题、整改记录、审计日志和报告。
 
 ## 技术架构
 
@@ -72,7 +72,9 @@
 - 身份初始化：开发脚本和 Docker Compose 显式启用 `dev` Profile 并创建四个开发账号；生产 `prod` Profile 不创建默认账号，空库首次启动需通过 `SHIPCAD_BOOTSTRAP_ADMIN_*` 环境变量创建初始管理员。
 - 本地健康检查：`/api/health` 聚合数据库、OpenAPI、CAD Worker 和可选 Vision/OCR Worker 状态；前端“系统状态”页展示同一组状态；`deploy/test-health.ps1` 统一检查 `/api/health`、OpenAPI、Worker `/health`/`/capabilities` 和前端入口；`deploy/run-demo.ps1` 在服务启动后执行 golden dataset 演示验收。
 - 容器部署：`deploy/docker-compose.yml` 构建并启动核心服务；使用 `--profile vision` 启动 YOLOv8 识别服务，使用 `--profile ocr` 启动 OCR 识别服务。
-- 云原生占位：`deploy/kubernetes/shipcad-review.yaml` 提供 Deployment、Service、ConfigMap 和 PVC 骨架，后续可接入 DM8、Redis、MinIO 和 Ingress。
+- 云原生占位：`deploy/kubernetes/shipcad-review.yaml` 提供 Deployment、Service、ConfigMap 和 PVC 骨架；后端 `prod` Profile 从 `shipcad-database` Secret 读取外部 DM8 连接，后续可继续接入 Redis、MinIO 和 Ingress。
+
+数据库初始化位于应用启动前：H2 由 Flyway 自动迁移，已有开发库通过显式开发基线接管；DM8 由运维人员在部署前按顺序执行 DIsql 脚本并记录 `shipcad_schema_version`。两条路径最终都由 JPA `validate` 校验，避免运行中的应用擅自改变生产结构。
 
 ## 开源合规边界
 

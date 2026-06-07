@@ -2,7 +2,9 @@
 
 ## 开发与生产策略
 
-当前开发环境使用 H2 文件数据库，便于单机快速启动和测试。生产交付目标为达梦 DM8，后续只需替换 JDBC Driver、连接串和方言配置，核心实体模型保持不变。
+当前开发环境使用 H2 文件数据库，便于单机快速启动和测试。H2 结构由 Flyway 迁移脚本创建和升级，Hibernate 固定使用 `ddl-auto=validate`，不再负责修改数据库。
+
+生产交付目标为达梦 DM8。后端已引入达梦 JDBC Driver 与 Hibernate 6.6 方言，`prod` Profile 通过环境变量接收连接信息。由于 Flyway 官方支持数据库清单未包含 DM8，生产结构不复用 H2 自动迁移，而是使用 `deploy/database/dm8` 下经过审阅的 DIsql 版本脚本。核心实体模型保持一致，数据库类型、DDL 语法和执行方式按厂商分别维护。
 
 ## 核心表
 
@@ -72,6 +74,15 @@
 
 步骤状态包括 `RUNNING`、`SUCCESS`、`SKIPPED`、`FAILED`。默认规则审查任务会跳过自动渲染、Vision 和 OCR；开启自动多模态证据后，这些步骤必须显式成功或失败，不能静默丢失。
 
-## 迁移建议
+## 结构版本管理
 
-商业化或长期维护版本建议引入 Flyway 或 Liquibase 管理达梦 DM8 脚本，避免依赖 `ddl-auto=update`。
+- H2 脚本：`backend-spring/src/main/resources/db/migration/h2`。
+- DM8 脚本：`deploy/database/dm8`。
+- H2 新库会自动执行全部 Flyway 迁移；已有本地开发库在 `dev` Profile 下先基线到版本 `0`，再执行现有迁移。
+- `baseline-on-migrate` 默认关闭，仅在开发 Profile 为接管历史 H2 库而开启，避免误连数据库时失去安全检查。
+- DM8 脚本由 DIsql 按版本号顺序执行，并写入 `shipcad_schema_version`。已记录的脚本不得重复执行。
+- JPA 在迁移后执行结构校验，表或列缺失时后端启动失败，不允许运行时静默补表。
+
+V2 结构加固了用户名、会话 Token、项目成员、知识条款代码和规则代码的唯一性，并为主要资源链增加关联索引与外键。`remediation_record.report_id` 保留为历史引用而未建立外键，因为报告可能被重新生成或移除，整改时间线仍需保留原始引用值。
+
+自动化测试覆盖空 H2 建库和非空历史 H2 接管。DM8 DDL 已按官方语法与官方 Hibernate 方言类型映射编写，但在获得实际 DM8 测试实例并跑通启动、CRUD 和 E2E 前，只能视为“待认证”，不能宣称生产验证完成。

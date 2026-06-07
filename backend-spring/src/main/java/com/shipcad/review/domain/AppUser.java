@@ -6,6 +6,8 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import java.time.Instant;
+import java.sql.Types;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @Entity
 public class AppUser {
@@ -18,6 +20,7 @@ public class AppUser {
     @Column(nullable = false, length = 100)
     public String passwordHash;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(Types.VARCHAR)
     @Column(nullable = false, length = 32)
     public UserRole role;
     public Boolean enabled;

@@ -5,12 +5,12 @@
 ## 技术栈
 
 - 前端：Vue 3 + TypeScript + Vite + dxf-viewer WebGL正式预览，Canvas仅作诊断视图，工作台提供审图流程状态和当前上下文选择
-- 后端：Spring Boot 3 + Spring Data JPA + OpenAPI
+- 后端：Spring Boot 3 + Spring Data JPA + Flyway + OpenAPI
 - CAD Worker：Python + FastAPI + ezdxf + matplotlib 渲染 + LibreDWG 命令行适配
 - Vision Worker：Python + FastAPI + Ultralytics YOLOv8
 - OCR Worker：Python + FastAPI + Tesseract OCR
 - 规则引擎：Easy Rules
-- 开发数据库：H2；生产目标：达梦 DM8
+- 开发数据库：H2 + Flyway；生产目标：达梦 DM8 + 显式 DIsql 版本脚本
 - 部署目标：开源自托管、私有化内网部署
 
 ## 架构边界
@@ -115,12 +115,15 @@ viewer / viewer123     只读访客
 
 ```powershell
 $env:SPRING_PROFILES_ACTIVE="prod"
+$env:SHIPCAD_DATASOURCE_URL="jdbc:dm://dm8.example.internal:5236"
+$env:SHIPCAD_DATASOURCE_USERNAME="SHIPCAD"
+$env:SHIPCAD_DATASOURCE_PASSWORD="ReplaceWithDatabasePassword"
 $env:SHIPCAD_BOOTSTRAP_ADMIN_USERNAME="admin"
 $env:SHIPCAD_BOOTSTRAP_ADMIN_PASSWORD="ReplaceWithStrongPassword123"
 $env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
 ```
 
-生产密码要求为 10-128 个字符，并同时包含字母和数字。
+生产密码要求为 10-128 个字符，并同时包含字母和数字。首次启动前必须按 `deploy/database/README.md` 在空 DM8 模式中依次执行版本脚本；生产 Profile 使用达梦 JDBC Driver 和 Hibernate 6.6 方言，并通过 `ddl-auto=validate` 拒绝不完整结构。
 
 ## 验证
 
@@ -174,6 +177,7 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 - 四角色操作级权限控制：管理员、审图专家、设计工程师、只读访客；管理员可筛选查看关键操作与越权拒绝审计日志
 - 持久化可撤销会话、登录/注销审计、密码修改，以及管理员用户创建、角色调整、停用和密码重置
 - 项目级数据隔离：管理员分配项目成员，非管理员只能访问已加入项目的图纸、版本、任务、问题、证据、报告和统计数据
+- 数据库结构版本化：H2 启动时由 Flyway 自动迁移并由 JPA 校验；DM8 使用与代码版本同步的 DIsql 脚本和版本记录表
 
 ## 下一阶段重点
 
@@ -196,7 +200,17 @@ docker compose --profile vision up --build
 docker compose --profile ocr up --build
 ```
 
-云原生部署占位文件位于 `deploy/kubernetes/shipcad-review.yaml`，默认使用 `prod` Profile。空数据库首次部署前应创建初始管理员 Secret：
+云原生部署占位文件位于 `deploy/kubernetes/shipcad-review.yaml`，默认使用 `prod` Profile。部署后端前先创建 DM8 连接 Secret：
+
+```powershell
+kubectl create secret generic shipcad-database `
+  --namespace shipcad-review `
+  --from-literal=SHIPCAD_DATASOURCE_URL=jdbc:dm://dm8.example.internal:5236 `
+  --from-literal=SHIPCAD_DATASOURCE_USERNAME=SHIPCAD `
+  --from-literal=SHIPCAD_DATASOURCE_PASSWORD=ReplaceWithDatabasePassword
+```
+
+空数据库首次部署前还应创建初始管理员 Secret：
 
 ```powershell
 kubectl create secret generic shipcad-bootstrap-admin `

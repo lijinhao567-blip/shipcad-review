@@ -8,9 +8,12 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 |---|---|---|
 | Spring Boot | Backend framework | Apache-2.0 |
 | Spring Data JPA | Persistence layer | Apache-2.0 |
+| Flyway Community | H2 schema migration | Apache-2.0 |
 | springdoc-openapi | OpenAPI UI | Apache-2.0 |
 | Easy Rules | Rule engine | MIT |
 | H2 Database | Development database | MPL-2.0 / EPL-1.0 |
+| Dameng DmJdbcDriver8 | Optional DM8 production JDBC driver | Apache-2.0 |
+| Dameng Hibernate 6.6 Dialect | Optional DM8 production Hibernate dialect | Apache-2.0 |
 | Vue | Frontend framework | MIT |
 | Vite | Frontend build tool | MIT |
 | ezdxf | DXF parsing | MIT |

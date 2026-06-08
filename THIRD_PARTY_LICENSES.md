@@ -22,7 +22,6 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 | ezdxf | DXF parsing | MIT |
 | FastAPI | Python API framework | MIT |
 | Uvicorn | ASGI server | BSD-3-Clause |
-| mlightcad/cad-viewer | Candidate DWG/DXF web viewer | MIT |
 | dxf-viewer | Main DXF WebGL preview viewer | MPL-2.0 |
 | Matplotlib | CAD Worker DXF-to-PNG rendering | Matplotlib License / PSF-style |
 | Valkey | Redis protocol task queue service in deployment skeletons | BSD-3-Clause |

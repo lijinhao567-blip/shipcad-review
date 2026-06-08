@@ -15,7 +15,6 @@ This survey records open-source tools that can support ShipCAD Review. It focuse
 |---:|---|---|---|---|
 | P0 | ezdxf | DXF parsing | MIT | Continue as primary DXF parser in CAD Worker. |
 | P0 | GNU LibreDWG | DWG conversion/parsing | GPLv3+ | Continue DWG path through `dwg2dxf`, then parse with ezdxf. |
-| P1 | mlightcad/cad-viewer | Web DWG/DXF viewer | MIT | Research as a longer-term DWG/DXF viewer candidate. |
 | P1 | CVAT | YOLO dataset labeling | MIT | Use for symbol bounding-box annotation. |
 | P1 | Ultralytics YOLOv8 | Symbol detection | AGPL-3.0 / Enterprise | Continue as Vision Worker inference and training framework. |
 | P2 | PaddleOCR | OCR | Apache-2.0 | Add title block, revision table, and note recognition. |
@@ -77,24 +76,22 @@ Integration plan:
 
 ### mlightcad/cad-viewer
 
-Use cases:
+Status: retired from the dependency tree on June 8, 2026.
 
-- High-performance browser DWG/DXF viewing.
-- WebGL/Three.js rendering.
-- Layer control, zoom, pan, measure, offline HTML export.
-
-Integration plan:
-
-1. Build an isolated proof of concept in Vue.
-2. Test it with existing sample DXF files.
-3. Check whether it exposes entity selection and layer data needed for issue highlighting.
-4. If it works, evaluate whether it can become a future official viewer path without hiding `dxf-viewer` failures.
+Historical use cases included browser DWG/DXF viewing, WebGL rendering, layer
+control, zoom, pan, and measurement.
 
 Risks:
 
-- Need to confirm API stability.
-- Need to ensure issue highlighting can be integrated cleanly.
-- Current POC mounts the component but renders a blank drawing area with worker errors. Keep as research candidate.
+- The POC mounted the component but rendered a blank drawing area with worker errors.
+- Version 1.5.0 required the exact vulnerable peer `lodash-es@4.17.21`.
+- The latest checked 1.5.5 release retained the same exact peer, so upgrading or overriding lodash did not produce a valid dependency tree.
+
+Decision:
+
+- Remove mlightcad packages from `experiments/cad-viewer-poc`.
+- Do not use npm overrides to suppress the incompatible peer requirement.
+- Re-evaluate only after an upstream release removes the vulnerable constraint and passes a fresh isolated rendering/security review.
 
 ### vagran/dxf-viewer
 
@@ -290,23 +287,17 @@ Integration plan:
 - Migrate only after rule count and complexity justify it.
 - Keep `RuleEngine` interface stable so the implementation can be replaced.
 
-## Recommended Next Experiments
+## Experiment Status
 
-### Experiment 1: CAD Viewer Integration
+### Experiment 1: CAD Viewer Integration - completed
 
-Goal: evaluate whether `mlightcad/cad-viewer` can replace the current Canvas preview.
+Goal: select and validate the official DXF preview path.
 
-Steps:
+Result:
 
-1. Create a small isolated Vue proof of concept.
-2. Load `samples/dxf/valid_ship_section.dxf`.
-3. Check zoom, pan, layer display, and entity selection.
-4. Check whether issue highlighting can be implemented.
-
-Decision:
-
-- If entity/layer highlighting is possible, compare it against the current `dxf-viewer` official path.
-- If not, keep it as a research-only candidate.
+- `dxf-viewer` successfully renders the project DXF sample and is integrated into the main frontend.
+- Canvas remains an explicitly opened diagnostic view and never hides official preview failures.
+- mlightcad was removed after blank rendering/worker failures and an unresolved exact dependency on vulnerable `lodash-es@4.17.21`.
 
 ### Experiment 2: CVAT + YOLO Dataset Flow
 

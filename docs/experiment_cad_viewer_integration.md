@@ -6,11 +6,14 @@ Goal: evaluate whether an open-source CAD viewer can become the official DXF pre
 
 Primary candidate:
 
+- `vagran/dxf-viewer`
+
+Retired candidate:
+
 - `mlightcad/cad-viewer`
 
-Fallback candidates:
+Fallback reference:
 
-- `vagran/dxf-viewer`
 - `three-dxf`
 
 ## Why This Matters
@@ -71,7 +74,7 @@ experiments/cad-viewer-poc
 
 ### mlightcad/cad-viewer
 
-Result: component integration works, but rendering is not yet reliable in this project environment.
+Result: retired from the project dependency tree.
 
 Observed:
 
@@ -84,12 +87,14 @@ Observed:
 - Browser reports worker errors.
 - Build warns that package internals externalize Node `fs` for browser compatibility.
 - Bundle size is large.
+- Version 1.5.0 requires the exact peer `lodash-es@4.17.21`, which is affected by published prototype-pollution and code-injection advisories.
+- The latest checked release, 1.5.5, keeps the same vulnerable exact peer constraint.
 
 Decision:
 
-- Do not promote to main frontend yet.
-- Keep as a research candidate.
-- Revisit if worker configuration, bundling, or package version issues can be resolved.
+- Remove it from the POC and runtime dependency tree.
+- Do not reintroduce it through npm overrides that leave an invalid peer tree.
+- Re-evaluate only if upstream releases a compatible version without the vulnerable lodash constraint and the rendering issues are independently resolved.
 
 ### vagran/dxf-viewer
 
@@ -110,15 +115,15 @@ Limitations:
 - DXF only; no direct DWG support.
 - UI is not a full CAD workstation UI.
 - Issue highlighting by entity still needs a custom overlay or mapping strategy.
-- Bundle size increases when both mlightcad and dxf-viewer are installed in the same POC.
+- The historical comparison bundle was larger when both viewers were installed in the same POC.
 
 Decision:
 
 - Use `dxf-viewer` as the official near-term DXF preview path.
 - Keep the current `DxfCanvas` component as a manually opened diagnostic view for parsed-entity comparison only.
-- Keep `mlightcad/cad-viewer` as a longer-term DWG/DXF viewer candidate, but do not integrate it into the main app until the rendering issue is understood.
+- Keep mlightcad out of the dependency tree unless upstream fixes both its exact vulnerable lodash peer and the observed rendering problems.
 
-## Next Engineering Step
+## Implemented Engineering Step
 
 Create a main-frontend integration branch or small feature:
 
@@ -126,10 +131,10 @@ Create a main-frontend integration branch or small feature:
 frontend-vue/src/components/DxfViewerPreview.vue
 ```
 
-Recommended path:
+Implemented path:
 
-1. Add `dxf-viewer` to the main frontend only.
+1. Added `dxf-viewer` to the main frontend only.
 2. Load uploaded DXF preview through an authenticated backend file endpoint and a browser blob URL.
 3. Display layers in side panel.
 4. Keep current `DxfCanvas` as a manual diagnostics panel, not as automatic fallback.
-5. Implement issue highlighting first by layer visibility/color, then by bounding box overlay.
+5. Continue issue positioning through the structured evidence coordinate contract.

@@ -1,18 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef } from 'vue'
-import { MlCadViewer } from '@mlightcad/cad-viewer'
-import { AcApSettingManager } from '@mlightcad/cad-simple-viewer'
 import validSampleUrl from '../../../samples/dxf/valid_ship_section.dxf?url'
 import DxfViewerPanel from './DxfViewerPanel.vue'
 
 const file = shallowRef<File | null>(null)
 const objectUrl = ref('')
 const notes = ref<string[]>([])
-const viewerMode = ref<'mlight' | 'dxf'>('dxf')
-
-AcApSettingManager.instance.isShowCommandLine = false
-AcApSettingManager.instance.isShowStats = true
-AcApSettingManager.instance.isShowEntityInfo = true
 
 const fileLabel = computed(() => file.value ? `${file.value.name} (${Math.round(file.value.size / 1024)} KB)` : '尚未选择文件')
 const isDxf = computed(() => file.value?.name.toLowerCase().endsWith('.dxf') ?? false)
@@ -66,7 +59,7 @@ function setFile(selected: File | null, source: string) {
   if (objectUrl.value) URL.revokeObjectURL(objectUrl.value)
   objectUrl.value = selected ? URL.createObjectURL(selected) : ''
   notes.value = selected
-    ? [`${source}：已选择 ${selected.name}`, 'cad-viewer 将通过 localFile prop 自动加载。']
+    ? [`${source}：已选择 ${selected.name}`, 'dxf-viewer 将通过对象 URL 自动加载。']
     : []
 }
 
@@ -83,22 +76,18 @@ function addNote(message: string) {
         <h1>CAD Viewer Integration POC</h1>
       </div>
       <label class="file-picker">
-        <span>选择 DXF/DWG</span>
-        <input type="file" accept=".dxf,.dwg" @change="selectFile" />
+        <span>选择 DXF</span>
+        <input type="file" accept=".dxf" @change="selectFile" />
       </label>
       <button class="sample-button" @click="loadSyntheticDxf">加载内置最小DXF</button>
       <button class="sample-button" @click="loadProjectSample">加载项目样例DXF</button>
-      <div class="mode-switch">
-        <button :class="{ active: viewerMode === 'dxf' }" @click="viewerMode = 'dxf'">dxf-viewer</button>
-        <button :class="{ active: viewerMode === 'mlight' }" @click="viewerMode = 'mlight'">mlightcad</button>
-      </div>
     </section>
 
     <section class="layout">
       <aside class="panel">
         <h2>预研目标</h2>
         <ul>
-          <li>加载项目样例 DXF/DWG。</li>
+          <li>加载项目样例 DXF。</li>
           <li>验证缩放、平移、图层展示。</li>
           <li>确认是否能按实体、图层或包围框高亮问题。</li>
           <li>确认能否嵌入主 Vue 前端。</li>
@@ -115,28 +104,17 @@ function addNote(message: string) {
 
       <section class="viewer-shell">
         <DxfViewerPanel
-          v-if="file && viewerMode === 'dxf' && isDxf"
+          v-if="file && isDxf"
           :url="objectUrl"
           @status="addNote"
         />
-        <div v-else-if="file && viewerMode === 'dxf' && !isDxf" class="placeholder">
+        <div v-else-if="file && !isDxf" class="placeholder">
           <strong>dxf-viewer 仅支持 DXF</strong>
-          <p>当前文件是 DWG。请切换到 mlightcad 或选择 DXF 文件。</p>
+          <p>请选择 DXF 文件；DWG 由后端 LibreDWG 转换链路负责。</p>
         </div>
-        <MlCadViewer
-          v-else-if="file && viewerMode === 'mlight'"
-          class="cad-viewer"
-          locale="zh"
-          theme="dark"
-          :background="0x1f2937"
-          :local-file="file"
-          :use-main-thread-draw="true"
-          @create="addNote('mlightcad 已创建')"
-          @destroy="addNote('mlightcad 已销毁')"
-        />
         <div v-else class="placeholder">
-          <strong>CAD Viewer 挂载区</strong>
-          <p>选择 DXF 或 DWG 文件后，将在这里挂载 @mlightcad/cad-viewer。</p>
+          <strong>dxf-viewer 挂载区</strong>
+          <p>选择 DXF 文件后，将在这里加载正式候选预览组件。</p>
         </div>
       </section>
     </section>
@@ -197,29 +175,6 @@ h2 {
   background: rgba(255,255,255,.2);
 }
 
-.mode-switch {
-  display: inline-flex;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid rgba(255,255,255,.22);
-  border-radius: 8px;
-  background: rgba(255,255,255,.08);
-}
-
-.mode-switch button {
-  border: 0;
-  border-radius: 6px;
-  padding: 8px 10px;
-  background: transparent;
-  color: #cbd5e1;
-  cursor: pointer;
-}
-
-.mode-switch button.active {
-  background: #fff;
-  color: #102a43;
-}
-
 .file-picker input {
   max-width: 240px;
 }
@@ -259,11 +214,6 @@ h2 {
 
 .viewer-shell {
   overflow: hidden;
-}
-
-.cad-viewer {
-  width: 100%;
-  height: calc(100vh - 112px);
 }
 
 .placeholder {

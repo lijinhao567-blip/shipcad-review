@@ -46,6 +46,7 @@ import com.shipcad.review.storage.StoredObject;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -752,14 +753,25 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         List<ReviewIssue> taskIssues = attachEvidence(issues.findByTaskId(taskId));
         WorkerSummary summary = fromJson(version.parseSummaryJson, WorkerSummary.class);
         List<ParsedEntity> parsedEntities = entities.findByVersionId(version.id);
+        String content = reportBuilder.build(project, drawing, version, summary, taskIssues, parsedEntities);
         ReportDocument report = new ReportDocument();
         report.id = Ids.next("report");
         report.taskId = taskId;
         report.versionId = version.id;
-        report.content = reportBuilder.build(project, drawing, version, summary, taskIssues, parsedEntities);
+        report.content = content;
+        StoredObject stored = storeReportContent(report, content);
+        report.storageMode = stored.storageMode();
+        report.contentObjectKey = stored.key();
+        report.contentPath = stored.localPath().toString();
+        report.contentSizeBytes = stored.size();
         report.createdAt = Ids.now();
         reports.save(report);
-        audit.record(actor.username, "REPORT_CREATE", "report", report.id, Map.of("taskId", taskId));
+        audit.record(actor.username, "REPORT_CREATE", "report", report.id, Map.of(
+                "taskId", taskId,
+                "storageMode", report.storageMode,
+                "objectKey", report.contentObjectKey,
+                "sizeBytes", report.contentSizeBytes
+        ));
         return report;
     }
 
@@ -773,6 +785,17 @@ public class ReviewPlatformService implements ReviewTaskRunner {
 
     public ReportDocument getReport(String reportId, AppUser actor) {
         return projectAccess.requireReport(actor, reportId);
+    }
+
+    public String reportContent(ReportDocument report) {
+        if (report.contentObjectKey != null && !report.contentObjectKey.isBlank()) {
+            try {
+                return Files.readString(objectStorage.resolveLocalPath(report.contentObjectKey), StandardCharsets.UTF_8);
+            } catch (IOException | RuntimeException exception) {
+                throw new IllegalStateException("璇诲彇鎶ュ憡瀵硅薄鏂囦欢澶辫触", exception);
+            }
+        }
+        return report.content == null ? "" : report.content;
     }
 
     public WorkerSummary summaryOf(DrawingVersion version) {
@@ -934,6 +957,18 @@ public class ReviewPlatformService implements ReviewTaskRunner {
             throw new IllegalArgumentException("图纸文件路径缺失");
         }
         return Path.of(version.filePath).toAbsolutePath().normalize();
+    }
+
+    private StoredObject storeReportContent(ReportDocument report, String content) {
+        try {
+            return objectStorage.storeBytes(
+                    "reports/" + report.versionId + "/" + report.taskId + "/" + report.id + ".md",
+                    content.getBytes(StandardCharsets.UTF_8),
+                    "text/markdown;charset=UTF-8"
+            );
+        } catch (IOException exception) {
+            throw new IllegalStateException("淇濆瓨鎶ュ憡瀵硅薄鏂囦欢澶辫触", exception);
+        }
     }
 
     private String bboxText(List<Double> xyxy) {

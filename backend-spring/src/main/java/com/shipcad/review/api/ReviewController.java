@@ -124,11 +124,12 @@ public class ReviewController extends BaseController {
 
     @GetMapping("/reports/{reportId}/download")
     public ResponseEntity<String> downloadReport(@RequestHeader("Authorization") String authorization, @PathVariable String reportId) {
-        ReportDocument report = platform.getReport(reportId, user(authorization));
+        var actor = user(authorization);
+        ReportDocument report = platform.getReport(reportId, actor);
         String fileName = "shipcad-review-report-" + report.id + ".md";
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/markdown;charset=UTF-8"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
-                .body(report.content == null ? "" : report.content);
+                .body(platform.reportContent(report));
     }
 }

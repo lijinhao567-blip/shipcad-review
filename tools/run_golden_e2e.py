@@ -95,14 +95,17 @@ class GoldenE2E:
     def create_report(self, task_id: str) -> dict[str, Any]:
         return self.request("POST", "/api/reports", json={"taskId": task_id}).json()
 
-    def report_download_check(self, report_id: str) -> None:
-        response = self.request("GET", f"/api/reports/{report_id}/download")
+    def report_download_check(self, report: dict[str, Any]) -> None:
+        response = self.request("GET", f"/api/reports/{report['id']}/download")
         if len(response.content) == 0:
             raise AssertionError("report download endpoint returned an empty body")
         if "text/markdown" not in response.headers.get("content-type", ""):
             raise AssertionError(f"report download returned unexpected content type: {response.headers.get('content-type')}")
         if "attachment" not in response.headers.get("content-disposition", ""):
             raise AssertionError("report download is missing attachment content disposition")
+        expected_content = report.get("content") or ""
+        if expected_content and response.text != expected_content:
+            raise AssertionError("report download content does not match generated report content")
 
     def wait_for_task(self, task_id: str) -> dict[str, Any]:
         deadline = time.time() + self.poll_seconds
@@ -168,8 +171,11 @@ class GoldenE2E:
             self.assert_parser_expectations(version["id"], case.get("parserExpectations", {}))
             self.assert_issue_evidence(version["id"], case, actual_issues)
             report = self.create_report(task["id"])
+            self.assert_report_storage(report)
             self.assert_report(case, actual_issues, report)
-            self.report_download_check(report["id"])
+            if evict_upload_cache:
+                self.evict_report_cache(report)
+            self.report_download_check(report)
             return CaseResult(case_id, True, expected_rules, actual_rules, "ok")
         except Exception as exc:
             return CaseResult(case_id, False, expected_rules, [], str(exc))
@@ -194,11 +200,33 @@ class GoldenE2E:
         if not file_path:
             raise AssertionError(f"version {version.get('id')} is missing local filePath/cache path")
 
+    def assert_report_storage(self, report: dict[str, Any]) -> None:
+        storage_mode = report.get("storageMode") or ""
+        object_key = report.get("contentObjectKey") or ""
+        content_path = report.get("contentPath") or ""
+        size_bytes = report.get("contentSizeBytes") or 0
+        if storage_mode not in {"local", "s3"}:
+            raise AssertionError(f"report {report.get('id')} returned invalid storageMode={storage_mode!r}")
+        if not object_key:
+            raise AssertionError(f"report {report.get('id')} is missing contentObjectKey")
+        if not content_path:
+            raise AssertionError(f"report {report.get('id')} is missing contentPath/cache path")
+        if size_bytes <= 0:
+            raise AssertionError(f"report {report.get('id')} returned invalid contentSizeBytes={size_bytes!r}")
+
     def evict_local_cache(self, version: dict[str, Any]) -> None:
         file_path = version.get("filePath") or ""
         if not file_path:
             raise AssertionError(f"version {version.get('id')} has no local cache path to evict")
         path = Path(file_path)
+        if path.exists():
+            path.unlink()
+
+    def evict_report_cache(self, report: dict[str, Any]) -> None:
+        content_path = report.get("contentPath") or ""
+        if not content_path:
+            raise AssertionError(f"report {report.get('id')} has no local cache path to evict")
+        path = Path(content_path)
         if path.exists():
             path.unlink()
 
@@ -342,7 +370,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--evict-upload-cache",
         action="store_true",
-        help="Delete each uploaded version local cache before file download and review, forcing object-storage reads.",
+        help="Delete uploaded version/report local caches before download and review, forcing object-storage reads.",
     )
     return parser.parse_args()
 

@@ -15,5 +15,9 @@ public class ReportDocument {
     @Lob
     @Column(length = 200000)
     public String content;
+    public String storageMode;
+    public String contentObjectKey;
+    public String contentPath;
+    public Long contentSizeBytes;
     public Instant createdAt;
 }

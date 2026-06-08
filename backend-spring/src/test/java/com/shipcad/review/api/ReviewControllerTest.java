@@ -34,6 +34,7 @@ class ReviewControllerTest {
 
         when(auth.requireUser("Bearer token")).thenReturn(actor);
         when(platform.getReport("report_1", actor)).thenReturn(report);
+        when(platform.reportContent(report)).thenReturn(report.content);
 
         ResponseEntity<String> response = controller.downloadReport("Bearer token", "report_1");
 

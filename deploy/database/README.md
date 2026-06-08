@@ -28,6 +28,7 @@ For a new empty DM8 schema:
 start D:\path\to\deploy\database\dm8\V1__initial_schema.sql
 start D:\path\to\deploy\database\dm8\V2__constraints_and_indexes.sql
 start D:\path\to\deploy\database\dm8\V3__object_storage_metadata.sql
+start D:\path\to\deploy\database\dm8\V4__report_object_storage_metadata.sql
 ```
 
 4. Verify the recorded version:
@@ -63,6 +64,11 @@ V3 adds object-storage metadata to `drawing_version`. It was applied on June 8,
 record and new columns were verified, and the current backend passed Hibernate
 `validate` and `/api/health` against that schema. Apply it before starting code
 that includes the object-storage adapter.
+
+V4 adds object-storage metadata to `report_document` so generated Markdown
+reports can be stored as local or S3-compatible objects. The H2/Flyway migration
+and backend tests pass with this version; apply the DM8 script in the next DM8
+maintenance window before running code that includes report object storage.
 
 For the local Windows development instance installed at `D:\dm8task`, use:
 

@@ -19,7 +19,7 @@
 
 ## 技术架构
 
-后端按照 Controller / Service / Repository 分层，CAD解析、CAD渲染和视觉识别作为独立Worker能力接入，避免重型CAD/AI依赖污染核心业务服务。上传版本后先通过 `ObjectStorageService` 保存原始图纸：默认本地文件系统模式直接写入 `data/uploads`，S3 兼容模式会上传到对象存储并保留本地缓存路径供 Worker 使用。审查任务进入 `ReviewTaskQueue`：本地开发默认使用进程内队列，Redis 协议模式使用外部队列保存待处理任务，后端只保留本地执行线程池。任务执行器完成解析；如果任务开启自动 Vision/OCR，则先渲染版本 PNG 并采集任务级证据，渲染图和手动上传的视觉/OCR图片也走同一对象存储接口；随后执行规则、生成问题并回写状态。任务会同步维护 `review_task.stage` 和 `review_task_step`，记录 PARSE、RENDER、VISION、OCR、RULES 每一步的成功、跳过或失败原因，便于排障和验收；前端任务详情页负责展示步骤时间线、错误和 detailJson 摘要。规则通过 Easy Rules 注册和执行，后续可迁移到 Drools 或规则配置中心。报告保存到数据库，并通过 `GET /api/reports/{reportId}/download` 提供鉴权 Markdown 附件下载。
+后端按照 Controller / Service / Repository 分层，CAD解析、CAD渲染和视觉识别作为独立Worker能力接入，避免重型CAD/AI依赖污染核心业务服务。上传版本后先通过 `ObjectStorageService` 保存原始图纸：默认本地文件系统模式直接写入 `data/uploads`，S3 兼容模式会上传到对象存储并保留本地缓存路径供 Worker 使用。审查任务进入 `ReviewTaskQueue`：本地开发默认使用进程内队列，Redis 协议模式使用外部队列保存待处理任务，后端只保留本地执行线程池。任务执行器完成解析；如果任务开启自动 Vision/OCR，则先渲染版本 PNG 并采集任务级证据，渲染图和手动上传的视觉/OCR图片也走同一对象存储接口；随后执行规则、生成问题并回写状态。任务会同步维护 `review_task.stage` 和 `review_task_step`，记录 PARSE、RENDER、VISION、OCR、RULES 每一步的成功、跳过或失败原因，便于排障和验收；前端任务详情页负责展示步骤时间线、错误和 detailJson 摘要。规则通过 Easy Rules 注册和执行，后续可迁移到 Drools 或规则配置中心。报告 Markdown 正文写入对象存储，数据库保留内容副本、对象 key、缓存路径和大小元数据，并通过 `GET /api/reports/{reportId}/download` 提供鉴权 Markdown 附件下载。
 
 版本对比由后端 `VersionCompareService` 基于两个版本的 CAD 结构化解析摘要生成，输出实体数量、图层、实体类型、块参照、文本差异、风险提示和复核重点。前端只渲染后端返回的结构化差异，不在页面中伪造或重新推理审图结论。
 

@@ -8,11 +8,11 @@
 - Vision Worker：未配置模型时返回明确错误；配置模型后能返回检测框结构。
 - 后端：登录、持久化会话恢复、注销失效、会话过期、密码修改、账号停用、角色变更、管理员用户管理、项目成员增删、跨项目访问拒绝、项目创建、图纸创建、版本上传、异步审查任务、任务阶段/步骤记录、可选自动 Vision/OCR 证据采集、任务失败重试、问题整改、报告生成、版本对比、聚合健康检查。
 - 审查任务队列：默认内存队列必须保持本地测试和 golden E2E 稳定；Redis 协议队列必须验证入队载荷、容量限制、健康检查、处理队列恢复和消费失败路径。真实 Valkey/Redis 容器 E2E 是后续部署验收项。
-- 对象存储：默认本地模式必须验证 key 归一化、路径穿越拒绝、上传/渲染文件可读和 `/api/health` 状态；S3/MinIO 模式必须验证 bucket 连通性、对象上传、缓存下载、权限失败和大文件限制。`deploy/run-object-storage-e2e.ps1` 已覆盖真实 MinIO/S3 开发机 E2E；容器化权限配置、生命周期策略、备份恢复和大文件性能仍是后续部署验收项。
+- 对象存储：默认本地模式必须验证 key 归一化、路径穿越拒绝、上传/渲染/报告文件可读和 `/api/health` 状态；S3/MinIO 模式必须验证 bucket 连通性、对象上传、缓存下载、权限失败和大文件限制。`deploy/run-object-storage-e2e.ps1` 已覆盖真实 MinIO/S3 开发机 E2E；容器化权限配置、生命周期策略、备份恢复和大文件性能仍是后续部署验收项。
 - 前端：构建通过，API 调用路径可配置，系统状态页能展示后端、数据库、OpenAPI 和 Worker 状态；审图流程状态应能反映系统、登录、项目图纸、版本、审查、问题和报告进度；项目、图纸、版本列表切换当前上下文后，应同步影响上传、预览、审查和报告选择；审查任务详情能展示步骤时间线和失败细节；dxf-viewer 能加载上传 DXF 并显示图层；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
 - Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字和实体数量异常。
 - Demo walkthrough：`tools/run_demo_walkthrough.py` 应能用一个真实 DXF 样例走通登录、建项目、建图纸、上传版本、发起审查、生成问题、生成报告，并把项目 ID、图纸 ID、版本 ID、任务步骤、问题证据类型和报告预览写入 `.run/demo-walkthrough-*.md`，用于人工演示核查。
-- 报告和问题清单：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用、结构化 evidence chain；`GET /api/reports/{reportId}/download` 应通过鉴权返回 Markdown 附件；前端问题清单应按 CAD、规则、知识条款、YOLO、OCR 等来源分组展示证据。
+- 报告和问题清单：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用、结构化 evidence chain；报告 Markdown 应写入对象存储并保留数据库副本和对象元数据；`GET /api/reports/{reportId}/download` 应通过鉴权返回 Markdown 附件，若报告已有对象 key，则不能用数据库副本掩盖对象读取失败；前端问题清单应按 CAD、规则、知识条款、YOLO、OCR 等来源分组展示证据。
 - 整改闭环：`PATCH /api/issues/{issueId}` 应记录状态前后、经办人、操作人、说明和可选报告引用；`GET /api/issues/{issueId}/remediations` 应按时间顺序返回整改时间线；前端应支持开始整改、提交复核、关闭问题和重新打开。
 - 版本对比：`GET /api/versions/compare` 应返回结构化版本差异，包括实体数量变化、图层新增/删除、图层实体数量变化、实体类型变化、块参照变化、文本变化、风险提示和复核重点；前端应以摘要、指标和表格展示，而不是只输出原始 JSON。
 - Vision evidence：配置模型后，`POST /api/versions/{versionId}/vision-detect` 和 `POST /api/versions/{versionId}/vision-detect-rendered` 应能保存 `YOLO_SYMBOL` evidence；未配置模型时应返回明确错误，不能伪造检测结果。
@@ -35,8 +35,8 @@
 - Automatic review-task detections should carry `taskId`; RuleEngine should consume manual version-level evidence plus current-task automatic evidence, not stale automatic evidence from earlier tasks.
 - Review tasks should expose `review_task.stage` and ordered `review_task_step` rows. Default rule-only tasks should mark PARSE and RULES as `SUCCESS`, and RENDER/VISION/OCR as `SKIPPED`; automatic multimodal tasks should mark RENDER/VISION/OCR as `SUCCESS` or `FAILED` instead of silently skipping them.
 - Review task queue implementations should expose health details through `/api/health`; the default in-memory mode should report executor activity and queued count, and Redis mode should report queue key, processing key, worker status, Redis ping, queued count, and processing count.
-- Object storage implementations should expose health details through `/api/health`; local mode should report root path writability, and S3 mode should report endpoint, bucket, cache root and bucket connectivity. File download should prefer `DrawingVersion.fileObjectKey` and fall back to legacy `filePath`.
-- `deploy/run-object-storage-e2e.ps1` starts a real MinIO server, boots an isolated backend in S3 mode, checks `/api/health`, then runs `tools/run_golden_e2e.py --evict-upload-cache` so version file download and review parsing must recover files from object storage instead of relying on the upload cache.
+- Object storage implementations should expose health details through `/api/health`; local mode should report root path writability, and S3 mode should report endpoint, bucket, cache root and bucket connectivity. Version file download should prefer `DrawingVersion.fileObjectKey` and fall back to legacy `filePath`; report download should prefer `ReportDocument.contentObjectKey` and fall back to database content only for legacy reports without an object key.
+- `deploy/run-object-storage-e2e.ps1` starts a real MinIO server, boots an isolated backend in S3 mode, checks `/api/health`, then runs `tools/run_golden_e2e.py --evict-upload-cache` so version file download, review parsing and report attachment download must recover files from object storage instead of relying on upload/report caches.
 - Review task detail UI should display the selected task status, stage, version, issue count, evidence count, ordered steps, timestamps, error message, and detail JSON summary.
 - Frontend workflow UI should not create fake demo state. It may guide tab navigation and local selection, but all status values must come from authenticated API state, health checks, current selections, review tasks, issues, or generated reports.
 - `OCR_PLACEHOLDER_TEXT` should generate an issue-level `OCR_TEXT` evidence reference with `sourceEvidenceId` when OCR text contains unfinished placeholders.

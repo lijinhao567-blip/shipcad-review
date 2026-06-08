@@ -229,8 +229,8 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 - 审查任务队列：支持 PENDING、RUNNING、FINISHED、FAILED 状态、阶段/步骤进度、失败重试和可选自动 Vision/OCR 证据采集；默认本地内存队列，Redis 协议模式已抽象为可部署队列适配
 - 系统状态页和审查任务详情页：支持查看组件健康、必需/可选 Worker 状态、任务步骤时间线和失败细节
 - 审图流程工作台：显示系统、登录、项目图纸、版本、审查、问题、报告的当前进度，并可在项目、图纸、版本列表中设置当前上下文
-- dxf-viewer DXF正式预览，支持图层查看；Canvas仅用于人工诊断解析实体
-- 问题定位高亮：按问题关联图元或图层高亮显示
+- dxf-viewer DXF正式预览，支持图层查看、问题聚焦和 CAD 范围高亮；Canvas仅用于人工诊断解析实体
+- 问题定位高亮：优先按 `ReviewEvidence.location` 的 CAD 范围定位，缺少证据范围时按解析图元或图层范围辅助定位
 - YOLOv8 Vision Worker 骨架：支持使用版本渲染图或手动上传图像生成符号检测框，需配置模型权重
 - OCR Worker 骨架：支持使用版本渲染图或手动上传图像生成文字区域，需安装 Tesseract OCR
 - Easy Rules 规则审查：图层命名、空图层、标题栏、版次格式、占位文本、实体数量、OCR占位文本、YOLO/CAD标题栏交叉校验

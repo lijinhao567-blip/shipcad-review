@@ -208,6 +208,7 @@ public class VersionController extends BaseController {
                 entity.versionId,
                 entity.entityType,
                 entity.layerName,
+                entity.cadHandle,
                 entity.textValue,
                 entity.blockName,
                 entity.x,

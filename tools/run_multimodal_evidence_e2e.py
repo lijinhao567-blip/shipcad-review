@@ -289,10 +289,12 @@ class MultimodalEvidenceE2E:
             raise AssertionError("auto review did not create task-scoped YOLO_SYMBOL evidence")
         if not ocr_version_evidence:
             raise AssertionError("auto review did not create task-scoped OCR_TEXT evidence")
+        self.assert_visual_location(yolo_version_evidence[0], "YOLO_SYMBOL")
+        self.assert_visual_location(ocr_version_evidence[0], "OCR_TEXT")
 
         issues = self.issues(task["id"])
-        self.assert_issue_chain(issues, "YOLO_TITLE_BLOCK_CAD_MISSING", "YOLO_SYMBOL", yolo_version_evidence[0]["id"])
-        self.assert_issue_chain(issues, "OCR_PLACEHOLDER_TEXT", "OCR_TEXT", ocr_version_evidence[0]["id"])
+        self.assert_issue_chain(issues, "YOLO_TITLE_BLOCK_CAD_MISSING", "YOLO_SYMBOL", yolo_version_evidence[0])
+        self.assert_issue_chain(issues, "OCR_PLACEHOLDER_TEXT", "OCR_TEXT", ocr_version_evidence[0])
         report = self.create_report(task["id"])
         self.assert_report(report)
         self.report_download_check(report["id"])
@@ -304,6 +306,7 @@ class MultimodalEvidenceE2E:
             "taskId": task["id"],
             "issueRules": sorted({issue["ruleCode"] for issue in issues}),
             "reportId": report["id"],
+            "coordinateContract": "CAD_MODEL <-> RASTER_IMAGE verified",
         }
 
     def task_evidence(self, version_id: str, evidence_type: str, task_id: str) -> list[dict[str, Any]]:
@@ -318,8 +321,9 @@ class MultimodalEvidenceE2E:
         issues: list[dict[str, Any]],
         rule_code: str,
         expected_evidence_type: str,
-        source_evidence_id: str,
+        source_evidence: dict[str, Any],
     ) -> None:
+        source_evidence_id = source_evidence["id"]
         matches = [issue for issue in issues if issue.get("ruleCode") == rule_code]
         if not matches:
             actual = sorted({issue.get("ruleCode") for issue in issues})
@@ -342,6 +346,38 @@ class MultimodalEvidenceE2E:
         ]
         if not source_refs:
             raise AssertionError(f"{rule_code} did not cite sourceEvidenceId={source_evidence_id}")
+        if source_refs[0].get("location") != source_evidence.get("location"):
+            raise AssertionError(f"{rule_code} did not preserve the source evidence location contract")
+
+    def assert_visual_location(self, evidence: dict[str, Any], evidence_type: str) -> None:
+        location = evidence.get("location") or {}
+        bounds = location.get("bounds") or {}
+        transform = location.get("transform") or {}
+        source_bounds = transform.get("sourceBounds") or {}
+        target_bounds = transform.get("targetBounds") or {}
+        if location.get("coordinateSpace") != "RASTER_IMAGE":
+            raise AssertionError(f"{evidence_type} location is not in RASTER_IMAGE space: {location}")
+        if location.get("referenceType") != "BOUNDING_BOX":
+            raise AssertionError(f"{evidence_type} location is not a bounding box: {location}")
+        if not self.valid_bounds(bounds):
+            raise AssertionError(f"{evidence_type} location has invalid pixel bounds: {bounds}")
+        if not isinstance(location.get("imageWidth"), int) or location["imageWidth"] <= 0:
+            raise AssertionError(f"{evidence_type} location has invalid imageWidth: {location.get('imageWidth')}")
+        if not isinstance(location.get("imageHeight"), int) or location["imageHeight"] <= 0:
+            raise AssertionError(f"{evidence_type} location has invalid imageHeight: {location.get('imageHeight')}")
+        if transform.get("sourceSpace") != "RASTER_IMAGE" or transform.get("targetSpace") != "CAD_MODEL":
+            raise AssertionError(f"{evidence_type} location has invalid raster-to-CAD transform: {transform}")
+        if not self.valid_bounds(source_bounds) or not self.valid_bounds(target_bounds):
+            raise AssertionError(f"{evidence_type} transform bounds are invalid: {transform}")
+
+    @staticmethod
+    def valid_bounds(bounds: dict[str, Any]) -> bool:
+        values = [bounds.get(key) for key in ("minX", "minY", "maxX", "maxY")]
+        return (
+            all(isinstance(value, (int, float)) for value in values)
+            and values[0] <= values[2]
+            and values[1] <= values[3]
+        )
 
     def assert_report(self, report: dict[str, Any]) -> None:
         content = report.get("content") or ""

@@ -1340,8 +1340,30 @@ function formatEvidence(evidence: ReviewEvidence): string {
   const source = evidence.sourceId || evidence.sourceLabel || '-'
   const sourceEvidenceId = sourceEvidenceIdOf(evidence)
   const summary = evidence.summary || evidence.payloadJson || '-'
-  if (sourceEvidenceId) return `${evidenceTypeLabel(evidence.evidenceType)} / ${source} / sourceEvidenceId=${sourceEvidenceId}: ${summary}`
-  return `${evidenceTypeLabel(evidence.evidenceType)} / ${source}: ${summary}`
+  const location = evidenceLocationLabel(evidence)
+  if (sourceEvidenceId) return `${evidenceTypeLabel(evidence.evidenceType)} / ${source} / sourceEvidenceId=${sourceEvidenceId}${location}: ${summary}`
+  return `${evidenceTypeLabel(evidence.evidenceType)} / ${source}${location}: ${summary}`
+}
+
+function evidenceLocationLabel(evidence: ReviewEvidence): string {
+  const location = evidence.location
+  if (!location) return ''
+  if (location.coordinateSpace === 'CAD_MODEL') {
+    const handle = location.cadHandle ? ` / handle=${location.cadHandle}` : ''
+    const bounds = location.bounds
+      ? ` / CAD范围=(${formatCoordinate(location.bounds.minX)}, ${formatCoordinate(location.bounds.minY)})-(${formatCoordinate(location.bounds.maxX)}, ${formatCoordinate(location.bounds.maxY)})`
+      : ''
+    return ` / CAD定位${handle}${bounds}`
+  }
+  if (location.coordinateSpace === 'RASTER_IMAGE' && location.bounds) {
+    const mapped = location.transform ? ' / 可映射CAD' : ''
+    return ` / 像素框=(${formatCoordinate(location.bounds.minX)}, ${formatCoordinate(location.bounds.minY)})-(${formatCoordinate(location.bounds.maxX)}, ${formatCoordinate(location.bounds.maxY)})${mapped}`
+  }
+  return ` / 坐标系=${location.coordinateSpace}`
+}
+
+function formatCoordinate(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2)
 }
 
 function sourceEvidenceIdOf(evidence: ReviewEvidence): string {

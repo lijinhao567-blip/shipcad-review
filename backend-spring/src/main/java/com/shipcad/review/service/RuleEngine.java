@@ -304,7 +304,9 @@ public class RuleEngine {
             String summary = entity == null
                     ? "CAD entity " + entityRef + " was referenced but is not present in current parsed entities."
                     : "CAD entity " + entityRef + " on layer " + value(entity.layerName) + " supports this issue.";
-            return evidence(context, issue, EvidenceType.CAD_ENTITY, entityRef, "cad_worker.ezdxf", summary, payload);
+            ReviewEvidence evidence = evidence(context, issue, EvidenceType.CAD_ENTITY, entityRef, "cad_worker.ezdxf", summary, payload);
+            evidence.location = EvidenceLocations.cadEntity(entity, entityRef);
+            return evidence;
         }
 
         private ReviewEvidence cadLayerEvidence(ReviewContext context, ReviewIssue issue, String layer) {
@@ -314,7 +316,7 @@ public class RuleEngine {
             if (layerCounts != null && layerCounts.containsKey(layer)) {
                 payload.put("entityCountOnLayer", layerCounts.get(layer));
             }
-            return evidence(
+            ReviewEvidence evidence = evidence(
                     context,
                     issue,
                     EvidenceType.CAD_LAYER,
@@ -323,6 +325,8 @@ public class RuleEngine {
                     "CAD layer " + layer + " supports this issue.",
                     payload
             );
+            evidence.location = EvidenceLocations.cadLayer(layer);
+            return evidence;
         }
 
         private ReviewEvidence cadSummaryEvidence(ReviewContext context, ReviewIssue issue) {
@@ -332,7 +336,7 @@ public class RuleEngine {
             payload.put("entityCount", context.summary().entityCount());
             payload.put("parser", context.summary().parser());
             payload.put("ezdxfVersion", context.summary().ezdxfVersion());
-            return evidence(
+            ReviewEvidence evidence = evidence(
                     context,
                     issue,
                     EvidenceType.CAD_SUMMARY,
@@ -341,6 +345,8 @@ public class RuleEngine {
                     "CAD parse summary supports this version-level issue.",
                     payload
             );
+            evidence.location = EvidenceLocations.cadSummary(context.version().id, context.summary());
+            return evidence;
         }
 
         private ReviewEvidence versionEvidenceReference(ReviewContext context, ReviewIssue issue, ReviewEvidence source) {
@@ -363,6 +369,7 @@ public class RuleEngine {
                     payload
             );
             evidence.confidence = source.confidence == null ? 1.0 : source.confidence;
+            evidence.location = source.location;
             return evidence;
         }
 

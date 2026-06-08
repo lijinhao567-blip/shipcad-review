@@ -27,8 +27,8 @@ class DatabaseMigrationTest {
         String url = databaseUrl("empty");
         Flyway flyway = flyway(url, false);
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(4);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(5);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("5");
 
         try (Connection connection = DriverManager.getConnection(url, "sa", "");
              Statement statement = connection.createStatement()) {
@@ -45,6 +45,20 @@ class DatabaseMigrationTest {
                       AND table_name = 'app_user'
                       AND column_name = 'role'
                     """)).isEqualTo("character varying");
+            assertThat(singleString(statement, """
+                    SELECT data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'parsed_entity'
+                      AND column_name = 'cad_handle'
+                    """)).isEqualTo("character varying");
+            assertThat(singleString(statement, """
+                    SELECT data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'review_evidence'
+                      AND column_name = 'location_json'
+                    """)).isEqualTo("character large object");
             assertThat(singleInt(statement, """
                     SELECT COUNT(*)
                     FROM information_schema.table_constraints
@@ -92,7 +106,7 @@ class DatabaseMigrationTest {
             String fileName = script.getFileName().toString();
             String sql = Files.readString(script);
             assertThat(sql)
-                    .contains("INSERT INTO shipcad_schema_version")
+                    .contains("INSERT INTO shipcad_schema_version(version_no, script_name, installed_at)")
                     .contains("VALUES (" + version + ", '" + fileName + "'");
         }
     }
@@ -114,8 +128,8 @@ class DatabaseMigrationTest {
         }
 
         Flyway adopted = flyway(url, true);
-        assertThat(adopted.migrate().migrationsExecuted).isEqualTo(4);
-        assertThat(adopted.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(adopted.migrate().migrationsExecuted).isEqualTo(5);
+        assertThat(adopted.info().current().getVersion().getVersion()).isEqualTo("5");
 
         try (Connection connection = DriverManager.getConnection(url, "sa", "");
              Statement statement = connection.createStatement()) {
@@ -147,6 +161,13 @@ class DatabaseMigrationTest {
                     WHERE table_schema = 'public'
                       AND table_name = 'report_document'
                       AND column_name = 'content_path'
+                    """)).isEqualTo(1);
+            assertThat(singleInt(statement, """
+                    SELECT COUNT(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'review_evidence'
+                      AND column_name = 'location_json'
                     """)).isEqualTo(1);
         }
     }

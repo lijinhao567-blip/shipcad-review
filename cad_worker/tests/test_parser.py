@@ -10,6 +10,8 @@ def test_parse_valid_sample() -> None:
     assert parsed["summary"]["entityCount"] >= 5
     assert "TITLE" in parsed["summary"]["layers"]
     assert parsed["summary"]["typeCounts"]["TEXT"] >= 1
+    assert all(entity["handle"] for entity in parsed["entities"])
+    assert any(entity["geometry"].get("bounds") for entity in parsed["entities"])
 
 
 def test_parse_invalid_sample() -> None:

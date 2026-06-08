@@ -43,6 +43,8 @@ def render_dxf_to_png(path: Path, output_path: Path, width: int = 1600, height: 
         context = RenderContext(doc)
         backend = MatplotlibBackend(ax)
         Frontend(context, backend).draw_layout(modelspace, finalize=True)
+        x_min, x_max = ax.get_xlim()
+        y_min, y_max = ax.get_ylim()
         fig.savefig(output_path, dpi=dpi, facecolor="white", edgecolor="white")
     finally:
         plt.close(fig)
@@ -53,4 +55,10 @@ def render_dxf_to_png(path: Path, output_path: Path, width: int = 1600, height: 
         "width": width,
         "height": height,
         "format": "png",
+        "modelBounds": {
+            "minX": min(float(x_min), float(x_max)),
+            "minY": min(float(y_min), float(y_max)),
+            "maxX": max(float(x_min), float(x_max)),
+            "maxY": max(float(y_min), float(y_max)),
+        },
     }

@@ -54,15 +54,20 @@ def _entity_record(entity: Any, parent_block_name: str = "") -> dict[str, Any]:
     y = None
     if point is not None:
         x, y = float(point[0]), float(point[1])
+    geometry = _entity_geometry(entity, parent_block_name)
+    bounds = _geometry_bounds(geometry)
+    if bounds is not None:
+        geometry["bounds"] = bounds
 
     return {
+        "handle": getattr(entity.dxf, "handle", "") or "",
         "entityType": entity.dxftype(),
         "layer": getattr(entity.dxf, "layer", "0") or "0",
         "text": _entity_text(entity),
         "blockName": _entity_block_name(entity, parent_block_name),
         "x": x,
         "y": y,
-        "geometry": _entity_geometry(entity, parent_block_name),
+        "geometry": geometry,
     }
 
 
@@ -186,6 +191,15 @@ def _bounds(entities: list[dict[str, Any]]) -> dict[str, float] | None:
         points.extend(_geometry_points(geometry))
         if entity["x"] is not None and entity["y"] is not None:
             points.append((entity["x"], entity["y"]))
+    if not points:
+        return None
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return {"minX": min(xs), "minY": min(ys), "maxX": max(xs), "maxY": max(ys)}
+
+
+def _geometry_bounds(geometry: dict[str, Any]) -> dict[str, float] | None:
+    points = _geometry_points(geometry)
     if not points:
         return None
     xs = [point[0] for point in points]

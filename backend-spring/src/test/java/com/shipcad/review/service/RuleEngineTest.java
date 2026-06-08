@@ -1,6 +1,7 @@
 package com.shipcad.review.service;
 
 import com.shipcad.review.domain.DrawingVersion;
+import com.shipcad.review.domain.EvidenceLocation;
 import com.shipcad.review.domain.EvidenceType;
 import com.shipcad.review.domain.KnowledgeClause;
 import com.shipcad.review.domain.ParsedEntity;
@@ -260,6 +261,14 @@ class RuleEngineTest {
                 "ocr_worker.tesseract",
                 "{\"text\":\"TBD bracket detail\",\"confidence\":0.91,\"xyxy\":[10,20,80,34],\"engine\":\"tesseract\"}"
         );
+        ocr.location = EvidenceLocations.rasterBox(
+                ocr.sourceId,
+                List.of(10.0, 20.0, 80.0, 34.0),
+                800,
+                600,
+                "rendered-version-image",
+                Map.of("minX", 0.0, "minY", 0.0, "maxX", 160.0, "maxY", 120.0)
+        );
 
         List<ReviewIssue> issues = new RuleEngine().run(
                 "task_ocr_placeholder",
@@ -282,6 +291,13 @@ class RuleEngineTest {
                         assertThat(evidence.sourceId).isEqualTo("ocr:text#0");
                         assertThat(evidence.payloadJson).contains("\"sourceEvidenceId\":\"evidence_ocr_tbd\"");
                         assertThat(evidence.payloadJson).contains("\"text\":\"TBD bracket detail\"");
+                        assertThat(evidence.location).isEqualTo(ocr.location);
+                        assertThat(evidence.location.transform().targetSpace()).isEqualTo(EvidenceLocation.SPACE_CAD_MODEL);
+                        EvidenceLocation.Bounds mapped = EvidenceLocations.mapRasterBoundsToCad(evidence.location);
+                        assertThat(mapped.minX()).isEqualTo(2.0);
+                        assertThat(mapped.minY()).isEqualTo(113.2);
+                        assertThat(mapped.maxX()).isEqualTo(16.0);
+                        assertThat(mapped.maxY()).isEqualTo(116.0);
                     });
         });
     }
@@ -295,6 +311,14 @@ class RuleEngineTest {
                 "symbol:title_block#0",
                 "vision_worker.yolov8",
                 "{\"className\":\"title_block\",\"confidence\":0.88,\"xyxy\":[100,200,600,380],\"engine\":\"ultralytics-yolov8\"}"
+        );
+        titleBlock.location = EvidenceLocations.rasterBox(
+                titleBlock.sourceId,
+                List.of(100.0, 200.0, 600.0, 380.0),
+                1000,
+                500,
+                "rendered-version-image",
+                Map.of("minX", 0.0, "minY", 0.0, "maxX", 200.0, "maxY", 100.0)
         );
 
         List<ReviewIssue> issues = new RuleEngine().run(
@@ -318,7 +342,12 @@ class RuleEngineTest {
                     .contains(EvidenceType.RULE_RESULT, EvidenceType.YOLO_SYMBOL);
             assertThat(issue.evidences).filteredOn(evidence -> evidence.evidenceType == EvidenceType.YOLO_SYMBOL)
                     .singleElement()
-                    .satisfies(evidence -> assertThat(evidence.payloadJson).contains("\"sourceEvidenceId\":\"evidence_yolo_title\""));
+                    .satisfies(evidence -> {
+                        assertThat(evidence.payloadJson).contains("\"sourceEvidenceId\":\"evidence_yolo_title\"");
+                        assertThat(evidence.location).isEqualTo(titleBlock.location);
+                        assertThat(EvidenceLocations.mapRasterBoundsToCad(evidence.location))
+                                .isEqualTo(new EvidenceLocation.Bounds(20.0, 24.0, 120.0, 60.0));
+                    });
         });
     }
 

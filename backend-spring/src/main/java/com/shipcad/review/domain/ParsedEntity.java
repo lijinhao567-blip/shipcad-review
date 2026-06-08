@@ -12,6 +12,7 @@ public class ParsedEntity {
     public String versionId;
     public String entityType;
     public String layerName;
+    public String cadHandle;
     @Column(length = 2000)
     public String textValue;
     public String blockName;

@@ -194,6 +194,43 @@ export type AiExplanation = {
   evidenceRefs: string[]
 }
 
+export type EvidenceBounds = {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+export type EvidencePoint = {
+  x: number
+  y: number
+}
+
+export type EvidenceTransform = {
+  sourceSpace: string
+  targetSpace: string
+  sourceBounds: EvidenceBounds
+  targetBounds: EvidenceBounds
+  sourceOrigin: string
+  targetOrigin: string
+}
+
+export type EvidenceLocation = {
+  coordinateSpace: string
+  referenceType: string
+  referenceId: string
+  cadHandle: string
+  layerName: string
+  anchor: EvidencePoint | null
+  bounds: EvidenceBounds | null
+  origin: string
+  unit: string
+  imageWidth: number | null
+  imageHeight: number | null
+  imageSource: string
+  transform: EvidenceTransform | null
+}
+
 export type ReviewEvidence = {
   id: string
   issueId: string
@@ -205,6 +242,7 @@ export type ReviewEvidence = {
   sourceLabel: string
   summary: string
   payloadJson: string
+  location: EvidenceLocation | null
   confidence: number
   createdAt: string
 }
@@ -270,6 +308,7 @@ export type ParsedEntity = {
   versionId: string
   entityType: string
   layerName: string
+  cadHandle: string
   textValue: string
   blockName: string
   x: number | null

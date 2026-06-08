@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import json
 import tempfile
 from pathlib import Path
 
@@ -68,8 +70,15 @@ async def render(
         output = folder / "render.png"
         try:
             dxf_path = convert_dwg_to_dxf(path, folder / "converted") if path.suffix.lower() == ".dwg" else path
-            render_dxf_to_png(dxf_path, output, width=width, height=height)
-            return Response(content=output.read_bytes(), media_type="image/png")
+            metadata = render_dxf_to_png(dxf_path, output, width=width, height=height)
+            encoded_metadata = base64.urlsafe_b64encode(
+                json.dumps(metadata, separators=(",", ":")).encode("utf-8")
+            ).decode("ascii")
+            return Response(
+                content=output.read_bytes(),
+                media_type="image/png",
+                headers={"X-ShipCAD-Render-Metadata": encoded_metadata},
+            )
         except DwgAdapterUnavailable as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except DxfRenderUnavailable as exc:

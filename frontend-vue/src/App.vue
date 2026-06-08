@@ -1885,6 +1885,7 @@ onMounted(() => {
               v-if="previewFileUrl && isDxfPreview"
               :file-url="previewFileUrl"
               :issues="previewIssues"
+              :entities="entities"
               :selected-issue-id="selectedIssueId"
               @load-failed="previewFileError = $event"
             />

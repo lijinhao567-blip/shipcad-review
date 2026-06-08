@@ -58,10 +58,10 @@
 
 ## DM8、Redis/Valkey、MinIO
 
-当前状态：H2 本地开发已接入 Flyway 版本化迁移；DM8 已完成 V1/V2 真实实例上的 DIsql 脚本、Hibernate 结构校验和 Golden E2E 兼容性验证，V3 对象存储元数据脚本已在本地 DM8 实例完成 DDL、版本记录、Hibernate `validate` 和健康检查验证；V4 报告对象存储元数据脚本已准备，需在下次 DM8 维护窗口执行。审查任务队列已抽象为 `ReviewTaskQueue`，默认本地模式仍使用进程内队列，Redis 协议模式已实现入队、后台消费、处理队列恢复和健康检查；真实 Redis 协议开发机 E2E 已验证 Redis 队列模式下的 golden 审查闭环，部署骨架使用 Valkey 作为开源 Redis 协议服务，并已提供 `deploy/run-compose-e2e.ps1` 用于容器栈验收。文件存储已抽象为 `ObjectStorageService`，默认本地文件系统，S3 兼容模式可接 MinIO 或其它 S3-compatible 对象存储，并保留 Worker/下载本地缓存；真实 MinIO 开发机 E2E 已验证对象上传、缓存删除后下载恢复、审查解析链路和报告附件下载，Compose 验收脚本可通过 `-WithObjectStorage` 覆盖容器化 MinIO 链路。
+当前状态：H2 本地开发已接入 Flyway 版本化迁移；DM8 已完成 V1/V2 真实实例上的 DIsql 脚本、Hibernate 结构校验和 Golden E2E 兼容性验证，V3 对象存储元数据脚本已在本地 DM8 实例完成 DDL、版本记录、Hibernate `validate` 和健康检查验证；V4 报告对象存储元数据脚本已准备，需在下次 DM8 维护窗口执行。审查任务队列已抽象为 `ReviewTaskQueue`，默认本地模式仍使用进程内队列，Redis 协议模式已实现入队、后台消费、处理队列恢复和健康检查；真实 Redis 协议开发机 E2E 已验证 Redis 队列模式下的 golden 审查闭环，`deploy/run-task-retry-e2e.ps1` 已覆盖坏 DXF 失败、失败任务重试、完成任务拒绝重试和审计记录，部署骨架使用 Valkey 作为开源 Redis 协议服务，并已提供 `deploy/run-compose-e2e.ps1` 用于容器栈验收。文件存储已抽象为 `ObjectStorageService`，默认本地文件系统，S3 兼容模式可接 MinIO 或其它 S3-compatible 对象存储，并保留 Worker/下载本地缓存；真实 MinIO 开发机 E2E 已验证对象上传、缓存删除后下载恢复、审查解析链路和报告附件下载，Compose 验收脚本可通过 `-WithObjectStorage` 覆盖容器化 MinIO 链路。
 
 落地路径：
 
 1. 为 DM8 补充备份恢复、故障演练、性能基线和生产部署规范。
-2. 在具备 Docker 的机器上执行 Valkey 容器 E2E，并补充任务重试和异常恢复演练；当前 Redis 协议开发机 E2E 已覆盖基础入队消费闭环，当前实现适合单后端副本或受控试点，多副本高可用后续应评估 Redis Streams、可靠 ACK 或专用消息队列。
+2. 在具备 Docker 的机器上执行 Valkey 容器 E2E，并补充容器化异常恢复演练；当前 Redis 协议开发机 E2E 已覆盖基础入队消费闭环，失败任务重试已有开发机 E2E，当前实现适合单后端副本或受控试点，多副本高可用后续应评估 Redis Streams、可靠 ACK 或专用消息队列。
 3. 在具备 Docker 的机器上执行 MinIO 容器 E2E，并补充权限配置、bucket 生命周期、备份恢复和大文件性能验收；当前开发机 E2E 已覆盖基础 S3 链路和报告附件对象化。

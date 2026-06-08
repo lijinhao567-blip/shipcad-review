@@ -7,7 +7,7 @@
 - DWG：安装 LibreDWG 后，验证 DWG 转 DXF 的失败和成功路径。
 - Vision Worker：未配置模型时返回明确错误；配置模型后能返回检测框结构。
 - 后端：登录、持久化会话恢复、注销失效、会话过期、密码修改、账号停用、角色变更、管理员用户管理、项目成员增删、跨项目访问拒绝、项目创建、图纸创建、版本上传、异步审查任务、任务阶段/步骤记录、可选自动 Vision/OCR 证据采集、任务失败重试、问题整改、报告生成、版本对比、聚合健康检查。
-- 审查任务队列：默认内存队列必须保持本地测试和 golden E2E 稳定；Redis 协议队列必须验证入队载荷、容量限制、健康检查、处理队列恢复和消费失败路径。`deploy/run-redis-queue-e2e.ps1` 已覆盖真实 Redis 协议开发机 E2E；`deploy/run-compose-e2e.ps1` 用于在具备 Docker 的环境验证 Valkey 容器队列；任务重试和异常恢复演练仍是后续部署验收项。
+- 审查任务队列：默认内存队列必须保持本地测试和 golden E2E 稳定；Redis 协议队列必须验证入队载荷、容量限制、健康检查、处理队列恢复和消费失败路径。`deploy/run-redis-queue-e2e.ps1` 已覆盖真实 Redis 协议开发机 E2E；`deploy/run-task-retry-e2e.ps1` 已覆盖坏 DXF 失败、失败任务重试、完成任务拒绝重试和审计记录；`deploy/run-compose-e2e.ps1` 用于在具备 Docker 的环境验证 Valkey 容器队列；容器化多副本异常恢复演练仍是后续部署验收项。
 - 对象存储：默认本地模式必须验证 key 归一化、路径穿越拒绝、上传/渲染/报告文件可读和 `/api/health` 状态；S3/MinIO 模式必须验证 bucket 连通性、对象上传、缓存下载、权限失败和大文件限制。`deploy/run-object-storage-e2e.ps1` 已覆盖真实 MinIO/S3 开发机 E2E；`deploy/run-compose-e2e.ps1 -WithObjectStorage` 用于在具备 Docker 的环境验证容器化 MinIO/S3 链路；权限配置、生命周期策略、备份恢复和大文件性能仍是后续部署验收项。
 - 前端：构建通过，API 调用路径可配置，系统状态页能展示后端、数据库、OpenAPI 和 Worker 状态；审图流程状态应能反映系统、登录、项目图纸、版本、审查、问题和报告进度；项目、图纸、版本列表切换当前上下文后，应同步影响上传、预览、审查和报告选择；审查任务详情能展示步骤时间线和失败细节；dxf-viewer 能加载上传 DXF 并显示图层；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
 - Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字和实体数量异常。
@@ -21,7 +21,7 @@
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
 - 数据库迁移：空 H2 数据库应从零执行全部 Flyway 脚本；非空历史 H2 数据库应基线到版本 `0` 后完成加固迁移；迁移完成后 JPA 结构校验必须通过。H2 与 DM8 迁移脚本版本号必须保持同步，且每个 DM8 脚本必须写入 `shipcad_schema_version`。DM8 脚本必须在独立测试实例验证版本记录、后端启动、核心 CRUD 和 E2E 后才能标记为生产认证。
 - DM8 兼容性基线：2026 年 6 月 7 日在 DM8 Pack8 `03134284404-20250930-295335-20164` 完成 V1/V2、Hibernate `validate`、健康检查和 Golden E2E 11/11；2026 年 6 月 8 日完成 V3 对象存储元数据 DIsql 执行、版本记录、新增列、Hibernate `validate` 和健康检查。DM8 Golden E2E 本次未重跑，因为现有 prod 库账号不是自动化测试账号；对象存储改造后的 Golden E2E 已在 H2/local object storage 链路和 H2/MinIO S3 链路通过 11/11。生产压测、备份恢复与高可用仍是独立验收项。
-- 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、审查任务队列、对象存储、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、审查任务队列、对象存储、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环，`deploy/run-demo-walkthrough.ps1` 应能生成单样例演示摘要，`deploy/run-redis-queue-e2e.ps1` 和 `deploy/run-object-storage-e2e.ps1` 应能分别验证真实 Redis 协议队列与真实 MinIO/S3 对象存储链路，`deploy/run-compose-e2e.ps1` 应能验证 Docker Compose 容器栈。
+- 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、审查任务队列、对象存储、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、审查任务队列、对象存储、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环，`deploy/run-demo-walkthrough.ps1` 应能生成单样例演示摘要，`deploy/run-task-retry-e2e.ps1` 应能验证失败任务重试边界，`deploy/run-redis-queue-e2e.ps1` 和 `deploy/run-object-storage-e2e.ps1` 应能分别验证真实 Redis 协议队列与真实 MinIO/S3 对象存储链路，`deploy/run-compose-e2e.ps1` 应能验证 Docker Compose 容器栈。
 
 ## Evidence Regression Checks
 
@@ -35,6 +35,7 @@
 - Automatic review-task detections should carry `taskId`; RuleEngine should consume manual version-level evidence plus current-task automatic evidence, not stale automatic evidence from earlier tasks.
 - Review tasks should expose `review_task.stage` and ordered `review_task_step` rows. Default rule-only tasks should mark PARSE and RULES as `SUCCESS`, and RENDER/VISION/OCR as `SKIPPED`; automatic multimodal tasks should mark RENDER/VISION/OCR as `SUCCESS` or `FAILED` instead of silently skipping them.
 - Review task retry must be enforced by the backend service layer. `POST /api/review-tasks/{taskId}/retry` should accept only `FAILED` tasks, create a new queued task with the original review options, and write a `REVIEW_RETRY` audit event.
+- `deploy/run-task-retry-e2e.ps1` runs the live API chain for this boundary: corrupt DXF upload, parse failure, retry creation, retry audit lookup, valid DXF completion, and finished-task retry rejection.
 - Review task queue implementations should expose health details through `/api/health`; the default in-memory mode should report executor activity and queued count, and Redis mode should report queue key, processing key, worker status, Redis ping, queued count, and processing count.
 - `deploy/run-redis-queue-e2e.ps1` starts a real Redis-compatible server, seeds a stale processing payload to verify startup recovery, boots an isolated backend in Redis queue mode, checks `/api/health` for `queue.mode=redis` and `queue.status=ok`, then runs `tools/run_golden_e2e.py --keep-going` so review tasks must be enqueued, consumed and completed through the Redis protocol queue.
 - Object storage implementations should expose health details through `/api/health`; local mode should report root path writability, and S3 mode should report endpoint, bucket, cache root and bucket connectivity. Version file download should prefer `DrawingVersion.fileObjectKey` and fall back to legacy `filePath`; report download should prefer `ReportDocument.contentObjectKey` and fall back to database content only for legacy reports without an object key.

@@ -61,6 +61,9 @@
 # 跑真实 Redis 协议队列验收，会临时启动便携 Redis 和独立后端
 .\deploy\run-redis-queue-e2e.ps1
 
+# 验证坏DXF失败、失败任务重试、完成任务拒绝重试和审计日志
+.\deploy\run-task-retry-e2e.ps1
+
 # 跑 Docker Compose 容器栈验收，会构建后端、前端、CAD Worker 并使用 Valkey 队列
 .\deploy\run-compose-e2e.ps1
 
@@ -182,6 +185,12 @@ Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 
 # 如果 .tools\redis-windows 不存在，可下载到项目 .tools 目录
 .\deploy\run-redis-queue-e2e.ps1 -DownloadRedis
+```
+
+审查任务失败重试验收需要后端和 CAD Worker 已启动。脚本会上传一个故意损坏的 `.dxf`，验证任务进入 `FAILED`、`PARSE` 步骤失败、失败任务可重试且写入 `REVIEW_RETRY` 审计；随后上传一个正常 DXF，验证已完成任务不能被重试：
+
+```powershell
+.\deploy\run-task-retry-e2e.ps1
 ```
 
 Docker Compose 容器栈验收会使用 `deploy/docker-compose.yml` 构建后端、前端和 CAD Worker，并用 Valkey 容器验证 Redis 协议任务队列。脚本会生成临时 override，把容器数据挂载到 `.run/compose-e2e/`，避免污染项目根目录 `data/`：

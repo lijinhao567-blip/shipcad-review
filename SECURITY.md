@@ -42,6 +42,18 @@ Do not attach proprietary CAD drawings, credentials, production logs, database
 files, access tokens, or trained model files to public issues. Replace customer
 identifiers and drawing content with a minimal synthetic reproduction.
 
+## Local Checks
+
+Before publishing or importing history, run:
+
+```powershell
+.\.venv\Scripts\python.exe tools\run_secret_scan.py
+.\.venv\Scripts\python.exe tools\check_action_pins.py
+```
+
+If a real secret is detected, rotate it first. Removing the text from a later
+commit is not enough while the secret remains reachable in Git history.
+
 ## Disclosure
 
 Please allow maintainers a reasonable remediation window before public

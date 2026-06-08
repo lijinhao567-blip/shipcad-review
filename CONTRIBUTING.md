@@ -9,6 +9,7 @@ Thanks for helping improve ShipCAD Review.
 3. Add tests or sample files when changing parser or rule behavior.
 4. Update `THIRD_PARTY_LICENSES.md` when adding dependencies.
 5. Pin direct Python Worker dependencies with `==` and run `python tools/check_python_requirements.py`.
+6. Pin external GitHub Actions to full commit SHAs and run `python tools/check_action_pins.py`.
 
 ## Commit Scope
 
@@ -30,3 +31,8 @@ Dependency changes should be small and reviewable. Do not auto-merge dependency
 updates until Worker tests, backend tests, frontend build, and relevant E2E
 checks pass. GitHub SBOM artifacts are generated for traceability after the
 repository is published.
+
+Run `python tools/run_secret_scan.py` before publishing, after importing large
+history, or after handling credentials. The project uses the open-source
+Gitleaks CLI directly instead of `gitleaks-action` so organization repositories
+do not depend on an additional action license.

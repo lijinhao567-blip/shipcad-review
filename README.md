@@ -152,13 +152,15 @@ $env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
 ```powershell
 .\.venv\Scripts\python.exe -m pytest cad_worker\tests ocr_worker\tests vision_worker\tests -q
 .\.venv\Scripts\python.exe tools\check_python_requirements.py
+.\.venv\Scripts\python.exe tools\check_action_pins.py
+.\.venv\Scripts\python.exe tools\run_secret_scan.py
 $env:JAVA_HOME=(Resolve-Path .tools\jdk-17).Path
 .\.tools\maven\bin\mvn.cmd -f backend-spring\pom.xml test
 cd frontend-vue
 npm run build
 ```
 
-同一组基础门禁会由 `.github/workflows/ci.yml` 在 push 和 pull request 时自动执行；CI 还会启动真实 CAD Worker 与后端，运行 golden dataset 和审查任务失败重试 E2E。`.github/workflows/sbom.yml` 会按后端、前端和三个 Worker 生成 SPDX JSON 组件 SBOM 工件。Docker Compose、MinIO、Redis/Valkey、DM8 与真实 YOLO 权重仍按独立环境验收。
+同一组基础门禁会由 `.github/workflows/ci.yml` 在 push 和 pull request 时自动执行；CI 还会启动真实 CAD Worker 与后端，运行 golden dataset 和审查任务失败重试 E2E。`.github/workflows/secret-scan.yml` 会用校验过的 Gitleaks CLI 扫描完整 Git 历史，`.github/workflows/sbom.yml` 会按后端、前端和三个 Worker 生成 SPDX JSON 组件 SBOM 工件。Docker Compose、MinIO、Redis/Valkey、DM8 与真实 YOLO 权重仍按独立环境验收。
 
 Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 

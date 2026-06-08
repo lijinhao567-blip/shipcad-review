@@ -60,6 +60,10 @@
 - Python 门禁统一收集 CAD、OCR 和 Vision Worker 测试；Vision 的基础测试不依赖模型权重，重点验证未配置模型和无效权重路径能够明确失败。
 - Live API E2E 在 GitHub 托管的 Linux 环境中启动真实 CAD Worker 和后端，执行 golden dataset 与审查任务失败重试验收。
 - Live API E2E 无论成功或失败都保留服务日志和任务重试诊断文件 14 天，便于定位异步任务、解析或启动问题。
+- `.github/workflows/dependency-review.yml` 在 pull request 中检查新增依赖，发现中危及以上漏洞时阻止通过；许可证结论仍需结合 `THIRD_PARTY_LICENSES.md` 人工复核。
+- `.github/workflows/codeql.yml` 对 Java、JavaScript/TypeScript 和 Python 执行 CodeQL `security-extended` 查询，并每周执行一次计划扫描。
+- `.github/dependabot.yml` 每周检查 GitHub Actions、Maven、npm、pip 和容器基础镜像更新；补丁与小版本按生态分组，大版本保持独立评估，禁止不经测试自动合并。
+- 上述 GitHub 安全能力只有在仓库发布到 GitHub 且启用 Actions、Dependency Graph 和 Code Security 后才会执行；本地存在配置文件不等于扫描已经通过。
 - Docker Compose、MinIO、Redis/Valkey、DM8 和真实 YOLO 模型精度测试仍属于独立环境验收，不由基础 CI 伪造覆盖。
 
 ## 验收目标

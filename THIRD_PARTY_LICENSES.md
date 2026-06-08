@@ -29,6 +29,15 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 | redis-windows-fork | Development-only Windows Redis-compatible server used by `deploy/run-redis-queue-e2e.ps1` | MIT |
 | MinIO | Optional S3-compatible object storage service for self-hosted deployments | AGPL-3.0 or commercial license |
 
+## Development And CI Services
+
+| Component | Purpose | License Notes |
+|---|---|---|
+| GitHub Dependabot | Hosted dependency update service used after repository publication | GitHub service; not part of the distributed runtime |
+| GitHub Dependency Review Action | Pull-request dependency vulnerability review | MIT; uses GitHub dependency graph services |
+| GitHub CodeQL Action | Static security analysis workflow | MIT |
+| GitHub CodeQL CLI and query packs | Analysis engine used by the CodeQL workflow | GitHub CodeQL Terms and Conditions; CI-only, not distributed with the product |
+
 ## CAD And AI
 
 | Component | Purpose | License Notes |

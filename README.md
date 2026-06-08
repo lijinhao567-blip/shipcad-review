@@ -61,6 +61,9 @@
 # 跑真实 Redis 协议队列验收，会临时启动便携 Redis 和独立后端
 .\deploy\run-redis-queue-e2e.ps1
 
+# 跑 Docker Compose 容器栈验收，会构建后端、前端、CAD Worker 并使用 Valkey 队列
+.\deploy\run-compose-e2e.ps1
+
 # 停止由 start-dev.ps1 启动的开发服务
 .\deploy\stop-dev.ps1
 ```
@@ -179,6 +182,15 @@ Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 
 # 如果 .tools\redis-windows 不存在，可下载到项目 .tools 目录
 .\deploy\run-redis-queue-e2e.ps1 -DownloadRedis
+```
+
+Docker Compose 容器栈验收会使用 `deploy/docker-compose.yml` 构建后端、前端和 CAD Worker，并用 Valkey 容器验证 Redis 协议任务队列。脚本会生成临时 override，把容器数据挂载到 `.run/compose-e2e/`，避免污染项目根目录 `data/`：
+
+```powershell
+.\deploy\run-compose-e2e.ps1
+
+# 同时启用 MinIO，并验证 S3 对象存储模式下的缓存恢复
+.\deploy\run-compose-e2e.ps1 -WithObjectStorage
 ```
 
 Multimodal evidence E2E needs the backend and CAD Worker running. By default it starts deterministic mock Vision/OCR workers on `127.0.0.1:9100` and `127.0.0.1:9200`, so it can validate review-task orchestration for CAD rendering, YOLO evidence, OCR evidence, rule consumption, and report output without real YOLO weights or Tesseract:

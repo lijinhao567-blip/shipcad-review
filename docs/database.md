@@ -14,13 +14,13 @@
 - `project_member`：项目与用户的成员关系，`project_id + user_id` 唯一，并记录加入时间和添加人。
 - `drawing`：图纸主数据。
 - `drawing_version`：图纸版本、文件哈希、对象存储模式、对象 key、本地缓存路径、解析状态、解析摘要。
-- `parsed_entity`：DXF 图元摘要。
+- `parsed_entity`：DXF 图元摘要，包括版本内原生 CAD handle、锚点和结构化几何。
 - `review_rule`：审查规则；`knowledge_clause_code` 用于绑定规则依据条款。
 - `knowledge_clause`：规则依据、规范条款或内部审查知识条目。
 - `review_task`：审查任务，包含 PENDING、RUNNING、FINISHED、FAILED 状态、当前阶段 `stage`、失败原因和可选自动 Vision/OCR 证据采集配置。
 - `review_task_step`：审查任务步骤记录，按 PARSE、RENDER、VISION、OCR、RULES 记录每一步的状态、开始/结束时间、说明和结构化详情。
 - `review_issue`：规则命中问题。
-- `review_evidence`：审查证据，保存 CAD 图元、CAD 图层、解析摘要、规则结果、知识条款以及后续 YOLO/OCR 证据。
+- `review_evidence`：审查证据，保存 CAD 图元、CAD 图层、解析摘要、规则结果、知识条款以及 YOLO/OCR 证据；`location_json` 保存统一坐标契约。
 - `remediation_record`：整改记录。
 - `audit_log`：审计日志。
 - `report_document`：审查报告，保存 Markdown 内容副本、对象存储模式、对象 key、本地缓存路径和内容大小。
@@ -62,6 +62,8 @@
 
 `YOLO_SYMBOL` 已作为视觉证据接入，`OCR_TEXT` 已作为文字证据接入。手动生成的版本级证据 `task_id` 为空，可被后续审查任务复用；审查任务自动采集的证据会写入当前 `review_task.id`，规则引擎只消费手动版本级证据和当前任务自动证据，避免重复审查时历史自动证据造成重复问题。后续 Vision Worker、OCR Worker 和知识图谱模块接入时，应继续写入同一张证据表；已生成问题的证据由 `review_issue.evidences` 返回，版本级证据由版本 evidence 接口返回。规则消费 evidence 时，会生成新的 issue-level evidence 引用，并在 `payloadJson.sourceEvidenceId` 中指向原始证据。
 
+V5 为 `parsed_entity` 增加 `cad_handle`，并为 `review_evidence` 增加 `location_json`。该 JSON 由 `EvidenceLocation` 转换器读写，可表达 CAD 模型定位、YOLO/OCR 像素框和栅格到 CAD 的转换元数据。将坐标契约放在独立列中，可以继续保留各证据来源的原始 `payload_json`，同时避免前端依赖不同 Worker 的私有字段。
+
 ## 任务步骤表设计
 
 `review_task_step` 是审查任务的可观测过程记录，不参与规则结论本身。当前固定步骤如下：
@@ -83,6 +85,6 @@
 - DM8 脚本由 DIsql 按版本号顺序执行，并写入 `shipcad_schema_version`。已记录的脚本不得重复执行。
 - JPA 在迁移后执行结构校验，表或列缺失时后端启动失败，不允许运行时静默补表。
 
-V2 结构加固了用户名、会话 Token、项目成员、知识条款代码和规则代码的唯一性，并为主要资源链增加关联索引与外键。`remediation_record.report_id` 保留为历史引用而未建立外键，因为报告可能被重新生成或移除，整改时间线仍需保留原始引用值。V3 为 `drawing_version` 增加 `storage_mode` 和 `file_object_key`，用于在本地文件系统与 S3 兼容对象存储之间切换，同时保留 `file_path` 作为 Worker 可读取的本地路径或缓存路径。V4 为 `report_document` 增加 `storage_mode`、`content_object_key`、`content_path` 和 `content_size_bytes`，让报告 Markdown 附件也进入对象存储边界。
+V2 结构加固了用户名、会话 Token、项目成员、知识条款代码和规则代码的唯一性，并为主要资源链增加关联索引与外键。`remediation_record.report_id` 保留为历史引用而未建立外键，因为报告可能被重新生成或移除，整改时间线仍需保留原始引用值。V3 为 `drawing_version` 增加 `storage_mode` 和 `file_object_key`，用于在本地文件系统与 S3 兼容对象存储之间切换，同时保留 `file_path` 作为 Worker 可读取的本地路径或缓存路径。V4 为 `report_document` 增加 `storage_mode`、`content_object_key`、`content_path` 和 `content_size_bytes`，让报告 Markdown 附件也进入对象存储边界。V5 增加 CAD handle 与统一证据坐标契约。
 
-自动化测试覆盖空 H2 建库、非空历史 H2 接管，以及 H2/DM8 迁移脚本版本同步和 DM8 `shipcad_schema_version` 写入检查。2026 年 6 月 7 日已在 DM8 Pack8 `03134284404-20250930-295335-20164` 独立实例完成 V1/V2 脚本执行、17 张表与 19 个外键核验、Hibernate `validate`、健康检查和 Golden E2E 11/11 验证。2026 年 6 月 8 日已在同一本地 DM8 实例执行 V3 对象存储元数据脚本，并通过当前后端 Hibernate `validate` 和 `/api/health` 校验；V4 已通过 H2/Flyway 迁移测试和 H2/DM8 脚本同步测试，DM8 脚本仍需在下次具备业务库凭据的维护窗口执行。由于该 prod 库现有账号不是自动化测试账号，DM8 Golden E2E 本次未重跑。对象存储改造后的 Golden E2E 已分别在 H2/local object storage 链路和 H2/MinIO S3 链路通过 11/11。该结果证明当前版本具备 DM8 功能兼容性和基础 S3 链路可用性，不代表生产压测、备份恢复、高可用或灾难恢复已经完成。
+自动化测试覆盖空 H2 建库、非空历史 H2 接管，以及 H2/DM8 迁移脚本版本同步和 DM8 `shipcad_schema_version` 写入检查。2026 年 6 月 7 日已在 DM8 Pack8 `03134284404-20250930-295335-20164` 独立实例完成 V1/V2 脚本执行、17 张表与 19 个外键核验、Hibernate `validate`、健康检查和 Golden E2E 11/11 验证。2026 年 6 月 8 日在同一本地隔离实例继续完成 V3、V4、V5 DIsql 脚本、版本记录与新增列核验；当前后端以 `prod` Profile 通过 Hibernate `validate`，`/api/health` 中数据库、队列和本地对象存储均为 `ok`，并连接真实 CAD Worker 再次通过 DM8 Golden E2E 11/11。对象存储链路另已在 H2/local 和 H2/MinIO S3 模式通过 11/11。该结果证明当前版本具备 DM8 功能兼容性和基础 S3 链路可用性，不代表生产压测、备份恢复、高可用或灾难恢复已经完成。

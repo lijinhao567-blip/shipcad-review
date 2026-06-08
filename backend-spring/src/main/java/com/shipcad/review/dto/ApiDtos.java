@@ -109,7 +109,7 @@ public final class ApiDtos {
     public record WorkerParseResponse(List<WorkerEntity> entities, WorkerSummary summary) {
     }
 
-    public record WorkerEntity(String entityType, String layer, String text, String blockName, Double x, Double y, Map<String, Object> geometry) {
+    public record WorkerEntity(String handle, String entityType, String layer, String text, String blockName, Double x, Double y, Map<String, Object> geometry) {
     }
 
     public record VisionDetectionResponse(List<VisionDetection> detections, Integer imageWidth, Integer imageHeight, String engine) {
@@ -124,7 +124,7 @@ public final class ApiDtos {
     public record OcrRegion(String text, Double confidence, List<Double> xyxy, String language) {
     }
 
-    public record EntityView(String id, String versionId, String entityType, String layerName, String textValue, String blockName, Double x, Double y, Map<String, Object> geometry) {
+    public record EntityView(String id, String versionId, String entityType, String layerName, String cadHandle, String textValue, String blockName, Double x, Double y, Map<String, Object> geometry) {
     }
 
     public record VersionCompareSide(

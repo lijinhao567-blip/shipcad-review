@@ -11,5 +11,7 @@ def test_render_valid_sample_to_png(tmp_path: Path) -> None:
     assert metadata["renderer"] == "ezdxf-matplotlib"
     assert metadata["width"] == 800
     assert metadata["height"] == 600
+    assert metadata["modelBounds"]["minX"] < metadata["modelBounds"]["maxX"]
+    assert metadata["modelBounds"]["minY"] < metadata["modelBounds"]["maxY"]
     assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert output.stat().st_size > 1000

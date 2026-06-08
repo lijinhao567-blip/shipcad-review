@@ -20,7 +20,7 @@
 - 安全：数据库持久化且仅存摘要的 Token 会话、过期与主动撤销、禁用账号拒绝登录、密码策略、四角色操作级权限矩阵、项目级数据隔离、图纸文件及下游资源范围校验、403 越权拒绝、越权与登录失败审计、文件类型限制、20MB 限制、审计日志分页查询。
 - 开源合规：依赖许可证记录、模型权重不入库、真实图纸不入库。
 - 数据库迁移：空 H2 数据库应从零执行全部 Flyway 脚本；非空历史 H2 数据库应基线到版本 `0` 后完成加固迁移；迁移完成后 JPA 结构校验必须通过。H2 与 DM8 迁移脚本版本号必须保持同步，且每个 DM8 脚本必须写入 `shipcad_schema_version`。DM8 脚本必须在独立测试实例验证版本记录、后端启动、核心 CRUD 和 E2E 后才能标记为生产认证。
-- DM8 兼容性基线：2026 年 6 月 7 日在 DM8 Pack8 `03134284404-20250930-295335-20164` 完成 V1/V2、Hibernate `validate`、健康检查和 Golden E2E 11/11；2026 年 6 月 8 日完成 V3 对象存储元数据 DIsql 执行、版本记录、新增列、Hibernate `validate` 和健康检查。DM8 Golden E2E 本次未重跑，因为现有 prod 库账号不是自动化测试账号；对象存储改造后的 Golden E2E 已在 H2/local object storage 链路和 H2/MinIO S3 链路通过 11/11。生产压测、备份恢复与高可用仍是独立验收项。
+- DM8 兼容性基线：2026 年 6 月 7 日在 DM8 Pack8 `03134284404-20250930-295335-20164` 完成 V1/V2、Hibernate `validate`、健康检查和 Golden E2E 11/11；2026 年 6 月 8 日在同一本地隔离实例完成 V3/V4/V5 DIsql 执行、版本记录、新增列、当前后端 `prod` Profile Hibernate `validate`、数据库/队列/本地对象存储健康检查，并连接真实 CAD Worker 再次通过 DM8 Golden E2E 11/11。对象存储改造另已在 H2/local 和 H2/MinIO S3 链路通过 11/11。生产压测、备份恢复与高可用仍是独立验收项。
 - 运行可观测性：`deploy/start-dev.ps1` 应能启动核心开发链路，`/api/health` 和前端“系统状态”应能展示后端、数据库、审查任务队列、对象存储、OpenAPI、CAD Worker 以及可选 Vision/OCR Worker 状态，`deploy/test-health.ps1` 应能检查后端、数据库、审查任务队列、对象存储、OpenAPI、CAD Worker、前端和可选 Vision/OCR Worker，`deploy/run-demo.ps1` 应能执行演示验收闭环，`deploy/run-demo-walkthrough.ps1` 应能生成单样例演示摘要，`deploy/run-task-retry-e2e.ps1` 应能验证失败任务重试边界，`deploy/run-redis-queue-e2e.ps1` 和 `deploy/run-object-storage-e2e.ps1` 应能分别验证真实 Redis 协议队列与真实 MinIO/S3 对象存储链路，`deploy/run-compose-e2e.ps1` 应能验证 Docker Compose 容器栈。
 
 ## Evidence Regression Checks
@@ -45,8 +45,13 @@
 - Frontend workflow UI should not create fake demo state. It may guide tab navigation and local selection, but all status values must come from authenticated API state, health checks, current selections, review tasks, issues, or generated reports.
 - `OCR_PLACEHOLDER_TEXT` should generate an issue-level `OCR_TEXT` evidence reference with `sourceEvidenceId` when OCR text contains unfinished placeholders.
 - `YOLO_TITLE_BLOCK_CAD_MISSING` should generate an issue-level `YOLO_SYMBOL` evidence reference with `sourceEvidenceId` when visual title-block evidence conflicts with CAD structured parsing.
+- CAD entity evidence should persist the version-scoped CAD handle, anchor, and geometry bounds in `ReviewEvidence.location`.
+- Rendered-version YOLO/OCR evidence should persist its top-left pixel bounds, image dimensions, render source, and raster-to-CAD transform. Issue-level evidence references must preserve the source location unchanged.
+- Manually uploaded image evidence should retain raster bounds but must not claim a CAD transform without an explicit registration step.
+- CAD Worker `/render` should return exact PNG viewport metadata in `X-ShipCAD-Render-Metadata`. Missing, invalid, or cached metadata without valid `modelBounds` must fail visibly instead of silently producing unmappable visual evidence.
+- Browser `VIEWPORT` coordinates are derived from the current preview camera and are not persisted as authoritative evidence.
 - `tools/run_golden_e2e.py` verifies these evidence checks for the golden DXF dataset.
-- `tools/run_multimodal_evidence_e2e.py` verifies the live API chain for review-task automatic rendering, task-scoped `YOLO_SYMBOL` and `OCR_TEXT` evidence, rule consumption, issue-level `sourceEvidenceId` references, AI explanations, and report output. Its default mock workers are deterministic integration substitutes; they do not validate real model accuracy.
+- `tools/run_multimodal_evidence_e2e.py` verifies the live API chain for review-task automatic rendering, task-scoped `YOLO_SYMBOL` and `OCR_TEXT` evidence, raster-to-CAD location transforms, issue-level location preservation, rule consumption, `sourceEvidenceId` references, AI explanations, and report output. Its default mock workers are deterministic integration substitutes; they do not validate real model accuracy.
 - `tools/run_demo_walkthrough.py` verifies one live rule-only review path, then uploads a second version and writes a human-readable Markdown summary for presentation and handoff checks.
 - `tools/run_demo_walkthrough.py` also uploads a second DXF version, reviews it, calls `GET /api/versions/compare`, and records the version comparison summary in the walkthrough artifact.
 - `tools/run_access_control_e2e.py` verifies role restoration through `/api/auth/me`, viewer read-only access, design engineer authoring boundaries, review expert separation, project membership grant/removal, cross-project HTTP 403 responses, administrator audit visibility, managed-user creation, own-password change, account disabling, logout, and immediate session invalidation.

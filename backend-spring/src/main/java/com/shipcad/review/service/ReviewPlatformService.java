@@ -226,6 +226,7 @@ public class ReviewPlatformService implements ReviewTaskRunner {
             entity.versionId = versionId;
             entity.entityType = workerEntity.entityType();
             entity.layerName = workerEntity.layer();
+            entity.cadHandle = workerEntity.handle();
             entity.textValue = workerEntity.text();
             entity.blockName = workerEntity.blockName();
             entity.x = workerEntity.x();
@@ -242,24 +243,38 @@ public class ReviewPlatformService implements ReviewTaskRunner {
 
     @Transactional
     public Path renderVersionImage(String versionId, boolean force, AppUser actor) throws IOException {
+        return renderVersion(versionId, force, actor).path();
+    }
+
+    private RenderedVersionImage renderVersion(String versionId, boolean force, AppUser actor) throws IOException {
         DrawingVersion version = projectAccess.requireVersion(actor, versionId);
         String objectKey = renderedImageKey(versionId);
-        if (!force && objectStorage.exists(objectKey)) {
-            return objectStorage.resolveLocalPath(objectKey);
+        String metadataKey = renderedImageMetadataKey(versionId);
+        if (!force && objectStorage.exists(objectKey) && objectStorage.exists(metadataKey)) {
+            return new RenderedVersionImage(objectStorage.resolveLocalPath(objectKey), readRenderModelBounds(metadataKey));
         }
-        byte[] png = worker.render(localFileForVersion(version), DEFAULT_RENDER_WIDTH, DEFAULT_RENDER_HEIGHT);
+        CadWorkerClient.RenderedImage rendered = worker.render(localFileForVersion(version), DEFAULT_RENDER_WIDTH, DEFAULT_RENDER_HEIGHT);
+        byte[] png = rendered == null ? null : rendered.content();
         if (png == null || png.length == 0) {
             throw new IllegalStateException("CAD Worker returned an empty rendered image");
         }
+        Map<String, Object> metadata = rendered.metadata() == null ? Map.of() : rendered.metadata();
+        Map<String, Double> modelBounds = renderModelBounds(metadata);
+        if (modelBounds.isEmpty()) {
+            throw new IllegalStateException("CAD Worker render metadata is missing valid modelBounds");
+        }
         StoredObject stored = objectStorage.storeBytes(objectKey, png, "image/png");
+        objectStorage.storeBytes(metadataKey, toJson(metadata).getBytes(StandardCharsets.UTF_8), "application/json");
         audit.record(actor.username, "VERSION_RENDER", "version", versionId, Map.of(
                 "imagePath", stored.localPath().toString(),
                 "storageMode", stored.storageMode(),
                 "objectKey", stored.key(),
+                "metadataKey", metadataKey,
+                "modelBounds", modelBounds,
                 "width", DEFAULT_RENDER_WIDTH,
                 "height", DEFAULT_RENDER_HEIGHT
         ));
-        return stored.localPath();
+        return new RenderedVersionImage(stored.localPath(), modelBounds);
     }
 
     @Transactional
@@ -267,23 +282,32 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         projectAccess.requireVersion(actor, versionId);
         validateVisionConfidence(confidence);
         Path image = storeVisionImage(versionId, file);
-        return runVisionDetectionOnImage(versionId, null, image, confidence, actor, "VISION_DETECT", "uploaded-image");
+        return runVisionDetectionOnImage(versionId, null, image, confidence, actor, "VISION_DETECT", "uploaded-image", Map.of());
     }
 
     @Transactional
     public List<ReviewEvidence> runVisionDetectionFromRenderedImage(String versionId, double confidence, boolean forceRender, AppUser actor) throws IOException {
         projectAccess.requireVersion(actor, versionId);
         validateVisionConfidence(confidence);
-        Path image = renderVersionImage(versionId, forceRender, actor);
-        return runVisionDetectionOnImage(versionId, null, image, confidence, actor, "VISION_DETECT_RENDERED", "rendered-version-image");
+        RenderedVersionImage rendered = renderVersion(versionId, forceRender, actor);
+        return runVisionDetectionOnImage(versionId, null, rendered.path(), confidence, actor, "VISION_DETECT_RENDERED", "rendered-version-image", rendered.modelBounds());
     }
 
-    private List<ReviewEvidence> runVisionDetectionOnImage(String versionId, String taskId, Path image, double confidence, AppUser actor, String auditAction, String inputSource) {
+    private List<ReviewEvidence> runVisionDetectionOnImage(
+            String versionId,
+            String taskId,
+            Path image,
+            double confidence,
+            AppUser actor,
+            String auditAction,
+            String inputSource,
+            Map<String, Double> modelBounds
+    ) {
         VisionDetectionResponse response = visionWorker.detect(image, confidence);
         List<VisionDetection> detections = response == null || response.detections() == null ? List.of() : response.detections();
         List<ReviewEvidence> generated = new ArrayList<>();
         for (int index = 0; index < detections.size(); index += 1) {
-            generated.add(visionEvidence(versionId, taskId, image, response, detections.get(index), index, inputSource));
+            generated.add(visionEvidence(versionId, taskId, image, response, detections.get(index), index, inputSource, modelBounds));
         }
         evidences.saveAll(generated);
 
@@ -292,6 +316,7 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         detail.put("taskId", taskId == null ? "" : taskId);
         detail.put("imagePath", image.toString());
         detail.put("inputSource", inputSource);
+        detail.put("modelBounds", modelBounds);
         detail.put("confidenceThreshold", confidence);
         detail.put("detectionCount", generated.size());
         detail.put("engine", response == null ? "" : response.engine());
@@ -304,23 +329,32 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         projectAccess.requireVersion(actor, versionId);
         validateOcrConfidence(confidence);
         Path image = storeOcrImage(versionId, file);
-        return runOcrRecognitionOnImage(versionId, null, image, confidence, actor, "OCR_RECOGNIZE", "uploaded-image");
+        return runOcrRecognitionOnImage(versionId, null, image, confidence, actor, "OCR_RECOGNIZE", "uploaded-image", Map.of());
     }
 
     @Transactional
     public List<ReviewEvidence> runOcrRecognitionFromRenderedImage(String versionId, double confidence, boolean forceRender, AppUser actor) throws IOException {
         projectAccess.requireVersion(actor, versionId);
         validateOcrConfidence(confidence);
-        Path image = renderVersionImage(versionId, forceRender, actor);
-        return runOcrRecognitionOnImage(versionId, null, image, confidence, actor, "OCR_RECOGNIZE_RENDERED", "rendered-version-image");
+        RenderedVersionImage rendered = renderVersion(versionId, forceRender, actor);
+        return runOcrRecognitionOnImage(versionId, null, rendered.path(), confidence, actor, "OCR_RECOGNIZE_RENDERED", "rendered-version-image", rendered.modelBounds());
     }
 
-    private List<ReviewEvidence> runOcrRecognitionOnImage(String versionId, String taskId, Path image, double confidence, AppUser actor, String auditAction, String inputSource) {
+    private List<ReviewEvidence> runOcrRecognitionOnImage(
+            String versionId,
+            String taskId,
+            Path image,
+            double confidence,
+            AppUser actor,
+            String auditAction,
+            String inputSource,
+            Map<String, Double> modelBounds
+    ) {
         OcrResponse response = ocrWorker.recognize(image, confidence);
         List<OcrRegion> regions = response == null || response.regions() == null ? List.of() : response.regions();
         List<ReviewEvidence> generated = new ArrayList<>();
         for (int index = 0; index < regions.size(); index += 1) {
-            generated.add(ocrEvidence(versionId, taskId, image, response, regions.get(index), index, inputSource));
+            generated.add(ocrEvidence(versionId, taskId, image, response, regions.get(index), index, inputSource, modelBounds));
         }
         evidences.saveAll(generated);
 
@@ -329,6 +363,7 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         detail.put("taskId", taskId == null ? "" : taskId);
         detail.put("imagePath", image.toString());
         detail.put("inputSource", inputSource);
+        detail.put("modelBounds", modelBounds);
         detail.put("confidenceThreshold", confidence);
         detail.put("regionCount", generated.size());
         detail.put("engine", response == null ? "" : response.engine());
@@ -535,11 +570,12 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         task.stage = "RENDERING";
         tasks.save(task);
         ReviewTaskStep renderStep = startTaskStep(task, 20, "RENDER", "版本渲染图生成");
-        Path image;
+        RenderedVersionImage rendered;
         try {
-            image = renderVersionImage(task.versionId, bool(task.forceRender), actor);
+            rendered = renderVersion(task.versionId, bool(task.forceRender), actor);
             completeTaskStep(renderStep, "渲染图已生成", Map.of(
-                    "imagePath", image.toString(),
+                    "imagePath", rendered.path().toString(),
+                    "modelBounds", rendered.modelBounds(),
                     "forceRender", bool(task.forceRender)
             ));
         } catch (Exception exception) {
@@ -555,11 +591,12 @@ public class ReviewPlatformService implements ReviewTaskRunner {
                 List<ReviewEvidence> generated = runVisionDetectionOnImage(
                         task.versionId,
                         task.id,
-                        image,
+                        rendered.path(),
                         confidenceOrDefault(task.visionConfidence, 0.25),
                         actor,
                         "REVIEW_AUTO_VISION_DETECT",
-                        "review-rendered-version-image"
+                        "review-rendered-version-image",
+                        rendered.modelBounds()
                 );
                 completeTaskStep(visionStep, "视觉证据采集完成", Map.of(
                         "evidenceCount", generated.size(),
@@ -581,11 +618,12 @@ public class ReviewPlatformService implements ReviewTaskRunner {
                 List<ReviewEvidence> generated = runOcrRecognitionOnImage(
                         task.versionId,
                         task.id,
-                        image,
+                        rendered.path(),
                         confidenceOrDefault(task.ocrConfidence, 0.5),
                         actor,
                         "REVIEW_AUTO_OCR_RECOGNIZE",
-                        "review-rendered-version-image"
+                        "review-rendered-version-image",
+                        rendered.modelBounds()
                 );
                 completeTaskStep(ocrStep, "OCR证据采集完成", Map.of(
                         "evidenceCount", generated.size(),
@@ -810,9 +848,19 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         return fromJson(version.parseSummaryJson, WorkerSummary.class);
     }
 
-    private ReviewEvidence visionEvidence(String versionId, String taskId, Path image, VisionDetectionResponse response, VisionDetection detection, int index, String inputSource) {
+    private ReviewEvidence visionEvidence(
+            String versionId,
+            String taskId,
+            Path image,
+            VisionDetectionResponse response,
+            VisionDetection detection,
+            int index,
+            String inputSource,
+            Map<String, Double> modelBounds
+    ) {
         String className = detection.className() == null || detection.className().isBlank() ? "unknown" : detection.className();
         String confidenceText = detection.confidence() == null ? "-" : String.format(Locale.ROOT, "%.2f", detection.confidence());
+        String sourceId = "symbol:" + className + "#" + index;
         Map<String, Object> payload = new HashMap<>();
         payload.put("taskId", taskId);
         payload.put("inputSource", inputSource);
@@ -832,18 +880,36 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         evidence.versionId = versionId;
         evidence.ruleCode = "VISION_DETECTION";
         evidence.evidenceType = EvidenceType.YOLO_SYMBOL;
-        evidence.sourceId = "symbol:" + className + "#" + index;
+        evidence.sourceId = sourceId;
         evidence.sourceLabel = "vision_worker.yolov8";
         evidence.summary = "检测到视觉符号 " + className + "，置信度 " + confidenceText + "，边界框 " + bboxText(detection.xyxy());
         evidence.payloadJson = toJson(payload);
+        evidence.location = EvidenceLocations.rasterBox(
+                sourceId,
+                detection.xyxy(),
+                response == null ? null : response.imageWidth(),
+                response == null ? null : response.imageHeight(),
+                inputSource,
+                modelBounds
+        );
         evidence.confidence = detection.confidence();
         evidence.createdAt = Ids.now();
         return evidence;
     }
 
-    private ReviewEvidence ocrEvidence(String versionId, String taskId, Path image, OcrResponse response, OcrRegion region, int index, String inputSource) {
+    private ReviewEvidence ocrEvidence(
+            String versionId,
+            String taskId,
+            Path image,
+            OcrResponse response,
+            OcrRegion region,
+            int index,
+            String inputSource,
+            Map<String, Double> modelBounds
+    ) {
         String text = region.text() == null ? "" : region.text();
         String confidenceText = region.confidence() == null ? "-" : String.format(Locale.ROOT, "%.2f", region.confidence());
+        String sourceId = "ocr:text#" + index;
         Map<String, Object> payload = new HashMap<>();
         payload.put("taskId", taskId);
         payload.put("inputSource", inputSource);
@@ -863,10 +929,18 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         evidence.versionId = versionId;
         evidence.ruleCode = "OCR_RECOGNITION";
         evidence.evidenceType = EvidenceType.OCR_TEXT;
-        evidence.sourceId = "ocr:text#" + index;
+        evidence.sourceId = sourceId;
         evidence.sourceLabel = "ocr_worker." + (response == null || response.engine() == null || response.engine().isBlank() ? "unknown" : response.engine());
         evidence.summary = "OCR识别文字 " + text + "，置信度 " + confidenceText + "，边界框 " + bboxText(region.xyxy());
         evidence.payloadJson = toJson(payload);
+        evidence.location = EvidenceLocations.rasterBox(
+                sourceId,
+                region.xyxy(),
+                response == null ? null : response.imageWidth(),
+                response == null ? null : response.imageHeight(),
+                inputSource,
+                modelBounds
+        );
         evidence.confidence = region.confidence();
         evidence.createdAt = Ids.now();
         return evidence;
@@ -882,6 +956,10 @@ public class ReviewPlatformService implements ReviewTaskRunner {
 
     private String renderedImageKey(String versionId) {
         return "rendered/" + versionId + "/render.png";
+    }
+
+    private String renderedImageMetadataKey(String versionId) {
+        return "rendered/" + versionId + "/render.metadata.json";
     }
 
     private void validateVisionConfidence(double confidence) {
@@ -1002,6 +1080,57 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         }
     }
 
+    private Map<String, Double> readRenderModelBounds(String metadataKey) {
+        try {
+            Path path = objectStorage.resolveLocalPath(metadataKey);
+            Map<?, ?> metadata = mapper.readValue(Files.readString(path, StandardCharsets.UTF_8), Map.class);
+            Map<String, Double> bounds = renderModelBounds(metadata);
+            if (bounds.isEmpty()) {
+                throw new IllegalStateException("Cached CAD render metadata is missing valid modelBounds");
+            }
+            return bounds;
+        } catch (IOException exception) {
+            throw new IllegalStateException("Cached CAD render metadata could not be read", exception);
+        }
+    }
+
+    private Map<String, Double> renderModelBounds(Map<?, ?> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return Map.of();
+        }
+        Object value = metadata.get("modelBounds");
+        if (!(value instanceof Map<?, ?> bounds)) {
+            return Map.of();
+        }
+        Double minX = number(bounds.get("minX"));
+        Double minY = number(bounds.get("minY"));
+        Double maxX = number(bounds.get("maxX"));
+        Double maxY = number(bounds.get("maxY"));
+        if (minX == null || minY == null || maxX == null || maxY == null) {
+            return Map.of();
+        }
+        return Map.of(
+                "minX", Math.min(minX, maxX),
+                "minY", Math.min(minY, maxY),
+                "maxX", Math.max(minX, maxX),
+                "maxY", Math.max(minY, maxY)
+        );
+    }
+
+    private Double number(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String string && !string.isBlank()) {
+            try {
+                return Double.parseDouble(string);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     private String sha256(Path file) {
         try (InputStream input = Files.newInputStream(file)) {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -1038,6 +1167,9 @@ public class ReviewPlatformService implements ReviewTaskRunner {
         user.username = username;
         user.role = UserRole.ADMIN;
         return user;
+    }
+
+    private record RenderedVersionImage(Path path, Map<String, Double> modelBounds) {
     }
 
     private ReviewIssue attachEvidence(ReviewIssue issue) {

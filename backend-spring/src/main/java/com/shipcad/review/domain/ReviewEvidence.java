@@ -1,6 +1,7 @@
 package com.shipcad.review.domain;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -28,6 +29,10 @@ public class ReviewEvidence {
     @Lob
     @Column(length = 200000)
     public String payloadJson;
+    @Convert(converter = EvidenceLocationConverter.class)
+    @Lob
+    @Column(name = "location_json", length = 200000)
+    public EvidenceLocation location;
     public Double confidence;
     public Instant createdAt;
 }

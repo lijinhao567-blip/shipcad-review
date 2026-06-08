@@ -29,6 +29,7 @@ start D:\path\to\deploy\database\dm8\V1__initial_schema.sql
 start D:\path\to\deploy\database\dm8\V2__constraints_and_indexes.sql
 start D:\path\to\deploy\database\dm8\V3__object_storage_metadata.sql
 start D:\path\to\deploy\database\dm8\V4__report_object_storage_metadata.sql
+start D:\path\to\deploy\database\dm8\V5__evidence_location_contract.sql
 ```
 
 4. Verify the recorded version:
@@ -66,9 +67,17 @@ record and new columns were verified, and the current backend passed Hibernate
 that includes the object-storage adapter.
 
 V4 adds object-storage metadata to `report_document` so generated Markdown
-reports can be stored as local or S3-compatible objects. The H2/Flyway migration
-and backend tests pass with this version; apply the DM8 script in the next DM8
-maintenance window before running code that includes report object storage.
+reports can be stored as local or S3-compatible objects.
+
+V5 adds version-scoped CAD handles to `parsed_entity` and the structured
+`location_json` coordinate contract to `review_evidence`. V4 and V5 were
+applied on June 8, 2026 to the isolated local DM8 development instance at
+`127.0.0.1:5237`; their version records and columns were verified. The current
+backend passed Hibernate schema validation and `/api/health` reported the
+database, queue, and local object storage as healthy. The DXF golden E2E suite
+also passed 11/11 cases against DM8 and a real CAD Worker. This remains a local
+compatibility certification, not production load, backup, failover, or
+disaster-recovery certification.
 
 For the local Windows development instance installed at `D:\dm8task`, use:
 

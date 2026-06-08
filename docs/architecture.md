@@ -8,7 +8,7 @@
 
 - Vue Web 工作台：项目、项目成员、图纸、版本、审图流程状态、当前上下文选择、系统状态、审查任务详情、dxf-viewer WebGL正式预览、Canvas诊断视图、问题定位、证据链分组、统计看板、报告导出、账号管理和管理员审计日志。
 - Spring Boot API：持久化会话鉴权、用户生命周期管理、集中式角色权限策略、项目数据范围授权、主数据管理、文件管理、异步审查任务、可切换 `ReviewTaskQueue`、Easy Rules规则审查、整改流转、分页审计查询和OpenAPI。
-- Python CAD Worker：基于 ezdxf 解析 DXF 文件，并通过 ezdxf drawing/matplotlib 将版本渲染为 PNG；安装 LibreDWG 后，通过 `dwg2dxf` 转换 DWG 并复用 DXF 解析和渲染链路。
+- Python CAD Worker：基于 ezdxf 解析 DXF 文件，输出 CAD handle、图元结构和模型坐标范围，并通过 ezdxf drawing/matplotlib 将版本渲染为 PNG；渲染响应同时返回实际模型视口元数据。安装 LibreDWG 后，通过 `dwg2dxf` 转换 DWG 并复用 DXF 解析和渲染链路。
 - Python Vision Worker：基于 Ultralytics YOLOv8 识别图纸渲染图中的符号目标，输出类别、置信度和检测框。
 - Python OCR Worker：基于 Tesseract OCR 提取图纸渲染图中的文字区域，输出文本、置信度和检测框；后续可替换或增强为 PaddleOCR。
 - AI Gateway：当前采用可审计的本地 evidence summarizer，只基于 `ReviewIssue` 与 evidence chain 生成解释；后续可替换为本地大模型或 OpenAI 兼容接口。
@@ -62,7 +62,7 @@
 
 规则引擎消费证据并生成 `ReviewIssue`，AI 基于问题和证据生成解释与报告。详细设计见 `docs/evidence_model.md`。
 
-当前实现中，后端已新增 `ReviewEvidence`/`review_evidence`，现有确定性规则会为每个 `ReviewIssue` 自动保存 `RULE_RESULT` 与 CAD 证据。版本可通过 `/api/versions/{versionId}/rendered-image` 自动渲染为 PNG；Vision Worker 检测结果可通过手动图片、版本渲染图接口或审查任务自动编排写入 `YOLO_SYMBOL` 证据。OCR Worker 识别结果可通过手动图片、版本渲染图接口或审查任务自动编排写入 `OCR_TEXT` 证据。手动版本级证据可被后续任务复用；任务自动采集证据会绑定 `review_task.id`，规则只消费手动证据和当前任务自动证据，避免历史自动证据造成重复问题。`review_task_step` 只记录过程，不直接充当审查证据；真正的业务判断仍以 `review_evidence` 和 `review_issue` 为准。更完整的知识图谱后续不应直接绕过问题闭环，而应继续写入同一证据层。
+当前实现中，后端已新增 `ReviewEvidence`/`review_evidence`，现有确定性规则会为每个 `ReviewIssue` 自动保存 `RULE_RESULT` 与 CAD 证据。`ReviewEvidence.location` 统一表达 CAD 模型坐标、YOLO/OCR 图像像素框及渲染像素到 CAD 模型的转换元数据；浏览器视口坐标由前端根据当前相机状态临时推导，不作为权威证据持久化。版本可通过 `/api/versions/{versionId}/rendered-image` 自动渲染为 PNG，PNG 与 `render.metadata.json` 作为一个不可分割的缓存单元；Vision Worker 检测结果可通过手动图片、版本渲染图接口或审查任务自动编排写入 `YOLO_SYMBOL` 证据。OCR Worker 识别结果可通过手动图片、版本渲染图接口或审查任务自动编排写入 `OCR_TEXT` 证据。手动版本级证据可被后续任务复用；任务自动采集证据会绑定 `review_task.id`，规则只消费手动证据和当前任务自动证据，避免历史自动证据造成重复问题。`review_task_step` 只记录过程，不直接充当审查证据；真正的业务判断仍以 `review_evidence` 和 `review_issue` 为准。更完整的知识图谱后续不应直接绕过问题闭环，而应继续写入同一证据层。
 
 ## 部署架构
 

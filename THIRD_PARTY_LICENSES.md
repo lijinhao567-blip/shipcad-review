@@ -37,6 +37,8 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 | GitHub Dependency Review Action | Pull-request dependency vulnerability review | MIT; uses GitHub dependency graph services |
 | GitHub CodeQL Action | Static security analysis workflow | MIT |
 | GitHub CodeQL CLI and query packs | Analysis engine used by the CodeQL workflow | GitHub CodeQL Terms and Conditions; CI-only, not distributed with the product |
+| Anchore SBOM Action | CI generation of SPDX source SBOM artifacts | Apache-2.0; wraps Syft in GitHub Actions |
+| Syft | SBOM generation engine used by the Anchore action | Apache-2.0 |
 
 ## CAD And AI
 

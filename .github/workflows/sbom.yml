@@ -1,0 +1,51 @@
+name: SBOM
+
+on:
+  push:
+    branches:
+      - "main"
+      - "master"
+  pull_request:
+    branches:
+      - "main"
+      - "master"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sbom-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  component-sbom:
+    name: SBOM ${{ matrix.component }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: backend
+            path: backend-spring
+          - component: frontend
+            path: frontend-vue
+          - component: cad-worker
+            path: cad_worker
+          - component: vision-worker
+            path: vision_worker
+          - component: ocr-worker
+            path: ocr_worker
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Generate SPDX component SBOM
+        uses: anchore/sbom-action@v0.20.9
+        with:
+          path: ${{ matrix.path }}
+          format: spdx-json
+          artifact-name: shipcad-review-${{ matrix.component }}.spdx.json
+          upload-artifact-retention: 30
+          upload-release-assets: false
+          syft-version: v1.44.0

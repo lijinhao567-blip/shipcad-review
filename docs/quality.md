@@ -62,11 +62,13 @@
 - Live API E2E 无论成功或失败都保留服务日志和任务重试诊断文件 14 天，便于定位异步任务、解析或启动问题。
 - `.github/workflows/dependency-review.yml` 在 pull request 中检查新增依赖，发现中危及以上漏洞时阻止通过；许可证结论仍需结合 `THIRD_PARTY_LICENSES.md` 人工复核。
 - `.github/workflows/codeql.yml` 对 Java、JavaScript/TypeScript 和 Python 执行 CodeQL `security-extended` 查询，并每周执行一次计划扫描。
-- `.github/workflows/secret-scan.yml` 使用校验过 SHA-256 的 Gitleaks CLI 扫描完整 Git 历史，并上传脱敏 SARIF 诊断工件；不使用 `gitleaks-action`，避免组织仓库额外许可证要求和非开源 Action 依赖。
+- `.github/workflows/secret-scan.yml` 使用校验过 SHA-256 的 Gitleaks CLI 扫描完整 Git 历史和当前工作目录，并上传脱敏 SARIF 诊断工件；不使用 `gitleaks-action`，避免组织仓库额外许可证要求和非开源 Action 依赖。
 - `.github/workflows/sbom.yml` 使用 Syft 分别为后端、前端、CAD Worker、Vision Worker 和 OCR Worker 生成 SPDX JSON 组件 SBOM，作为开源发布、漏洞响应和许可证复核的依赖快照。
 - `.github/dependabot.yml` 每周检查 GitHub Actions、Maven、npm、pip 和容器基础镜像更新；补丁与小版本按生态分组，大版本保持独立评估，禁止不经测试自动合并。
 - `tools/check_python_requirements.py` 要求 CAD、Vision 和 OCR Worker 的直接 Python 依赖必须用 `==` 显式锁定；传递依赖以 SBOM 和 CI 安装结果记录，后续如进入正式发布可升级为哈希锁定。
 - `tools/check_action_pins.py` 要求所有外部 GitHub Actions 引用固定到 40 位提交 SHA，并保留版本注释；Dependabot 负责后续升级提醒。
+- `tools/check_release_readiness.py` 汇总开源必需文件、工作树、remote、禁止文件、GitHub 文件大小、依赖/Action 固定、Vision 数据和秘密扫描状态；正式发布模式下缺少 remote 或存在失败项必须阻止发布。
+- `tools/validate_vision_dataset.py` 校验四类 Phase 1 taxonomy、YOLO 目录、图像/标签配对、归一化边界框、许可证、来源、公开批准、复核状态、文件哈希及原图分组隔离。当前仓库为 `0 images / 0 boxes`，只能证明数据工程结构就绪，不能证明模型可训练或具备识别精度。
 - 上述 GitHub 安全能力只有在仓库发布到 GitHub 且启用 Actions、Dependency Graph 和 Code Security 后才会执行；本地存在配置文件不等于扫描已经通过。
 - Docker Compose、MinIO、Redis/Valkey、DM8 和真实 YOLO 模型精度测试仍属于独立环境验收，不由基础 CI 伪造覆盖。
 

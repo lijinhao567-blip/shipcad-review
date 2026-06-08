@@ -104,32 +104,45 @@ def count_findings(report_path: Path) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Scan the complete Git history with a verified Gitleaks binary.")
+    parser = argparse.ArgumentParser(
+        description="Scan the complete Git history and current worktree with a verified Gitleaks binary."
+    )
     parser.add_argument("--repo", type=Path, default=Path.cwd())
-    parser.add_argument("--report", type=Path, default=Path(".run/security/gitleaks.sarif"))
+    parser.add_argument("--report-dir", type=Path, default=Path(".run/security"))
     parser.add_argument("--timeout", type=int, default=180)
     args = parser.parse_args()
 
     repo_root = args.repo.resolve()
-    report_path = args.report if args.report.is_absolute() else repo_root / args.report
-    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_dir = args.report_dir if args.report_dir.is_absolute() else repo_root / args.report_dir
+    report_dir.mkdir(parents=True, exist_ok=True)
     executable = install_gitleaks(repo_root)
-    command = [
-        str(executable),
-        "git",
-        "--no-banner",
-        "--redact",
-        "--report-format",
-        "sarif",
-        "--report-path",
-        str(report_path),
-        "--timeout",
-        str(args.timeout),
-        str(repo_root),
-    ]
-    result = subprocess.run(command, cwd=repo_root, check=False)
-    print(f"Gitleaks v{GITLEAKS_VERSION} findings: {count_findings(report_path)}")
-    return result.returncode
+    results: list[int] = []
+    total_findings = 0
+    for mode, report_name in (
+        ("git", "gitleaks-history.sarif"),
+        ("dir", "gitleaks-worktree.sarif"),
+    ):
+        report_path = report_dir / report_name
+        command = [
+            str(executable),
+            mode,
+            "--no-banner",
+            "--redact",
+            "--report-format",
+            "sarif",
+            "--report-path",
+            str(report_path),
+            "--timeout",
+            str(args.timeout),
+            str(repo_root),
+        ]
+        result = subprocess.run(command, cwd=repo_root, check=False)
+        findings = count_findings(report_path)
+        total_findings += findings
+        results.append(result.returncode)
+        print(f"Gitleaks {mode} findings: {findings}")
+    print(f"Gitleaks v{GITLEAKS_VERSION} total findings: {total_findings}")
+    return max(results, default=0)
 
 
 if __name__ == "__main__":

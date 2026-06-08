@@ -1,0 +1,10 @@
+path: .
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: welding_symbol
+  1: section_marker
+  2: title_block
+  3: revision_block

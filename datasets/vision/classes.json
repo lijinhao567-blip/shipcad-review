@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "0.1.0",
+  "task": "detect",
+  "classes": [
+    {
+      "id": 0,
+      "name": "welding_symbol",
+      "phase": 1,
+      "description": "完整焊接符号或焊接标注组合，不包含普通引线。"
+    },
+    {
+      "id": 1,
+      "name": "section_marker",
+      "phase": 1,
+      "description": "剖切位置、方向及剖面索引标记。"
+    },
+    {
+      "id": 2,
+      "name": "title_block",
+      "phase": 1,
+      "description": "包含图号、图名、版次等字段的完整标题栏区域。"
+    },
+    {
+      "id": 3,
+      "name": "revision_block",
+      "phase": 1,
+      "description": "包含版次、修改说明、日期或签名的完整修订栏区域。"
+    }
+  ],
+  "deferred": [
+    {
+      "name": "arrow",
+      "reason": "普通引线箭头与方向箭头边界模糊，需先细化子类和负样本。"
+    },
+    {
+      "name": "dimension_text",
+      "reason": "文字内容优先由 OCR 提取，YOLO 仅在后续需要区域检测时加入。"
+    },
+    {
+      "name": "note_text",
+      "reason": "文字内容优先由 OCR 提取，避免与视觉符号模型职责重叠。"
+    },
+    {
+      "name": "inspection_mark",
+      "reason": "定义依赖企业审图流程，需获得真实业务样例后再定类。"
+    }
+  ]
+}

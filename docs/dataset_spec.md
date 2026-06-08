@@ -125,12 +125,16 @@ Use YOLO detection format:
 ```text
 datasets/
   vision/
+    classes.json
+    manifest.json
     images/
       train/
       val/
+      test/
     labels/
       train/
       val/
+      test/
     data.yaml
 ```
 
@@ -143,6 +147,8 @@ class_id x_center y_center width height
 Coordinates are normalized to image width and height.
 
 Recommended first symbol classes are defined in `docs/yolov8_symbol_taxonomy.md`.
+
+Run `tools/validate_vision_dataset.py` before committing labels. The validator checks class ID stability, split directories, image/label pairing, normalized boxes, manifest provenance, explicit license, public-release approval, and image SHA-256. The repository currently contains the dataset structure but no trainable samples; `--require-samples` must pass before the first training run.
 
 The current backend can ingest model outputs as `YOLO_SYMBOL` evidence through `POST /api/versions/{versionId}/vision-detect` for manual diagnostic images, `POST /api/versions/{versionId}/vision-detect-rendered` for direct rendered-image detection, and `POST /api/review-tasks` with `autoVision=true` for task-orchestrated detection. `YOLO_TITLE_BLOCK_CAD_MISSING` can consume this evidence when it is already stored. The deterministic multimodal E2E script covers the task-orchestrated rendered-image API and rule chain with mock detections; real model accuracy still requires a separate labeled vision dataset. Do not store private ship drawings, private labels, or model weights in the repository.
 

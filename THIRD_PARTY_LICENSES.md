@@ -40,6 +40,7 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 | Anchore SBOM Action | CI generation of SPDX source SBOM artifacts | Apache-2.0; wraps Syft in GitHub Actions |
 | Syft | SBOM generation engine used by the Anchore action | Apache-2.0 |
 | Gitleaks CLI | Local and CI secret scanning for Git history | MIT; downloaded from official releases and verified by SHA-256 |
+| GitHub CLI | Development-only repository publication and administration client | MIT; local tool is downloaded to `.tools` and not distributed with the product |
 
 ## CAD And AI
 

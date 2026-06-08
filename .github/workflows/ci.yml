@@ -39,8 +39,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r cad_worker/requirements.txt -r ocr_worker/requirements.txt
 
-      - name: Test CAD, OCR, and Vision workers
-        run: python -m pytest cad_worker/tests ocr_worker/tests vision_worker/tests -q
+      - name: Validate vision dataset structure
+        run: python tools/validate_vision_dataset.py
+
+      - name: Test CAD, OCR, Vision, and dataset tooling
+        run: python -m pytest cad_worker/tests ocr_worker/tests vision_worker/tests tools/tests -q
 
   backend:
     name: Spring backend

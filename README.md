@@ -150,9 +150,10 @@ $env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
 ## 验证
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest cad_worker\tests ocr_worker\tests vision_worker\tests -q
+.\.venv\Scripts\python.exe -m pytest cad_worker\tests ocr_worker\tests vision_worker\tests tools\tests -q
 .\.venv\Scripts\python.exe tools\check_python_requirements.py
 .\.venv\Scripts\python.exe tools\check_action_pins.py
+.\.venv\Scripts\python.exe tools\validate_vision_dataset.py
 .\.venv\Scripts\python.exe tools\run_secret_scan.py
 $env:JAVA_HOME=(Resolve-Path .tools\jdk-17).Path
 .\.tools\maven\bin\mvn.cmd -f backend-spring\pom.xml test
@@ -241,6 +242,8 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 
 ## 下一阶段重点
 
+- GitHub 首次发布清单：`docs/github_publication.md`
+- YOLO 首批数据集结构：`datasets/vision/`
 - 开源工具集成策略：`docs/integration_strategy.md`
 - 多来源证据模型：`docs/evidence_model.md`
 - CAD Viewer 预研：`docs/experiment_cad_viewer_integration.md`

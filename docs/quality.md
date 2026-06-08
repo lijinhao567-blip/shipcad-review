@@ -54,6 +54,14 @@
 - `DatabaseMigrationTest` verifies clean H2 bootstrap, legacy non-empty schema adoption, enum normalization, unique constraints, foreign keys, and migration version tracking.
 - `LocalObjectStorageServiceTest` verifies local object writes, path normalization and traversal rejection.
 
+## 持续集成门禁
+
+- `.github/workflows/ci.yml` 对每次 push 和 pull request 自动执行 Python Worker 测试、Spring Boot 后端测试和 Vue 前端生产构建。
+- Python 门禁统一收集 CAD、OCR 和 Vision Worker 测试；Vision 的基础测试不依赖模型权重，重点验证未配置模型和无效权重路径能够明确失败。
+- Live API E2E 在 GitHub 托管的 Linux 环境中启动真实 CAD Worker 和后端，执行 golden dataset 与审查任务失败重试验收。
+- Live API E2E 无论成功或失败都保留服务日志和任务重试诊断文件 14 天，便于定位异步任务、解析或启动问题。
+- Docker Compose、MinIO、Redis/Valkey、DM8 和真实 YOLO 模型精度测试仍属于独立环境验收，不由基础 CI 伪造覆盖。
+
 ## 验收目标
 
 - 一台 Windows 开发机可启动前端、后端、Worker。

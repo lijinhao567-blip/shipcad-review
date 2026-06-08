@@ -150,13 +150,14 @@ $env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
 ## 验证
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest cad_worker\tests
-.\.venv\Scripts\python.exe -m pytest ocr_worker\tests
+.\.venv\Scripts\python.exe -m pytest cad_worker\tests ocr_worker\tests vision_worker\tests -q
 $env:JAVA_HOME=(Resolve-Path .tools\jdk-17).Path
 .\.tools\maven\bin\mvn.cmd -f backend-spring\pom.xml test
 cd frontend-vue
 npm run build
 ```
+
+同一组基础门禁会由 `.github/workflows/ci.yml` 在 push 和 pull request 时自动执行；CI 还会启动真实 CAD Worker 与后端，运行 golden dataset 和审查任务失败重试 E2E。Docker Compose、MinIO、Redis/Valkey、DM8 与真实 YOLO 权重仍按独立环境验收。
 
 Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 

@@ -253,7 +253,15 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 
 ```powershell
 cd deploy
-# 当前 Compose 编排面向本地开发，会启用 dev Profile 和开发账号，并使用 Valkey 作为 Redis 协议审查任务队列
+
+# 首次安全启动：显式设置初始管理员，Compose 默认不会创建开发账号
+$env:SHIPCAD_BOOTSTRAP_ADMIN_USERNAME="admin"
+$env:SHIPCAD_BOOTSTRAP_ADMIN_PASSWORD="ReplaceWithStrongPassword123"
+$env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
+docker compose up --build
+
+# 仅限本地开发：启用 dev Profile 后会创建文档列出的四个开发账号
+$env:SPRING_PROFILES_ACTIVE="dev"
 docker compose up --build
 
 # 启动包含 YOLOv8 Vision Worker 的 profile
@@ -264,8 +272,15 @@ docker compose --profile ocr up --build
 
 # 启动 MinIO，并把后端切到 S3 兼容对象存储模式
 $env:SHIPCAD_OBJECT_STORAGE_MODE="s3"
+$env:MINIO_ROOT_USER="ReplaceWithAccessKey"
+$env:MINIO_ROOT_PASSWORD="ReplaceWithStrongObjectStoragePassword"
+$env:SHIPCAD_S3_ACCESS_KEY=$env:MINIO_ROOT_USER
+$env:SHIPCAD_S3_SECRET_KEY=$env:MINIO_ROOT_PASSWORD
 docker compose --profile object-storage up --build
 ```
+
+`deploy/docker-compose.yml` 不提供固定口令。初始管理员创建成功后，应从运行环境移除
+`SHIPCAD_BOOTSTRAP_ADMIN_PASSWORD`；对象存储凭据也应由部署环境或 Secret 管理器提供。
 
 云原生部署占位文件位于 `deploy/kubernetes/shipcad-review.yaml`，默认使用 `prod` Profile。部署后端前先创建 DM8 连接 Secret：
 

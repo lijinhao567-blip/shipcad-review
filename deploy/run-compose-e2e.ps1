@@ -132,6 +132,12 @@ Assert-PathExists "Compose file" $composeFile
 Assert-PathExists "Python venv" $python
 Assert-DockerAvailable
 
+$env:SPRING_PROFILES_ACTIVE = "dev"
+$env:MINIO_ROOT_USER = "shipcad-e2e"
+$env:MINIO_ROOT_PASSWORD = "ShipCadE2EPassword123"
+$env:SHIPCAD_S3_ACCESS_KEY = $env:MINIO_ROOT_USER
+$env:SHIPCAD_S3_SECRET_KEY = $env:MINIO_ROOT_PASSWORD
+
 try {
     Invoke-DockerComposeBase @("down", "--remove-orphans")
 } catch {

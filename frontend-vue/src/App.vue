@@ -6,7 +6,7 @@ const DxfViewerPreview = defineAsyncComponent(() => import('./components/DxfView
 const DxfCanvasDiagnostics = defineAsyncComponent(() => import('./components/DxfCanvas.vue'))
 
 const tab = ref<'dashboard' | 'projects' | 'issues' | 'reports' | 'status' | 'audit' | 'users'>('dashboard')
-const loginState = reactive({ username: 'admin', password: 'admin123', label: '未登录' })
+const loginState = reactive({ username: '', password: '', label: '未登录' })
 const authenticated = ref(Boolean(api.token))
 const currentUser = ref<UserView | null>(null)
 const permissions = ref<string[]>([])

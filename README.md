@@ -172,7 +172,7 @@ Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 .\deploy\run-object-storage-e2e.ps1 -DownloadMinio
 ```
 
-真实 Redis 协议队列验收会临时启动 Redis `6380` 和独立后端 `8086`，把后端切到 `SHIPCAD_REVIEW_QUEUE_MODE=redis`，再跑完整 golden dataset。Windows 开发机默认使用 MIT 许可的便携 `redis-windows-fork`，下载到 `.tools\redis-windows`，不进入仓库；Valkey 容器仍由 Docker Compose 骨架覆盖：
+真实 Redis 协议队列验收会临时启动 Redis `6380` 和独立后端 `8086`，把后端切到 `SHIPCAD_REVIEW_QUEUE_MODE=redis`，先用 stale processing payload 验证启动恢复，再跑完整 golden dataset。Windows 开发机默认使用 MIT 许可的便携 `redis-windows-fork`，下载到 `.tools\redis-windows`，不进入仓库；Valkey 容器仍由 Docker Compose 骨架覆盖：
 
 ```powershell
 .\deploy\run-redis-queue-e2e.ps1

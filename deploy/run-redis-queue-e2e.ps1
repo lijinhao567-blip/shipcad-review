@@ -28,6 +28,8 @@ $defaultRedisCli = Join-Path $defaultRedisDir "redis-cli.exe"
 $redisZip = Join-Path $root ".tools\downloads\$redisPackage.zip"
 $redisDownloadUrl = "https://github.com/taizod1024/redis-windows-fork/releases/download/$redisVersion/$redisPackage.zip"
 $redisSha256 = "d41cd514ab9d9d20a99feb9d90e9c67aa90af6d983050ffb237a3d8778117238"
+$queueKey = "shipcad:review:queue:e2e"
+$processingKey = "shipcad:review:processing:e2e"
 
 function Assert-PathExists([string]$Label, [string]$Path) {
     if (-not (Test-Path $Path)) {
@@ -122,6 +124,27 @@ function Wait-RedisPing([object]$ProcessInfo, [string]$Cli, [int]$Port, [int]$Se
     throw "Redis did not answer PONG on port $Port within ${Seconds}s."
 }
 
+function Get-RedisListLength([string]$Cli, [int]$Port, [string]$Key) {
+    $value = & $Cli -p $Port llen $Key
+    if ($LASTEXITCODE -ne 0) {
+        throw "Redis LLEN failed for key $Key"
+    }
+    return [int]"$value".Trim()
+}
+
+function Wait-RedisListsEmpty([string]$Cli, [int]$Port, [string]$QueueKey, [string]$ProcessingKey, [int]$Seconds) {
+    $deadline = (Get-Date).AddSeconds($Seconds)
+    do {
+        $queueLength = Get-RedisListLength $Cli $Port $QueueKey
+        $processingLength = Get-RedisListLength $Cli $Port $ProcessingKey
+        if ($queueLength -eq 0 -and $processingLength -eq 0) {
+            return
+        }
+        Start-Sleep -Seconds 1
+    } while ((Get-Date) -lt $deadline)
+    throw "Redis queue did not drain. queue=$queueLength processing=$processingLength"
+}
+
 function Stop-PortOwner([string]$Name, [int]$Port) {
     $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
     foreach ($ownerProcessId in @($connections | Select-Object -ExpandProperty OwningProcess -Unique)) {
@@ -208,6 +231,9 @@ try {
     $redisArgs = "--bind 127.0.0.1 --port $RedisPort --save `"`" --appendonly no --dir `"$((Resolve-Path $redisData).Path)`""
     $started += Start-ManagedProcess "redis" $RedisServerExe $redisArgs (Split-Path -Parent $RedisServerExe)
     Wait-RedisPing $started[-1] $RedisCliExe $RedisPort $WaitSeconds
+    & $RedisCliExe -p $RedisPort del $queueKey $processingKey | Out-Null
+    $stalePayload = '{"taskId":"task_stale_processing_probe","actorUsername":"admin","enqueuedAt":"2026-06-08T00:00:00Z"}'
+    & $RedisCliExe -p $RedisPort lpush $processingKey $stalePayload | Out-Null
 
     $dbFile = (Join-Path $dbDir "shipcad-redis-e2e") -replace "\\", "/"
     $env:JAVA_HOME = (Resolve-Path $javaHome).Path
@@ -221,8 +247,8 @@ try {
     $env:SHIPCAD_REVIEW_QUEUE_MODE = "redis"
     $env:SHIPCAD_REDIS_HOST = "127.0.0.1"
     $env:SHIPCAD_REDIS_PORT = "$RedisPort"
-    $env:SHIPCAD_REVIEW_QUEUE_REDIS_KEY = "shipcad:review:queue:e2e"
-    $env:SHIPCAD_REVIEW_QUEUE_REDIS_PROCESSING_KEY = "shipcad:review:processing:e2e"
+    $env:SHIPCAD_REVIEW_QUEUE_REDIS_KEY = $queueKey
+    $env:SHIPCAD_REVIEW_QUEUE_REDIS_PROCESSING_KEY = $processingKey
     $env:SHIPCAD_REVIEW_QUEUE_REDIS_POLL_SECONDS = "1"
 
     $started += Start-ManagedProcess `
@@ -236,6 +262,8 @@ try {
     if ($health.status -ne "ok" -or $health.queue.mode -ne "redis" -or $health.queue.status -ne "ok") {
         throw "Backend health did not report ok Redis queue: $($health | ConvertTo-Json -Depth 8)"
     }
+    Wait-RedisListsEmpty $RedisCliExe $RedisPort $queueKey $processingKey $WaitSeconds
+    Write-Host "Recovered stale Redis processing payload."
 
     $healthLog = Join-Path $logDir "health-check.log"
     $healthOutput = & powershell.exe `
@@ -261,8 +289,8 @@ try {
         throw "Golden E2E failed with exit code $goldenExitCode. See log: $goldenLog"
     }
 
-    $queueLength = & $RedisCliExe -p $RedisPort llen $env:SHIPCAD_REVIEW_QUEUE_REDIS_KEY
-    $processingLength = & $RedisCliExe -p $RedisPort llen $env:SHIPCAD_REVIEW_QUEUE_REDIS_PROCESSING_KEY
+    $queueLength = Get-RedisListLength $RedisCliExe $RedisPort $queueKey
+    $processingLength = Get-RedisListLength $RedisCliExe $RedisPort $processingKey
     Write-Host "Redis queue E2E passed."
     Write-Host "Redis: 127.0.0.1:$RedisPort"
     Write-Host "Backend: http://127.0.0.1:$BackendPort"

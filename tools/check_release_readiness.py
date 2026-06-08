@@ -205,6 +205,7 @@ def main() -> int:
     checks.append(run_python_check(repo, "tools/check_python_requirements.py"))
     checks.append(run_python_check(repo, "tools/check_action_pins.py"))
     checks.append(run_python_check(repo, "tools/check_deployment_security.py"))
+    checks.append(run_python_check(repo, "tools/check_rule_golden_coverage.py"))
     checks.append(
         run_python_check(repo, "tools/validate_vision_dataset.py")
     )

@@ -7,7 +7,7 @@ RUN mvn -q -f backend-spring/pom.xml -DskipTests dependency:go-offline
 COPY backend-spring backend-spring
 RUN mvn -q -f backend-spring/pom.xml -DskipTests package
 
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 COPY --from=build /workspace/backend-spring/target/*.jar /app/app.jar

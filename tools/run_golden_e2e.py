@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,100 @@ class CaseResult:
     expected_rules: list[str]
     actual_rules: list[str]
     message: str
+
+
+@dataclass
+class MockWorker:
+    name: str
+    server: ThreadingHTTPServer
+    thread: threading.Thread
+
+    def start(self) -> None:
+        self.thread.start()
+
+    def stop(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=5)
+
+
+class MockEvidenceProfile:
+    vision: dict[str, Any] = {"detections": [], "imageWidth": 640, "imageHeight": 480, "engine": "mock-yolov8"}
+    ocr: dict[str, Any] = {"regions": [], "imageWidth": 640, "imageHeight": 480, "engine": "mock-ocr", "language": "eng"}
+
+
+class MockVisionHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if self.path.startswith("/health"):
+            self.write_json({"status": "ok"})
+            return
+        if self.path.startswith("/capabilities"):
+            self.write_json({"engine": "mock-yolov8", "modelConfigured": True})
+            return
+        self.send_error(404)
+
+    def do_POST(self) -> None:
+        self.consume_body()
+        if not self.path.startswith("/detect"):
+            self.send_error(404)
+            return
+        self.write_json(MockEvidenceProfile.vision)
+
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+    def consume_body(self) -> None:
+        length = int(self.headers.get("Content-Length") or 0)
+        if length:
+            self.rfile.read(length)
+
+    def write_json(self, payload: dict[str, Any]) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+        self.wfile.flush()
+        self.close_connection = True
+
+
+class MockOcrHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if self.path.startswith("/health"):
+            self.write_json({"status": "ok"})
+            return
+        if self.path.startswith("/capabilities"):
+            self.write_json({"engine": "mock-ocr", "commandAvailable": True, "language": "eng"})
+            return
+        self.send_error(404)
+
+    def do_POST(self) -> None:
+        self.consume_body()
+        if not self.path.startswith("/ocr"):
+            self.send_error(404)
+            return
+        self.write_json(MockEvidenceProfile.ocr)
+
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+    def consume_body(self) -> None:
+        length = int(self.headers.get("Content-Length") or 0)
+        if length:
+            self.rfile.read(length)
+
+    def write_json(self, payload: dict[str, Any]) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+        self.wfile.flush()
+        self.close_connection = True
 
 
 class GoldenE2E:
@@ -89,8 +185,10 @@ class GoldenE2E:
             )
         return response.json()
 
-    def create_review_task(self, version_id: str) -> dict[str, Any]:
-        return self.request("POST", "/api/review-tasks", json={"versionId": version_id}).json()
+    def create_review_task(self, version_id: str, case: dict[str, Any]) -> dict[str, Any]:
+        payload = {"versionId": version_id}
+        payload.update(case.get("reviewTask") or {})
+        return self.request("POST", "/api/review-tasks", json=payload).json()
 
     def create_report(self, task_id: str) -> dict[str, Any]:
         return self.request("POST", "/api/reports", json={"taskId": task_id}).json()
@@ -139,6 +237,7 @@ class GoldenE2E:
         case_id = case["id"]
         expected_rules = sorted(case.get("expectedRuleCodes", []))
         try:
+            apply_mock_profiles(case)
             file_path = (manifest_dir / case["file"]).resolve()
             if not file_path.exists():
                 raise FileNotFoundError(file_path)
@@ -150,23 +249,15 @@ class GoldenE2E:
             self.file_head_check(version["id"])
             if evict_upload_cache:
                 self.evict_local_cache(version)
-            task = self.create_review_task(version["id"])
+            task = self.create_review_task(version["id"], case)
             finished = self.wait_for_task(task["id"])
             if finished["status"] != "FINISHED":
                 raise AssertionError(f"review task failed: {finished.get('errorMessage')}")
-            self.assert_task_steps(
-                task["id"],
-                {
-                    "PARSE": "SUCCESS",
-                    "RENDER": "SKIPPED",
-                    "VISION": "SKIPPED",
-                    "OCR": "SKIPPED",
-                    "RULES": "SUCCESS",
-                },
-            )
+            self.assert_task_steps(task["id"], expected_task_steps(case))
 
             actual_issues = self.issues(task["id"])
             actual_rules = sorted({issue["ruleCode"] for issue in actual_issues})
+            self.assert_issue_count(case, actual_issues)
             self.assert_rules(case, expected_rules, actual_rules)
             self.assert_parser_expectations(version["id"], case.get("parserExpectations", {}))
             self.assert_issue_evidence(version["id"], case, actual_issues)
@@ -188,6 +279,14 @@ class GoldenE2E:
             return
         if actual_rules != expected_rules:
             raise AssertionError(f"expected rule codes {expected_rules}, got {actual_rules}")
+
+    def assert_issue_count(self, case: dict[str, Any], actual_issues: list[dict[str, Any]]) -> None:
+        expected_count = case.get("expectedIssueCount")
+        if expected_count is None:
+            return
+        if len(actual_issues) != expected_count:
+            actual_rules = sorted(issue.get("ruleCode") for issue in actual_issues)
+            raise AssertionError(f"expected {expected_count} issues, got {len(actual_issues)}: {actual_rules}")
 
     def assert_version_storage(self, version: dict[str, Any]) -> None:
         storage_mode = version.get("storageMode") or ""
@@ -273,6 +372,12 @@ class GoldenE2E:
             elif expected_layer is not None:
                 self.assert_embedded_evidence(issue, "CAD_LAYER", expected_layer)
 
+            for evidence_type in expected.get("requireEvidenceTypes") or []:
+                matches = self.assert_issue_has_evidence_type(issue, evidence_type)
+                expected_space = expected.get("locationCoordinateSpace")
+                if expected_space and not any((item.get("location") or {}).get("coordinateSpace") == expected_space for item in matches):
+                    raise AssertionError(f"{rule_code} expected {evidence_type} evidence in {expected_space} space")
+
     def assert_embedded_evidence(self, issue: dict[str, Any], evidence_type: str, source_id: str) -> None:
         matches = [
             evidence
@@ -281,6 +386,16 @@ class GoldenE2E:
         ]
         if not matches:
             raise AssertionError(f"{issue['ruleCode']} expected {evidence_type} evidence with sourceId={source_id}")
+
+    def assert_issue_has_evidence_type(self, issue: dict[str, Any], evidence_type: str) -> list[dict[str, Any]]:
+        matches = [
+            evidence
+            for evidence in (issue.get("evidences") or [])
+            if evidence.get("evidenceType") == evidence_type
+        ]
+        if not matches:
+            raise AssertionError(f"{issue['ruleCode']} expected {evidence_type} evidence")
+        return matches
 
     def assert_parser_expectations(self, version_id: str, expectations: dict[str, Any]) -> None:
         version = next((item for item in self.versions() if item["id"] == version_id), None)
@@ -348,6 +463,49 @@ def load_manifest(path: Path) -> list[dict[str, Any]]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def apply_mock_profiles(case: dict[str, Any]) -> None:
+    MockEvidenceProfile.vision = {
+        "detections": [],
+        "imageWidth": 640,
+        "imageHeight": 480,
+        "engine": "mock-yolov8",
+    }
+    MockEvidenceProfile.vision.update(case.get("mockVision") or {})
+    MockEvidenceProfile.ocr = {
+        "regions": [],
+        "imageWidth": 640,
+        "imageHeight": 480,
+        "engine": "mock-ocr",
+        "language": "eng",
+    }
+    MockEvidenceProfile.ocr.update(case.get("mockOcr") or {})
+
+
+def expected_task_steps(case: dict[str, Any]) -> dict[str, str]:
+    task = case.get("reviewTask") or {}
+    auto_vision = bool(task.get("autoVision"))
+    auto_ocr = bool(task.get("autoOcr"))
+    return {
+        "PARSE": "SUCCESS",
+        "RENDER": "SUCCESS" if auto_vision or auto_ocr else "SKIPPED",
+        "VISION": "SUCCESS" if auto_vision else "SKIPPED",
+        "OCR": "SUCCESS" if auto_ocr else "SKIPPED",
+        "RULES": "SUCCESS",
+    }
+
+
+def needs_mock_workers(cases: list[dict[str, Any]]) -> bool:
+    return any((case.get("reviewTask") or {}).get("autoVision") or (case.get("reviewTask") or {}).get("autoOcr") for case in cases)
+
+
+def start_mock_worker(name: str, port: int, handler: type[BaseHTTPRequestHandler]) -> MockWorker:
+    server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    thread = threading.Thread(target=server.serve_forever, name=name, daemon=True)
+    worker = MockWorker(name, server, thread)
+    worker.start()
+    return worker
+
+
 def print_results(results: list[CaseResult]) -> None:
     print("\nGolden dataset E2E results")
     print("-" * 88)
@@ -367,6 +525,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--password", default="admin123")
     parser.add_argument("--poll-seconds", type=int, default=45)
     parser.add_argument("--keep-going", action="store_true", help="Run remaining cases after a failure")
+    parser.add_argument("--mock-vision-port", type=int, default=9100, help="Mock Vision Worker port for autoVision golden cases")
+    parser.add_argument("--mock-ocr-port", type=int, default=9200, help="Mock OCR Worker port for autoOcr golden cases")
     parser.add_argument(
         "--evict-upload-cache",
         action="store_true",
@@ -381,7 +541,11 @@ def main() -> int:
     cases = load_manifest(manifest_path)
     runner = GoldenE2E(args.base_url, args.username, args.password, args.poll_seconds)
     results: list[CaseResult] = []
+    workers: list[MockWorker] = []
     try:
+        if needs_mock_workers(cases):
+            workers.append(start_mock_worker("mock-vision-worker", args.mock_vision_port, MockVisionHandler))
+            workers.append(start_mock_worker("mock-ocr-worker", args.mock_ocr_port, MockOcrHandler))
         runner.login()
         project = runner.create_project()
         for case in cases:
@@ -394,6 +558,8 @@ def main() -> int:
         return 2
     finally:
         runner.close()
+        for worker in workers:
+            worker.stop()
 
     print_results(results)
     return 0 if results and all(result.ok for result in results) else 1

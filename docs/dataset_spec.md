@@ -58,13 +58,12 @@ datasets/
 ```json
 [
   {
+    "id": "placeholder_text",
     "file": "placeholder_text.dxf",
-    "expectedIssues": [
-      {
-        "ruleCode": "TEXT_PLACEHOLDER",
-        "severity": "MEDIUM"
-      }
-    ],
+    "versionNo": "V1",
+    "expectedRuleCodes": ["TEXT_PLACEHOLDER"],
+    "expectedIssueCount": 1,
+    "allowUnexpectedRuleCodes": false,
     "expectedEvidence": {
       "TEXT_PLACEHOLDER": {
         "layerName": "TEXT-NOTE",
@@ -95,13 +94,18 @@ Generation and acceptance commands:
 
 ```powershell
 .\.venv\Scripts\python.exe tools\generate_golden_dataset.py
+.\.venv\Scripts\python.exe tools\check_rule_golden_coverage.py
 .\.venv\Scripts\python.exe tools\run_golden_e2e.py --keep-going
 .\.venv\Scripts\python.exe tools\run_multimodal_evidence_e2e.py
 ```
 
-The E2E script uploads each DXF, creates a review task, polls until it finishes, verifies the ordered task steps for parse/render/vision/OCR/rules, checks the generated `ReviewIssue.ruleCode` set, validates parser summary expectations, verifies issue evidence fields such as `layerName` and `entityRef`, creates an evidence-aware report, checks that report content cites the expected rules/evidence, checks report object-storage metadata and attachment download, and checks the authenticated version file endpoint used by the official preview path. With `--evict-upload-cache`, it deletes local version/report caches before download or review steps so S3-compatible object storage must restore the files.
+The coverage checker parses the backend's default seeded rules and verifies that every enabled rule has at least one positive golden case and one negative golden case. It also rejects unknown rule codes and malformed `expectedIssueCount` values.
 
-`tools/run_multimodal_evidence_e2e.py` is the deterministic live API regression for OCR/YOLO evidence. It uses the missing-title-block DXF fixture plus mock Vision/OCR workers to verify review-task automatic CAD rendering, task-scoped `YOLO_SYMBOL`/`OCR_TEXT` evidence, version evidence endpoints, rule consumption, issue-level `sourceEvidenceId`, AI explanations, and report output.
+The E2E script uploads each DXF, creates a review task, polls until it finishes, verifies the ordered task steps for parse/render/vision/OCR/rules, checks the generated `ReviewIssue.ruleCode` set and exact `expectedIssueCount`, validates parser summary expectations, verifies issue evidence fields such as `layerName`, `entityRef`, required evidence types, and expected evidence coordinate spaces, creates an evidence-aware report, checks that report content cites the expected rules/evidence, checks report object-storage metadata and attachment download, and checks the authenticated version file endpoint used by the official preview path. With `--evict-upload-cache`, it deletes local version/report caches before download or review steps so S3-compatible object storage must restore the files.
+
+Cases may include optional `reviewTask`, `mockVision`, and `mockOcr` sections. When any case enables `autoVision` or `autoOcr`, `tools/run_golden_e2e.py` starts deterministic mock Vision/OCR workers on `127.0.0.1:9100` and `127.0.0.1:9200` by default, unless different ports are passed with `--mock-vision-port` and `--mock-ocr-port`. The Spring Boot backend must be configured with matching `SHIPCAD_VISION_URL` and `SHIPCAD_OCR_URL`. These mocks validate orchestration and rule consumption; they do not measure real YOLO or OCR model accuracy.
+
+`tools/run_multimodal_evidence_e2e.py` remains the broader deterministic live API regression for OCR/YOLO evidence. It uses the missing-title-block DXF fixture plus mock Vision/OCR workers to verify review-task automatic CAD rendering, task-scoped `YOLO_SYMBOL`/`OCR_TEXT` evidence, version evidence endpoints, rule consumption, issue-level `sourceEvidenceId`, AI explanations, and report output.
 
 Current deterministic rule coverage:
 

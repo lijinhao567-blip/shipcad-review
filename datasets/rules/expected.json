@@ -7,6 +7,7 @@
     "title": "Compliant Section",
     "versionNo": "V1",
     "expectedRuleCodes": [],
+    "expectedIssueCount": 0,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 6,
@@ -36,6 +37,7 @@
     "expectedRuleCodes": [
       "LAYER_NAME_STANDARD"
     ],
+    "expectedIssueCount": 1,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 7,
@@ -65,6 +67,7 @@
     "expectedRuleCodes": [
       "EMPTY_LAYER_CHECK"
     ],
+    "expectedIssueCount": 1,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 6,
@@ -94,6 +97,7 @@
     "expectedRuleCodes": [
       "TITLE_BLOCK_REQUIRED"
     ],
+    "expectedIssueCount": 1,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 5,
@@ -119,6 +123,7 @@
     "expectedRuleCodes": [
       "TEXT_PLACEHOLDER"
     ],
+    "expectedIssueCount": 1,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 7,
@@ -148,6 +153,7 @@
     "expectedRuleCodes": [
       "TITLE_ATTRIBUTE_REQUIRED"
     ],
+    "expectedIssueCount": 1,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 6,
@@ -183,6 +189,7 @@
     "expectedRuleCodes": [
       "VERSION_TITLE_CONSISTENCY"
     ],
+    "expectedIssueCount": 1,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 6,
@@ -218,6 +225,7 @@
     "expectedRuleCodes": [
       "DIMENSION_REQUIRED"
     ],
+    "expectedIssueCount": 1,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 5,
@@ -251,6 +259,7 @@
     "expectedRuleCodes": [
       "DIMENSION_LAYER_STANDARD"
     ],
+    "expectedIssueCount": 1,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 6,
@@ -286,6 +295,7 @@
     "expectedRuleCodes": [
       "ENTITY_DENSITY"
     ],
+    "expectedIssueCount": 1,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 2,
@@ -310,6 +320,7 @@
     "expectedRuleCodes": [
       "VERSION_FORMAT"
     ],
+    "expectedIssueCount": 1,
     "allowUnexpectedRuleCodes": false,
     "parserExpectations": {
       "minEntityCount": 6,
@@ -328,5 +339,162 @@
       ]
     },
     "description": "Geometry is valid, but the uploaded version number is not traceable."
+  },
+  {
+    "id": "multimodal_clean_evidence",
+    "file": "cases/multimodal_clean_evidence.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-MULTIMODAL_CLEAN_EVIDENCE",
+    "title": "Multimodal Clean Evidence",
+    "versionNo": "V1",
+    "expectedRuleCodes": [],
+    "expectedIssueCount": 0,
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 6,
+      "requiredLayers": [
+        "TITLE",
+        "S-HULL",
+        "DIM-MAIN",
+        "TEXT-NOTE"
+      ],
+      "requiredBlocks": [
+        "TITLE_BLOCK"
+      ],
+      "requiredEntityTypes": [
+        "DIMENSION",
+        "ATTRIB"
+      ]
+    },
+    "description": "Compliant CAD plus clean mock Vision/OCR evidence; cross-modal rules must not fire.",
+    "reviewTask": {
+      "autoVision": true,
+      "autoOcr": true,
+      "visionConfidence": 0.25,
+      "ocrConfidence": 0.5
+    },
+    "mockVision": {
+      "detections": [
+        {
+          "classId": 1,
+          "className": "title_block",
+          "confidence": 0.93,
+          "xyxy": [
+            120.0,
+            80.0,
+            460.0,
+            220.0
+          ]
+        }
+      ],
+      "imageWidth": 640,
+      "imageHeight": 480,
+      "engine": "mock-yolov8"
+    },
+    "mockOcr": {
+      "regions": [
+        {
+          "text": "APPROVED DETAIL",
+          "confidence": 0.92,
+          "xyxy": [
+            24.0,
+            32.0,
+            260.0,
+            68.0
+          ],
+          "language": "eng"
+        }
+      ],
+      "imageWidth": 640,
+      "imageHeight": 480,
+      "engine": "mock-ocr",
+      "language": "eng"
+    }
+  },
+  {
+    "id": "multimodal_ocr_yolo_conflict",
+    "file": "cases/multimodal_ocr_yolo_conflict.dxf",
+    "format": "dxf",
+    "drawingNo": "GOLDEN-MULTIMODAL_OCR_YOLO_CONFLICT",
+    "title": "Multimodal Ocr Yolo Conflict",
+    "versionNo": "V1",
+    "expectedRuleCodes": [
+      "OCR_PLACEHOLDER_TEXT",
+      "YOLO_TITLE_BLOCK_CAD_MISSING"
+    ],
+    "expectedIssueCount": 2,
+    "allowUnexpectedRuleCodes": false,
+    "parserExpectations": {
+      "minEntityCount": 5,
+      "requiredLayers": [
+        "S-HULL",
+        "DIM-MAIN",
+        "TEXT-NOTE"
+      ],
+      "requiredBlocks": [],
+      "requiredEntityTypes": [
+        "DIMENSION"
+      ]
+    },
+    "description": "Missing CAD title block plus mock title-block detection and OCR placeholder evidence.",
+    "expectedEvidence": {
+      "OCR_PLACEHOLDER_TEXT": {
+        "requireEntityRef": false,
+        "requireEvidenceTypes": [
+          "OCR_TEXT"
+        ],
+        "locationCoordinateSpace": "RASTER_IMAGE"
+      },
+      "YOLO_TITLE_BLOCK_CAD_MISSING": {
+        "requireEntityRef": false,
+        "requireEvidenceTypes": [
+          "YOLO_SYMBOL"
+        ],
+        "locationCoordinateSpace": "RASTER_IMAGE"
+      }
+    },
+    "reviewTask": {
+      "autoVision": true,
+      "autoOcr": true,
+      "visionConfidence": 0.25,
+      "ocrConfidence": 0.5
+    },
+    "mockVision": {
+      "detections": [
+        {
+          "classId": 1,
+          "className": "title_block",
+          "confidence": 0.93,
+          "xyxy": [
+            120.0,
+            80.0,
+            460.0,
+            220.0
+          ]
+        }
+      ],
+      "imageWidth": 640,
+      "imageHeight": 480,
+      "engine": "mock-yolov8"
+    },
+    "mockOcr": {
+      "regions": [
+        {
+          "text": "TBD bracket detail",
+          "confidence": 0.91,
+          "xyxy": [
+            24.0,
+            32.0,
+            260.0,
+            68.0
+          ],
+          "language": "eng"
+        }
+      ],
+      "imageWidth": 640,
+      "imageHeight": 480,
+      "engine": "mock-ocr",
+      "language": "eng"
+    }
   }
 ]

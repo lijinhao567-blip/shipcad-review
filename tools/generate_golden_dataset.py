@@ -31,6 +31,9 @@ class Case:
     description: str
     required_entity_types: list[str] = field(default_factory=list)
     expected_evidence: dict[str, dict[str, object]] = field(default_factory=dict)
+    review_task: dict[str, object] = field(default_factory=dict)
+    mock_vision: dict[str, object] = field(default_factory=dict)
+    mock_ocr: dict[str, object] = field(default_factory=dict)
 
 
 def ensure_layer(doc: ezdxf.EzDxf, name: str) -> None:
@@ -330,6 +333,98 @@ CASES = [
         description="Geometry is valid, but the uploaded version number is not traceable.",
         required_entity_types=["DIMENSION", "ATTRIB"],
     ),
+    Case(
+        case_id="multimodal_clean_evidence",
+        file_name="multimodal_clean_evidence.dxf",
+        version_no="V1",
+        expected_rule_codes=[],
+        builder=build_compliant,
+        min_entity_count=6,
+        required_layers=["TITLE", "S-HULL", "DIM-MAIN", "TEXT-NOTE"],
+        required_blocks=["TITLE_BLOCK"],
+        description="Compliant CAD plus clean mock Vision/OCR evidence; cross-modal rules must not fire.",
+        required_entity_types=["DIMENSION", "ATTRIB"],
+        review_task={"autoVision": True, "autoOcr": True, "visionConfidence": 0.25, "ocrConfidence": 0.5},
+        mock_vision={
+            "detections": [
+                {
+                    "classId": 1,
+                    "className": "title_block",
+                    "confidence": 0.93,
+                    "xyxy": [120.0, 80.0, 460.0, 220.0],
+                }
+            ],
+            "imageWidth": 640,
+            "imageHeight": 480,
+            "engine": "mock-yolov8",
+        },
+        mock_ocr={
+            "regions": [
+                {
+                    "text": "APPROVED DETAIL",
+                    "confidence": 0.92,
+                    "xyxy": [24.0, 32.0, 260.0, 68.0],
+                    "language": "eng",
+                }
+            ],
+            "imageWidth": 640,
+            "imageHeight": 480,
+            "engine": "mock-ocr",
+            "language": "eng",
+        },
+    ),
+    Case(
+        case_id="multimodal_ocr_yolo_conflict",
+        file_name="multimodal_ocr_yolo_conflict.dxf",
+        version_no="V1",
+        expected_rule_codes=["OCR_PLACEHOLDER_TEXT", "YOLO_TITLE_BLOCK_CAD_MISSING"],
+        builder=build_missing_title,
+        min_entity_count=5,
+        required_layers=["S-HULL", "DIM-MAIN", "TEXT-NOTE"],
+        required_blocks=[],
+        description="Missing CAD title block plus mock title-block detection and OCR placeholder evidence.",
+        required_entity_types=["DIMENSION"],
+        expected_evidence={
+            "OCR_PLACEHOLDER_TEXT": {
+                "requireEntityRef": False,
+                "requireEvidenceTypes": ["OCR_TEXT"],
+                "locationCoordinateSpace": "RASTER_IMAGE",
+            },
+            "YOLO_TITLE_BLOCK_CAD_MISSING": {
+                "requireEntityRef": False,
+                "requireEvidenceTypes": ["YOLO_SYMBOL"],
+                "locationCoordinateSpace": "RASTER_IMAGE",
+            },
+        },
+        review_task={"autoVision": True, "autoOcr": True, "visionConfidence": 0.25, "ocrConfidence": 0.5},
+        mock_vision={
+            "detections": [
+                {
+                    "classId": 1,
+                    "className": "title_block",
+                    "confidence": 0.93,
+                    "xyxy": [120.0, 80.0, 460.0, 220.0],
+                }
+            ],
+            "imageWidth": 640,
+            "imageHeight": 480,
+            "engine": "mock-yolov8",
+        },
+        mock_ocr={
+            "regions": [
+                {
+                    "text": "TBD bracket detail",
+                    "confidence": 0.91,
+                    "xyxy": [24.0, 32.0, 260.0, 68.0],
+                    "language": "eng",
+                }
+            ],
+            "imageWidth": 640,
+            "imageHeight": 480,
+            "engine": "mock-ocr",
+            "language": "eng",
+        },
+    ),
 ]
 
 
@@ -344,6 +439,7 @@ def build_manifest() -> list[dict[str, object]]:
                 "title": case.case_id.replace("_", " ").title(),
                 "versionNo": case.version_no,
                 "expectedRuleCodes": case.expected_rule_codes,
+                "expectedIssueCount": len(case.expected_rule_codes),
                 "allowUnexpectedRuleCodes": False,
                 "parserExpectations": {
                     "minEntityCount": case.min_entity_count,
@@ -355,6 +451,12 @@ def build_manifest() -> list[dict[str, object]]:
             }
         if case.expected_evidence:
             item["expectedEvidence"] = case.expected_evidence
+        if case.review_task:
+            item["reviewTask"] = case.review_task
+        if case.mock_vision:
+            item["mockVision"] = case.mock_vision
+        if case.mock_ocr:
+            item["mockOcr"] = case.mock_ocr
         manifest.append(item)
     return manifest
 

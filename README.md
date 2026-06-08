@@ -153,6 +153,7 @@ $env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
 .\.venv\Scripts\python.exe -m pytest cad_worker\tests ocr_worker\tests vision_worker\tests tools\tests -q
 .\.venv\Scripts\python.exe tools\check_python_requirements.py
 .\.venv\Scripts\python.exe tools\check_action_pins.py
+.\.venv\Scripts\python.exe tools\check_rule_golden_coverage.py
 .\.venv\Scripts\python.exe tools\validate_vision_dataset.py
 .\.venv\Scripts\python.exe tools\run_secret_scan.py
 $env:JAVA_HOME=(Resolve-Path .tools\jdk-17).Path
@@ -161,9 +162,9 @@ cd frontend-vue
 npm run build
 ```
 
-同一组基础门禁会由 `.github/workflows/ci.yml` 在 push 和 pull request 时自动执行；CI 还会启动真实 CAD Worker 与后端，运行 golden dataset 和审查任务失败重试 E2E。`.github/workflows/secret-scan.yml` 会用校验过的 Gitleaks CLI 扫描完整 Git 历史，`.github/workflows/sbom.yml` 会按后端、前端和三个 Worker 生成 SPDX JSON 组件 SBOM 工件。Docker Compose、MinIO、Redis/Valkey、DM8 与真实 YOLO 权重仍按独立环境验收。
+同一组基础门禁会由 `.github/workflows/ci.yml` 在 push 和 pull request 时自动执行；CI 还会检查每条默认规则的 golden 正反样例覆盖，启动真实 CAD Worker 与后端，运行 golden dataset 和审查任务失败重试 E2E。`.github/workflows/secret-scan.yml` 会用校验过的 Gitleaks CLI 扫描完整 Git 历史，`.github/workflows/sbom.yml` 会按后端、前端和三个 Worker 生成 SPDX JSON 组件 SBOM 工件。Docker Compose、MinIO、Redis/Valkey、DM8 与真实 YOLO 权重仍按独立环境验收。
 
-Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
+Golden dataset 端到端验收需要后端和 CAD Worker 已启动。`tools/run_golden_e2e.py` 会按 `datasets/rules/expected.json` 逐个上传合成 DXF，校验问题数量、规则代码、解析摘要、证据链、报告和版本文件下载；包含自动 Vision/OCR 的样例会启动确定性 mock Worker，用来验证编排和规则消费，不代表真实 YOLO/OCR 精度：
 
 ```powershell
 .\.venv\Scripts\python.exe tools\run_golden_e2e.py --keep-going

@@ -45,6 +45,9 @@ jobs:
       - name: Validate vision dataset structure
         run: python tools/validate_vision_dataset.py
 
+      - name: Check rule golden coverage
+        run: python tools/check_rule_golden_coverage.py
+
       - name: Test CAD, OCR, Vision, and dataset tooling
         run: python -m pytest cad_worker/tests ocr_worker/tests vision_worker/tests tools/tests -q
 

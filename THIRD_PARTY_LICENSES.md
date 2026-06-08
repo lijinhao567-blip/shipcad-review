@@ -26,6 +26,7 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 | dxf-viewer | Main DXF WebGL preview viewer | MPL-2.0 |
 | Matplotlib | CAD Worker DXF-to-PNG rendering | Matplotlib License / PSF-style |
 | Valkey | Redis protocol task queue service in deployment skeletons | BSD-3-Clause |
+| redis-windows-fork | Development-only Windows Redis-compatible server used by `deploy/run-redis-queue-e2e.ps1` | MIT |
 | MinIO | Optional S3-compatible object storage service for self-hosted deployments | AGPL-3.0 or commercial license |
 
 ## CAD And AI

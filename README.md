@@ -58,6 +58,9 @@
 # 跑真实 MinIO/S3 对象存储验收，会临时启动独立 MinIO 和后端
 .\deploy\run-object-storage-e2e.ps1
 
+# 跑真实 Redis 协议队列验收，会临时启动便携 Redis 和独立后端
+.\deploy\run-redis-queue-e2e.ps1
+
 # 停止由 start-dev.ps1 启动的开发服务
 .\deploy\stop-dev.ps1
 ```
@@ -167,6 +170,15 @@ Golden dataset 端到端验收需要后端和 CAD Worker 已启动：
 
 # 如果 .tools\minio\minio.exe 不存在，可下载到项目 .tools 目录
 .\deploy\run-object-storage-e2e.ps1 -DownloadMinio
+```
+
+真实 Redis 协议队列验收会临时启动 Redis `6380` 和独立后端 `8086`，把后端切到 `SHIPCAD_REVIEW_QUEUE_MODE=redis`，再跑完整 golden dataset。Windows 开发机默认使用 MIT 许可的便携 `redis-windows-fork`，下载到 `.tools\redis-windows`，不进入仓库；Valkey 容器仍由 Docker Compose 骨架覆盖：
+
+```powershell
+.\deploy\run-redis-queue-e2e.ps1
+
+# 如果 .tools\redis-windows 不存在，可下载到项目 .tools 目录
+.\deploy\run-redis-queue-e2e.ps1 -DownloadRedis
 ```
 
 Multimodal evidence E2E needs the backend and CAD Worker running. By default it starts deterministic mock Vision/OCR workers on `127.0.0.1:9100` and `127.0.0.1:9200`, so it can validate review-task orchestration for CAD rendering, YOLO evidence, OCR evidence, rule consumption, and report output without real YOLO weights or Tesseract:

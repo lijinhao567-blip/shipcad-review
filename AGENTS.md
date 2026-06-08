@@ -107,6 +107,8 @@ npm run build
 ```powershell
 .\.venv\Scripts\python.exe tools\run_golden_e2e.py --keep-going
 .\deploy\run-access-control-e2e.ps1
+.\deploy\run-redis-queue-e2e.ps1
+.\deploy\run-object-storage-e2e.ps1
 ```
 
 ## 文档维护准则

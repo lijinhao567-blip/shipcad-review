@@ -70,7 +70,7 @@
 
 - 本地开发：PowerShell 脚本或手动启动前端、后端、CAD Worker、可选 Vision Worker 和可选 OCR Worker。
 - 身份初始化：开发脚本和 Docker Compose 显式启用 `dev` Profile 并创建四个开发账号；生产 `prod` Profile 不创建默认账号，空库首次启动需通过 `SHIPCAD_BOOTSTRAP_ADMIN_*` 环境变量创建初始管理员。
-- 本地健康检查：`/api/health` 聚合数据库、审查任务队列、对象存储、OpenAPI、CAD Worker 和可选 Vision/OCR Worker 状态；前端“系统状态”页展示同一组状态；`deploy/test-health.ps1` 统一检查 `/api/health`、OpenAPI、Worker `/health`/`/capabilities` 和前端入口；`deploy/run-demo.ps1` 在服务启动后执行 golden dataset 演示验收；`deploy/run-object-storage-e2e.ps1` 使用真实 MinIO 验证 S3 模式上传、缓存重建、文件下载和审查链路。
+- 本地健康检查：`/api/health` 聚合数据库、审查任务队列、对象存储、OpenAPI、CAD Worker 和可选 Vision/OCR Worker 状态；前端“系统状态”页展示同一组状态；`deploy/test-health.ps1` 统一检查 `/api/health`、OpenAPI、Worker `/health`/`/capabilities` 和前端入口；`deploy/run-demo.ps1` 在服务启动后执行 golden dataset 演示验收；`deploy/run-object-storage-e2e.ps1` 使用真实 MinIO 验证 S3 模式上传、缓存重建、文件下载和审查链路；`deploy/run-redis-queue-e2e.ps1` 使用真实 Redis 协议服务验证 Redis 队列模式下的审查任务闭环。
 - 容器部署：`deploy/docker-compose.yml` 构建并启动核心服务，并使用 Valkey 提供 Redis 协议审查任务队列；默认对象存储仍为本地文件系统，设置 `SHIPCAD_OBJECT_STORAGE_MODE=s3` 并启用 `--profile object-storage` 后可使用 MinIO；使用 `--profile vision` 启动 YOLOv8 识别服务，使用 `--profile ocr` 启动 OCR 识别服务。
 - 云原生占位：`deploy/kubernetes/shipcad-review.yaml` 提供 Deployment、Service、ConfigMap、Valkey 和 PVC 骨架；后端 `prod` Profile 从 `shipcad-database` Secret 读取外部 DM8 连接，对象存储默认本地 PVC，可通过 `shipcad-object-storage` Secret 切换到外部 S3/MinIO；后续可继续接入 Ingress 和更高可用的队列形态。
 

@@ -416,7 +416,10 @@ public class ReviewPlatformService implements ReviewTaskRunner {
 
     public ReviewTask retryReviewTask(String taskId, AppUser actor) {
         ReviewTask oldTask = projectAccess.requireTask(actor, taskId);
-        return createReviewTask(
+        if (!"FAILED".equals(oldTask.status)) {
+            throw new IllegalArgumentException("Only FAILED review tasks can be retried.");
+        }
+        ReviewTask retry = createReviewTask(
                 oldTask.versionId,
                 bool(oldTask.autoVision),
                 bool(oldTask.autoOcr),
@@ -425,6 +428,11 @@ public class ReviewPlatformService implements ReviewTaskRunner {
                 confidenceOrDefault(oldTask.ocrConfidence, 0.5),
                 actor
         );
+        audit.record(actor.username, "REVIEW_RETRY", "task", retry.id, Map.of(
+                "sourceTaskId", oldTask.id,
+                "versionId", oldTask.versionId
+        ));
+        return retry;
     }
 
     @Override

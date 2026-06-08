@@ -1,6 +1,6 @@
 # CAD Viewer POC
 
-This experiment evaluates open-source CAD viewers for ShipCAD Review.
+This experiment validates the `dxf-viewer` integration used by ShipCAD Review.
 
 ## Run
 
@@ -22,9 +22,7 @@ npm run build
 npm run preview
 ```
 
-## Tested Viewers
-
-### dxf-viewer
+## dxf-viewer
 
 Status: preferred near-term DXF preview candidate.
 
@@ -40,19 +38,19 @@ Limitations:
 - DXF only.
 - Issue highlighting still needs a custom overlay or mapping strategy.
 
-### mlightcad/cad-viewer
+## Retired mlightcad path
 
-Status: research candidate.
-
-Observed:
-
-- Builds with Vue/Vite in an isolated app when peer dependencies are pinned.
-- Mounts successfully and accepts `localFile`.
-- UI renders.
-- Drawing area stayed blank in the current test.
-- Browser logs worker errors.
-- Bundle size is large.
+The earlier comparison also included `@mlightcad/cad-viewer`, but that path was
+removed on June 8, 2026. The current mlightcad 1.5.x packages require the exact
+peer `lodash-es@4.17.21`, which is affected by published prototype-pollution
+and code-injection advisories. The latest 1.5.5 release keeps the same peer
+constraint, so forcing a newer lodash version would leave an invalid dependency
+tree. The main product had already selected `dxf-viewer`; keeping the unused
+research dependency would only preserve avoidable security debt.
 
 ## Notes
 
-This POC intentionally lives outside `frontend-vue` to avoid destabilizing the main UI. The recommended next step is to add a focused `DxfViewerPreview.vue` component to the main frontend using `dxf-viewer`, while keeping the current Canvas preview as a manual diagnostic view rather than an automatic fallback.
+This POC intentionally lives outside `frontend-vue` to avoid destabilizing the
+main UI. The focused `DxfViewerPreview.vue` component is now implemented in the
+main frontend, while Canvas remains a manual diagnostic view rather than an
+automatic fallback.

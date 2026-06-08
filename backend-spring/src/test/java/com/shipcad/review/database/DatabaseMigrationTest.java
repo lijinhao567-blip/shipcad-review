@@ -6,13 +6,21 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
 
 class DatabaseMigrationTest {
     private static final String LOCATIONS = "classpath:db/migration/h2";
+    private static final Pattern MIGRATION_FILE = Pattern.compile("V(\\d+)__.+\\.sql");
 
     @Test
     void createsAndValidatesSchemaFromAnEmptyDatabase() throws Exception {
@@ -68,6 +76,25 @@ class DatabaseMigrationTest {
         assertThat(dialect.getMaxVarcharLength()).isGreaterThan(0);
         assertThat(dialect.getSequenceSupport().supportsSequences()).isFalse();
         assertThat(dialect.getQuerySequencesString()).isNull();
+    }
+
+    @Test
+    void damengMigrationScriptsStayInStepWithH2Migrations() throws Exception {
+        Path h2Dir = Path.of("src/main/resources/db/migration/h2");
+        Path dm8Dir = Path.of("../deploy/database/dm8");
+        List<Path> h2Scripts = migrationScripts(h2Dir);
+        List<Path> dm8Scripts = migrationScripts(dm8Dir);
+
+        assertThat(dm8Scripts.stream().map(this::migrationVersion).toList())
+                .containsExactlyElementsOf(h2Scripts.stream().map(this::migrationVersion).toList());
+        for (Path script : dm8Scripts) {
+            int version = migrationVersion(script);
+            String fileName = script.getFileName().toString();
+            String sql = Files.readString(script);
+            assertThat(sql)
+                    .contains("INSERT INTO shipcad_schema_version")
+                    .contains("VALUES (" + version + ", '" + fileName + "'");
+        }
     }
 
     @Test
@@ -150,5 +177,22 @@ class DatabaseMigrationTest {
             result.next();
             return result.getString(1);
         }
+    }
+
+    private List<Path> migrationScripts(Path directory) throws Exception {
+        try (Stream<Path> stream = Files.list(directory)) {
+            return stream
+                    .filter(path -> MIGRATION_FILE.matcher(path.getFileName().toString()).matches())
+                    .sorted(Comparator.comparingInt(this::migrationVersion))
+                    .toList();
+        }
+    }
+
+    private int migrationVersion(Path path) {
+        Matcher matcher = MIGRATION_FILE.matcher(path.getFileName().toString());
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("Not a migration file: " + path);
+        }
+        return Integer.parseInt(matcher.group(1));
     }
 }

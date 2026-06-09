@@ -573,11 +573,28 @@ async function main() {
   console.log(`Screenshot: ${args.screenshot}`)
 }
 
-main().catch(async (error) => {
+async function writeFailureReport(error) {
   const outputArg = process.argv.findIndex((item) => item === '--output')
   const output = outputArg >= 0 && process.argv[outputArg + 1] ? path.resolve(process.argv[outputArg + 1]) : path.join(DEFAULT_RUN_DIR, 'dxf-viewer-webgl-smoke.json')
   await fs.promises.mkdir(path.dirname(output), { recursive: true }).catch(() => undefined)
   await fs.promises.writeFile(output, JSON.stringify({ ok: false, error: error.message, time: new Date().toISOString() }, null, 2) + '\n', 'utf8').catch(() => undefined)
   console.error(`DXF viewer WebGL smoke failed: ${error.message}`)
   process.exit(1)
-})
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  main().catch(writeFailureReport)
+}
+
+export {
+  DEFAULT_RUN_DIR,
+  analyzePng,
+  apiJson,
+  browserTarget,
+  delay,
+  frontendUrlWithSmokeFlag,
+  launchBrowser,
+  readCanvasPixels,
+  waitFor,
+  CdpSession,
+}

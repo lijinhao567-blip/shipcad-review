@@ -1986,7 +1986,16 @@ onMounted(() => {
               <strong>请选择一个问题</strong>
               <p>选中问题后可填写整改说明、提交复核、关闭问题并查看完整时间线。</p>
             </div>
-            <div v-for="issue in issues" :key="issue.id" class="issue" :class="[issue.severity, { selected: selectedIssueId === issue.id }]" @click="selectIssue(issue)">
+            <div
+              v-for="issue in issues"
+              :key="issue.id"
+              class="issue"
+              :class="[issue.severity, { selected: selectedIssueId === issue.id }]"
+              :data-issue-id="issue.id"
+              :data-version-id="issue.versionId"
+              :data-rule-code="issue.ruleCode"
+              @click="selectIssue(issue)"
+            >
               <strong>{{ issue.title }}</strong>
               <p>{{ issue.ruleCode }} / {{ issue.severity }} / {{ issueStatusLabel(issue.status) }} / 图层 {{ issue.layerName || '-' }}</p>
               <p class="evidence">{{ issueEvidence(issue) }}</p>

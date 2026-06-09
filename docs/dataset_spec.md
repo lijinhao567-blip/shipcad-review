@@ -146,6 +146,14 @@ The command starts the development stack by default, uploads `datasets/parser/ca
 
 This smoke proves the formal WebGL preview path is usable; it must not be replaced by automatically opening Canvas diagnostics.
 
+Issue focus smoke command:
+
+```powershell
+.\deploy\run-dxf-issue-focus-smoke.ps1
+```
+
+This command uploads `datasets/rules/cases/invalid_layer_name.dxf`, creates a real review task, waits for the generated `LAYER_NAME_STANDARD` issue, clicks the issue card in the Vue "问题闭环" view, and verifies that the official `dxf-viewer` WebGL canvas gains a red selected-issue highlight. It proves that rule evidence can drive preview positioning; it is not a model-accuracy benchmark.
+
 ## External DXF Candidate Registry
 
 `datasets/external/manifest.json` records real open-source DXF candidates without vendoring the third-party files. Every entry must include:

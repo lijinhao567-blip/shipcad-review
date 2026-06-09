@@ -12,6 +12,11 @@ import {
   frontendUrlWithSmokeFlag,
   launchBrowser,
   readCanvasPixels,
+  resolveRunArtifactPath,
+  safeReportList,
+  safeReportNumber,
+  safeReportString,
+  safeReportValue,
   waitFor,
 } from './run_dxf_viewer_webgl_smoke.mjs'
 
@@ -59,8 +64,8 @@ function parseArgs(argv) {
     else if (item === '--min-unique-sample-colors') args.minUniqueSampleColors = Number(next())
     else if (item === '--min-red-pixels') args.minRedPixels = Number(next())
     else if (item === '--min-red-pixel-increase') args.minRedPixelIncrease = Number(next())
-    else if (item === '--output') args.output = path.resolve(next())
-    else if (item === '--screenshot') args.screenshot = path.resolve(next())
+    else if (item === '--output') args.output = resolveRunArtifactPath(next(), 'dxf-viewer-issue-focus-smoke.json')
+    else if (item === '--screenshot') args.screenshot = resolveRunArtifactPath(next(), 'dxf-viewer-issue-focus-smoke.png')
     else if (item === '--headed') args.headed = true
     else if (item === '--help') {
       printHelp()
@@ -83,8 +88,8 @@ Options:
   --browser-path PATH                Chrome/Edge/Chromium executable. Can also use BROWSER_PATH.
   --browser-debug-port PORT          DevTools port. Default: 9334
   --headed                           Run a visible browser instead of headless.
-  --output PATH                      JSON report path. Default: .run/dxf-viewer-issue-focus-smoke.json
-  --screenshot PATH                  Focused canvas PNG path. Default: .run/dxf-viewer-issue-focus-smoke.png
+  --output PATH                      JSON report path under .run. Default: .run/dxf-viewer-issue-focus-smoke.json
+  --screenshot PATH                  Focused canvas PNG path under .run. Default: .run/dxf-viewer-issue-focus-smoke.png
   --min-red-pixels N                 Minimum red highlight pixels after focus. Default: 6
   --min-red-pixel-increase N         Minimum red pixel increase after issue click. Default: 3
 `)
@@ -364,25 +369,25 @@ async function main() {
   const report = {
     ok: true,
     time: new Date().toISOString(),
-    backendUrl: args.backendUrl,
-    frontendUrl: args.frontendUrl,
-    sample: args.sample,
+    backendUrl: safeReportString(args.backendUrl),
+    frontendUrl: safeReportString(args.frontendUrl),
+    sample: safeReportString(args.sample),
     sampleSha256: sampleHash,
-    projectId: created.project.id,
-    drawingId: created.drawing.id,
-    versionId: created.version.id,
-    taskId: created.task.id,
-    taskStatus: created.task.status,
-    issueCount: created.issues.length,
+    projectId: safeReportString(created.project.id),
+    drawingId: safeReportString(created.drawing.id),
+    versionId: safeReportString(created.version.id),
+    taskId: safeReportString(created.task.id),
+    taskStatus: safeReportString(created.task.status),
+    issueCount: safeReportNumber(created.issues.length),
     selectedIssue: {
-      id: created.selectedIssue.id,
-      ruleCode: created.selectedIssue.ruleCode,
-      layerName: created.selectedIssue.layerName,
-      entityRef: created.selectedIssue.entityRef,
-      evidenceTypes: (created.selectedIssue.evidences ?? []).map((evidence) => evidence.evidenceType),
+      id: safeReportString(created.selectedIssue.id),
+      ruleCode: safeReportString(created.selectedIssue.ruleCode),
+      layerName: safeReportString(created.selectedIssue.layerName),
+      entityRef: safeReportString(created.selectedIssue.entityRef),
+      evidenceTypes: safeReportList((created.selectedIssue.evidences ?? []).map((evidence) => evidence.evidenceType)),
     },
-    entityCount: created.entityCount,
-    viewer: browser,
+    entityCount: safeReportNumber(created.entityCount),
+    viewer: safeReportValue(browser),
   }
   await fs.promises.mkdir(path.dirname(args.output), { recursive: true })
   await fs.promises.writeFile(args.output, JSON.stringify(report, null, 2) + '\n', 'utf8')
@@ -393,9 +398,16 @@ async function main() {
 
 async function writeFailureReport(error) {
   const outputArg = process.argv.findIndex((item) => item === '--output')
-  const output = outputArg >= 0 && process.argv[outputArg + 1] ? path.resolve(process.argv[outputArg + 1]) : path.join(DEFAULT_RUN_DIR, 'dxf-viewer-issue-focus-smoke.json')
+  let output = path.join(DEFAULT_RUN_DIR, 'dxf-viewer-issue-focus-smoke.json')
+  try {
+    output = outputArg >= 0 && process.argv[outputArg + 1]
+      ? resolveRunArtifactPath(process.argv[outputArg + 1], 'dxf-viewer-issue-focus-smoke.json')
+      : output
+  } catch {
+    output = path.join(DEFAULT_RUN_DIR, 'dxf-viewer-issue-focus-smoke.json')
+  }
   await fs.promises.mkdir(path.dirname(output), { recursive: true }).catch(() => undefined)
-  await fs.promises.writeFile(output, JSON.stringify({ ok: false, error: error.message, time: new Date().toISOString() }, null, 2) + '\n', 'utf8').catch(() => undefined)
+  await fs.promises.writeFile(output, JSON.stringify({ ok: false, error: safeReportString(error.message), time: new Date().toISOString() }, null, 2) + '\n', 'utf8').catch(() => undefined)
   console.error(`DXF issue focus smoke failed: ${error.message}`)
   process.exit(1)
 }

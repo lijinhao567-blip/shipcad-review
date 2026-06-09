@@ -12,6 +12,60 @@ const ROOT = path.resolve(__dirname, '..')
 const DEFAULT_SAMPLE = path.join(ROOT, 'datasets', 'parser', 'cases', 'dense_deck_grid.dxf')
 const DEFAULT_RUN_DIR = path.join(ROOT, '.run')
 
+function isInsideDirectory(parent, candidate) {
+  const relative = path.relative(path.resolve(parent), path.resolve(candidate))
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+function resolveRunArtifactPath(value, defaultFileName) {
+  const input = String(value ?? '').trim()
+  const runDir = path.resolve(DEFAULT_RUN_DIR)
+  let candidate
+  if (!input) {
+    candidate = path.join(runDir, defaultFileName)
+  } else if (path.isAbsolute(input)) {
+    candidate = path.resolve(input)
+  } else {
+    const fromRoot = path.resolve(ROOT, input)
+    candidate = isInsideDirectory(runDir, fromRoot) ? fromRoot : path.resolve(runDir, input)
+  }
+  if (!isInsideDirectory(runDir, candidate)) {
+    throw new Error(`Smoke output path must stay under ${runDir}: ${input}`)
+  }
+  return candidate
+}
+
+function safeReportString(value, maxLength = 500) {
+  return String(value ?? '')
+    .replace(/[^\p{L}\p{N}\s._:/\\@+=,-]/gu, '_')
+    .slice(0, maxLength)
+}
+
+function safeReportNumber(value) {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
+function safeReportList(values, maxItems = 50) {
+  return Array.isArray(values) ? values.slice(0, maxItems).map((item) => safeReportString(item, 120)) : []
+}
+
+function safeReportValue(value, depth = 0) {
+  if (depth > 5) return safeReportString(value, 120)
+  if (value == null || typeof value === 'boolean') return value
+  if (typeof value === 'number') return safeReportNumber(value)
+  if (typeof value === 'string') return safeReportString(value)
+  if (Array.isArray(value)) return value.slice(0, 100).map((item) => safeReportValue(item, depth + 1))
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, 100)
+        .map(([key, item]) => [safeReportString(key, 120), safeReportValue(item, depth + 1)]),
+    )
+  }
+  return safeReportString(value)
+}
+
 function parseArgs(argv) {
   const args = {
     backendUrl: 'http://127.0.0.1:8080',
@@ -47,8 +101,8 @@ function parseArgs(argv) {
     else if (item === '--min-foreground-ratio') args.minForegroundRatio = Number(next())
     else if (item === '--min-foreground-pixels') args.minForegroundPixels = Number(next())
     else if (item === '--min-unique-sample-colors') args.minUniqueSampleColors = Number(next())
-    else if (item === '--output') args.output = path.resolve(next())
-    else if (item === '--screenshot') args.screenshot = path.resolve(next())
+    else if (item === '--output') args.output = resolveRunArtifactPath(next(), 'dxf-viewer-webgl-smoke.json')
+    else if (item === '--screenshot') args.screenshot = resolveRunArtifactPath(next(), 'dxf-viewer-webgl-smoke.png')
     else if (item === '--headed') args.headed = true
     else if (item === '--help') {
       printHelp()
@@ -70,8 +124,8 @@ Options:
   --browser-path PATH            Chrome/Edge/Chromium executable. Can also use BROWSER_PATH.
   --browser-debug-port PORT      DevTools port. Default: 9333
   --headed                       Run a visible browser instead of headless.
-  --output PATH                  JSON report path. Default: .run/dxf-viewer-webgl-smoke.json
-  --screenshot PATH              Preview crop path. Default: .run/dxf-viewer-webgl-smoke.png
+  --output PATH                  JSON report path under .run. Default: .run/dxf-viewer-webgl-smoke.json
+  --screenshot PATH              Preview crop path under .run. Default: .run/dxf-viewer-webgl-smoke.png
   --min-foreground-ratio NUMBER  Minimum pixels that must differ from the background. Default: 0.001
   --min-foreground-pixels NUMBER Minimum foreground pixel count. Default: 300
   --min-unique-sample-colors N   Minimum sampled color variety. Default: 3
@@ -555,16 +609,16 @@ async function main() {
   const report = {
     ok: true,
     time: new Date().toISOString(),
-    backendUrl: args.backendUrl,
-    frontendUrl: args.frontendUrl,
-    sample: args.sample,
+    backendUrl: safeReportString(args.backendUrl),
+    frontendUrl: safeReportString(args.frontendUrl),
+    sample: safeReportString(args.sample),
     sampleSha256: sampleHash,
-    projectId: created.project.id,
-    drawingId: created.drawing.id,
-    versionId: created.version.id,
-    parseStatus: created.version.parseStatus,
-    entityCount: created.entityCount,
-    viewer: browser,
+    projectId: safeReportString(created.project.id),
+    drawingId: safeReportString(created.drawing.id),
+    versionId: safeReportString(created.version.id),
+    parseStatus: safeReportString(created.version.parseStatus),
+    entityCount: safeReportNumber(created.entityCount),
+    viewer: safeReportValue(browser),
   }
   await fs.promises.mkdir(path.dirname(args.output), { recursive: true })
   await fs.promises.writeFile(args.output, JSON.stringify(report, null, 2) + '\n', 'utf8')
@@ -575,9 +629,16 @@ async function main() {
 
 async function writeFailureReport(error) {
   const outputArg = process.argv.findIndex((item) => item === '--output')
-  const output = outputArg >= 0 && process.argv[outputArg + 1] ? path.resolve(process.argv[outputArg + 1]) : path.join(DEFAULT_RUN_DIR, 'dxf-viewer-webgl-smoke.json')
+  let output = path.join(DEFAULT_RUN_DIR, 'dxf-viewer-webgl-smoke.json')
+  try {
+    output = outputArg >= 0 && process.argv[outputArg + 1]
+      ? resolveRunArtifactPath(process.argv[outputArg + 1], 'dxf-viewer-webgl-smoke.json')
+      : output
+  } catch {
+    output = path.join(DEFAULT_RUN_DIR, 'dxf-viewer-webgl-smoke.json')
+  }
   await fs.promises.mkdir(path.dirname(output), { recursive: true }).catch(() => undefined)
-  await fs.promises.writeFile(output, JSON.stringify({ ok: false, error: error.message, time: new Date().toISOString() }, null, 2) + '\n', 'utf8').catch(() => undefined)
+  await fs.promises.writeFile(output, JSON.stringify({ ok: false, error: safeReportString(error.message), time: new Date().toISOString() }, null, 2) + '\n', 'utf8').catch(() => undefined)
   console.error(`DXF viewer WebGL smoke failed: ${error.message}`)
   process.exit(1)
 }
@@ -595,6 +656,11 @@ export {
   frontendUrlWithSmokeFlag,
   launchBrowser,
   readCanvasPixels,
+  resolveRunArtifactPath,
+  safeReportList,
+  safeReportNumber,
+  safeReportString,
+  safeReportValue,
   waitFor,
   CdpSession,
 }

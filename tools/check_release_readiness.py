@@ -26,6 +26,7 @@ REQUIRED_FILES = [
     "datasets/vision/classes.json",
     "datasets/vision/data.yaml",
     "datasets/vision/manifest.json",
+    "datasets/external/manifest.json",
 ]
 PROHIBITED_SUFFIXES = {
     ".env",
@@ -106,17 +107,18 @@ def largest_history_blob(repo: Path) -> tuple[int, str]:
     return largest_size, largest_path
 
 
-def run_python_check(repo: Path, script: str) -> Check:
+def run_python_check(repo: Path, script: str, *script_args: str) -> Check:
     result = subprocess.run(
-        [sys.executable, script],
+        [sys.executable, script, *script_args],
         cwd=repo,
         text=True,
         capture_output=True,
         check=False,
     )
     output = (result.stdout or result.stderr).strip().splitlines()
-    detail = output[-1] if output else f"{script} exited with {result.returncode}"
-    return Check(script, "PASS" if result.returncode == 0 else "FAIL", detail)
+    command = " ".join((script, *script_args))
+    detail = output[-1] if output else f"{command} exited with {result.returncode}"
+    return Check(command, "PASS" if result.returncode == 0 else "FAIL", detail)
 
 
 def main() -> int:
@@ -206,6 +208,8 @@ def main() -> int:
     checks.append(run_python_check(repo, "tools/check_action_pins.py"))
     checks.append(run_python_check(repo, "tools/check_deployment_security.py"))
     checks.append(run_python_check(repo, "tools/check_rule_golden_coverage.py"))
+    checks.append(run_python_check(repo, "tools/check_complex_dxf_dataset.py"))
+    checks.append(run_python_check(repo, "tools/check_external_dxf_candidates.py", "--manifest-only"))
     checks.append(
         run_python_check(repo, "tools/validate_vision_dataset.py")
     )

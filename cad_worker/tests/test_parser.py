@@ -55,3 +55,19 @@ def test_parse_dimension_and_insert_attributes(tmp_path: Path) -> None:
     assert dimension_entity["text"] == "120.0"
     assert dimension_entity["geometry"]["measurement"] == 120.0
     assert dimension_entity["geometry"]["extensionLine2"] == [120.0, 0.0]
+
+
+def test_parse_hatch_bounds(tmp_path: Path) -> None:
+    doc = ezdxf.new("R2010")
+    doc.layers.add("HATCH-SECTION")
+    hatch = doc.modelspace().add_hatch(dxfattribs={"layer": "HATCH-SECTION"})
+    hatch.paths.add_polyline_path([(10, 5), (40, 5), (40, 25), (10, 25)], is_closed=True)
+
+    path = tmp_path / "hatch_bounds.dxf"
+    doc.saveas(path)
+
+    parsed = parse_dxf(path)
+    hatch_entity = next(entity for entity in parsed["entities"] if entity["entityType"] == "HATCH")
+
+    assert hatch_entity["geometry"]["kind"] == "hatch"
+    assert hatch_entity["geometry"]["bounds"] == {"minX": 10.0, "minY": 5.0, "maxX": 40.0, "maxY": 25.0}

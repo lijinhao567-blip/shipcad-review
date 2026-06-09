@@ -48,6 +48,12 @@ jobs:
       - name: Check rule golden coverage
         run: python tools/check_rule_golden_coverage.py
 
+      - name: Validate complex DXF parser dataset
+        run: python tools/check_complex_dxf_dataset.py
+
+      - name: Validate external DXF candidate manifest
+        run: python tools/check_external_dxf_candidates.py --manifest-only
+
       - name: Test CAD, OCR, Vision, and dataset tooling
         run: python -m pytest cad_worker/tests ocr_worker/tests vision_worker/tests tools/tests -q
 
@@ -83,6 +89,9 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend-vue
         run: npm ci
+
+      - name: Check dxf-viewer parser compatibility
+        run: node tools/check_dxf_viewer_dataset.mjs
 
       - name: Build frontend
         working-directory: frontend-vue

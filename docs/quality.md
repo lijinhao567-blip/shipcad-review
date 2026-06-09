@@ -10,6 +10,8 @@
 - 审查任务队列：默认内存队列必须保持本地测试和 golden E2E 稳定；Redis 协议队列必须验证入队载荷、容量限制、健康检查、处理队列恢复和消费失败路径。`deploy/run-redis-queue-e2e.ps1` 已覆盖真实 Redis 协议开发机 E2E；`deploy/run-task-retry-e2e.ps1` 已覆盖坏 DXF 失败、失败任务重试、完成任务拒绝重试和审计记录；`deploy/run-compose-e2e.ps1` 用于在具备 Docker 的环境验证 Valkey 容器队列；容器化多副本异常恢复演练仍是后续部署验收项。
 - 对象存储：默认本地模式必须验证 key 归一化、路径穿越拒绝、上传/渲染/报告文件可读和 `/api/health` 状态；S3/MinIO 模式必须验证 bucket 连通性、对象上传、缓存下载、权限失败和大文件限制。`deploy/run-object-storage-e2e.ps1` 已覆盖真实 MinIO/S3 开发机 E2E；`deploy/run-compose-e2e.ps1 -WithObjectStorage` 用于在具备 Docker 的环境验证容器化 MinIO/S3 链路；权限配置、生命周期策略、备份恢复和大文件性能仍是后续部署验收项。
 - 前端：构建通过，API 调用路径可配置，系统状态页能展示后端、数据库、OpenAPI 和 Worker 状态；审图流程状态应能反映系统、登录、项目图纸、版本、审查、问题和报告进度；项目、图纸、版本列表切换当前上下文后，应同步影响上传、预览、审查和报告选择；审查任务详情能展示步骤时间线和失败细节；dxf-viewer 能加载上传 DXF、显示图层，并在选中问题后按 CAD 证据范围或解析范围聚焦高亮；Canvas 仅作为手动诊断视图，不能自动掩盖正式预览失败。
+- Complex DXF parser dataset：`datasets/parser/manifest.json` 中每个合成 DXF 样例都要通过 `tools/check_complex_dxf_dataset.py`，验证来源、许可证、SHA-256、块参照、属性、尺寸、文字、多图层、HATCH 填充、较高实体数量、HATCH bounds、CAD Worker PNG 渲染和非空图像；`tools/check_dxf_viewer_dataset.mjs` 必须验证同一批样例能被正式 `dxf-viewer` parser 接受。标记 `requiresWebglSmoke` 的样例在发布或演示前还应通过浏览器正式预览烟测：前端经后端鉴权文件接口加载 DXF Blob，`DxfViewerPreview` 报告加载成功、显示预期图层，并通过截图非空白检查。Canvas 诊断视图不能作为复杂样例通过条件。
+- External DXF candidates：`tools/check_external_dxf_candidates.py --manifest-only` 必须在无网络环境验证来源 commit、许可证、署名、远程缓存策略、SHA-256 和验收字段；联网人工验收时运行完整命令，将固定版本下载到 `.run` 后验证 CAD Worker 解析/渲染，再运行 `tools/check_external_dxf_viewer_candidates.mjs` 验证正式 viewer parser。外部候选只能证明兼容性，不能直接作为规则合规真值。
 - Golden dataset：`datasets/rules/expected.json` 中每个合成 DXF 样例都要通过 `tools/run_golden_e2e.py`，并由 `tools/check_rule_golden_coverage.py` 保证每条默认启用规则至少具备一个命中样例和一个不命中样例。当前覆盖合规样例、图层命名、空图层、标题栏、标题栏属性、标题栏版次一致性、尺寸标注、版本号、占位文字、实体数量异常，以及 OCR 占位文本和 YOLO/CAD 标题栏冲突等多模态规则。
 - Demo walkthrough：`tools/run_demo_walkthrough.py` 应能用一个真实 DXF 样例走通登录、建项目、建图纸、上传版本、发起审查、生成问题、生成报告，并把项目 ID、图纸 ID、版本 ID、任务步骤、问题证据类型和报告预览写入 `.run/demo-walkthrough-*.md`，用于人工演示核查。
 - 报告和问题清单：审查报告必须包含解析证据摘要、问题证据详情、规则代码、图层或实体引用、结构化 evidence chain；报告 Markdown 应写入对象存储并保留数据库副本和对象元数据；`GET /api/reports/{reportId}/download` 应通过鉴权返回 Markdown 附件，若报告已有对象 key，则不能用数据库副本掩盖对象读取失败；前端问题清单应按 CAD、规则、知识条款、YOLO、OCR 等来源分组展示证据。
@@ -50,6 +52,10 @@
 - Manually uploaded image evidence should retain raster bounds but must not claim a CAD transform without an explicit registration step.
 - CAD Worker `/render` should return exact PNG viewport metadata in `X-ShipCAD-Render-Metadata`. Missing, invalid, or cached metadata without valid `modelBounds` must fail visibly instead of silently producing unmappable visual evidence.
 - Browser `VIEWPORT` coordinates are derived from the current preview camera and are not persisted as authoritative evidence.
+- `tools/check_complex_dxf_dataset.py` verifies complex parser fixture provenance, hash stability, CAD parser summaries, HATCH bounds, CAD Worker render metadata, and nonblank PNG output.
+- `tools/check_dxf_viewer_dataset.mjs` verifies that `dxf-viewer` can parse the complex DXF fixtures and see required layers, blocks and entity types before the frontend build gate.
+- `tools/check_external_dxf_candidates.py` keeps third-party DXF files out of Git, validates the pinned external manifest in CI, and performs opt-in local download/hash/parser/render checks. `tools/check_external_dxf_viewer_candidates.mjs` verifies the cached files with `dxf-viewer`; neither script assigns rule-compliance labels.
+- Browser WebGL smoke for complex DXF fixtures should verify the product path `backend file endpoint -> frontend Blob URL -> DxfViewerPreview -> WebGL canvas`, including visible layer list, no official-preview failure state, and a nonblank `.dxf-webgl-host` screenshot. This is a release/demo check rather than a Canvas diagnostic fallback.
 - `tools/check_rule_golden_coverage.py` verifies that default seeded rules have positive and negative golden coverage, rejects unknown rule codes, and checks `expectedIssueCount` consistency before live E2E runs.
 - `tools/run_golden_e2e.py` verifies these evidence checks for the golden DXF dataset, including exact issue count, optional mock Vision/OCR task orchestration, required `YOLO_SYMBOL`/`OCR_TEXT` evidence, and raster evidence coordinate spaces.
 - `tools/run_multimodal_evidence_e2e.py` verifies the live API chain for review-task automatic rendering, task-scoped `YOLO_SYMBOL` and `OCR_TEXT` evidence, raster-to-CAD location transforms, issue-level location preservation, rule consumption, `sourceEvidenceId` references, AI explanations, and report output. Its default mock workers are deterministic integration substitutes; they do not validate real model accuracy.
@@ -73,7 +79,7 @@
 - `.github/dependabot.yml` 每周检查 GitHub Actions、Maven、npm、pip 和容器基础镜像更新；补丁与小版本按生态分组，大版本保持独立评估，禁止不经测试自动合并。
 - `tools/check_python_requirements.py` 要求 CAD、Vision 和 OCR Worker 的直接 Python 依赖必须用 `==` 显式锁定；传递依赖以 SBOM 和 CI 安装结果记录，后续如进入正式发布可升级为哈希锁定。
 - `tools/check_action_pins.py` 要求所有外部 GitHub Actions 引用固定到 40 位提交 SHA，并保留版本注释；Dependabot 负责后续升级提醒。
-- `tools/check_release_readiness.py` 汇总开源必需文件、工作树、remote、禁止文件、GitHub 文件大小、依赖/Action 固定、规则 golden 覆盖、Vision 数据和秘密扫描状态；正式发布模式下缺少 remote 或存在失败项必须阻止发布。
+- `tools/check_release_readiness.py` 汇总开源必需文件、工作树、remote、禁止文件、GitHub 文件大小、依赖/Action 固定、复杂 DXF 解析基线、规则 golden 覆盖、Vision 数据和秘密扫描状态；正式发布模式下缺少 remote 或存在失败项必须阻止发布。
 - `tools/validate_vision_dataset.py` 校验四类 Phase 1 taxonomy、YOLO 目录、图像/标签配对、归一化边界框、许可证、来源、公开批准、复核状态、文件哈希及原图分组隔离。当前仓库为 `0 images / 0 boxes`，只能证明数据工程结构就绪，不能证明模型可训练或具备识别精度。
 - 上述 GitHub 安全能力只有在仓库发布到 GitHub 且启用 Actions、Dependency Graph 和 Code Security 后才会执行；本地存在配置文件不等于扫描已经通过。
 - Docker Compose、MinIO、Redis/Valkey、DM8 和真实 YOLO 模型精度测试仍属于独立环境验收，不由基础 CI 伪造覆盖。

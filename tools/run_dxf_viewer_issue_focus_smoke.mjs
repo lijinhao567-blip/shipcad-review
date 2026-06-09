@@ -391,17 +391,6 @@ async function main() {
 }
 
 async function writeFailureReport(error) {
-  const outputArg = process.argv.findIndex((item) => item === '--output')
-  let output = path.join(DEFAULT_RUN_DIR, 'dxf-viewer-issue-focus-smoke.json')
-  try {
-    output = outputArg >= 0 && process.argv[outputArg + 1]
-      ? resolveRunArtifactPath(process.argv[outputArg + 1], 'dxf-viewer-issue-focus-smoke.json')
-      : output
-  } catch {
-    output = path.join(DEFAULT_RUN_DIR, 'dxf-viewer-issue-focus-smoke.json')
-  }
-  await fs.promises.mkdir(path.dirname(output), { recursive: true }).catch(() => undefined)
-  await fs.promises.writeFile(output, JSON.stringify({ ok: false, error: safeReportString(error.message), time: new Date().toISOString() }, null, 2) + '\n', 'utf8').catch(() => undefined)
   console.error(`DXF issue focus smoke failed: ${error.message}`)
   process.exit(1)
 }

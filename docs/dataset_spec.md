@@ -136,6 +136,14 @@ When `requiresWebglSmoke` is `true`, release and demo verification should also r
 4. Confirm the layer list and bounds are visible and no official preview error is shown.
 5. Capture the `.dxf-webgl-host` area and verify it is not blank.
 
+Automated local smoke command:
+
+```powershell
+.\deploy\run-dxf-viewer-smoke.ps1
+```
+
+The command starts the development stack by default, uploads `datasets/parser/cases/dense_deck_grid.dxf`, selects the uploaded version in the Vue app, and writes a JSON report plus a WebGL canvas PNG screenshot under `.run/`.
+
 This smoke proves the formal WebGL preview path is usable; it must not be replaced by automatically opening Canvas diagnostics.
 
 ## External DXF Candidate Registry

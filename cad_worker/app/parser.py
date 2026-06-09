@@ -166,6 +166,8 @@ def _entity_geometry(entity: Any, parent_block_name: str = "") -> dict[str, Any]
             return {"kind": "polyline", "points": [_point(point) for point in entity.get_points("xy")]}
         if dxftype == "POLYLINE":
             return {"kind": "polyline", "points": [_point(vertex.dxf.location) for vertex in entity.vertices]}
+        if dxftype == "HATCH":
+            return {"kind": "hatch", "paths": _hatch_paths(entity)}
     except Exception:
         return {"kind": dxftype.lower(), "unsupported": True}
     return {"kind": dxftype.lower()}
@@ -219,6 +221,11 @@ def _geometry_points(geometry: dict[str, Any]) -> list[tuple[float, float]]:
         return [(center[0] - radius, center[1] - radius), (center[0] + radius, center[1] + radius)]
     if kind == "polyline":
         return [_tuple_point(point) for point in geometry.get("points", [])]
+    if kind == "hatch":
+        points = []
+        for path in geometry.get("paths", []):
+            points.extend(_tuple_point(point) for point in path.get("points", []))
+        return points
     if kind == "dimension":
         points = []
         for key in ("definitionPoint", "extensionLine1", "extensionLine2", "textMidpoint"):
@@ -227,6 +234,27 @@ def _geometry_points(geometry: dict[str, Any]) -> list[tuple[float, float]]:
                 points.append(_tuple_point(value))
         return points
     return []
+
+
+def _hatch_paths(entity: Any) -> list[dict[str, Any]]:
+    paths: list[dict[str, Any]] = []
+    for path in getattr(entity, "paths", []):
+        points: list[list[float]] = []
+        vertices = getattr(path, "vertices", None)
+        if vertices:
+            points.extend(_point(vertex) for vertex in vertices)
+        for edge in getattr(path, "edges", []):
+            for attr in ("start", "end", "center"):
+                if hasattr(edge, attr):
+                    points.append(_point(getattr(edge, attr)))
+            radius = getattr(edge, "radius", None)
+            center = getattr(edge, "center", None)
+            if radius is not None and center is not None:
+                cx, cy = float(center[0]), float(center[1])
+                r = float(radius)
+                points.extend([[cx - r, cy - r], [cx + r, cy + r]])
+        paths.append({"points": points})
+    return paths
 
 
 def _tuple_point(value: Any) -> tuple[float, float]:

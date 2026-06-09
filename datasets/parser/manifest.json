@@ -1,0 +1,137 @@
+{
+  "datasetVersion": "0.1.0",
+  "generatedBy": "tools/generate_complex_dxf_dataset.py",
+  "samples": [
+    {
+      "id": "complex_ship_section",
+      "file": "cases/complex_ship_section.dxf",
+      "format": "dxf",
+      "title": "Complex Ship Section",
+      "description": "Synthetic mid-complexity ship section with hull contour, frames, stiffeners, hatches, dimensions, title attributes and weld symbols.",
+      "source": "Self-created synthetic CAD fixture generated inside this repository.",
+      "license": "AGPL-3.0-only",
+      "generatedBy": "tools/generate_complex_dxf_dataset.py",
+      "generationProfile": "complex_ship_section",
+      "sha256": "8832d926a9bccf4d3ac2bbb07be9e15aae74632c9b5dbab3c55554fc6e7b352f",
+      "parserExpectations": {
+        "minEntityCount": 70,
+        "requiredLayers": [
+          "TITLE",
+          "S-HULL",
+          "S-FRAME",
+          "S-STIFFENER",
+          "S-CENTER",
+          "DIM-MAIN",
+          "TEXT-NOTE",
+          "HATCH-SECTION",
+          "SYM-WELD",
+          "EQUIP-OUTLINE"
+        ],
+        "requiredBlocks": [
+          "TITLE_BLOCK",
+          "FRAME_MARK",
+          "WELD_SYMBOL"
+        ],
+        "requiredEntityTypes": [
+          "LINE",
+          "LWPOLYLINE",
+          "ARC",
+          "CIRCLE",
+          "HATCH",
+          "INSERT",
+          "ATTRIB",
+          "DIMENSION",
+          "TEXT",
+          "MTEXT"
+        ],
+        "minTypeCounts": {
+          "LINE": 17,
+          "INSERT": 17,
+          "ATTRIB": 19,
+          "DIMENSION": 3,
+          "HATCH": 2
+        },
+        "requiredTexts": [
+          "MAIN DECK",
+          "CENTERLINE",
+          "Synthetic section"
+        ],
+        "bounds": {
+          "minWidth": 280,
+          "minHeight": 70
+        }
+      },
+      "previewExpectations": {
+        "dxfViewerParser": "required",
+        "minDxfViewerEntities": 55,
+        "minLayerCount": 10,
+        "requiresWebglSmoke": true
+      }
+    },
+    {
+      "id": "dense_deck_grid",
+      "file": "cases/dense_deck_grid.dxf",
+      "format": "dxf",
+      "title": "Dense Deck Grid",
+      "description": "Synthetic dense deck plan with repeated frames, longitudinal members, block references, equipment outlines, hatch panels, dimensions and notes.",
+      "source": "Self-created synthetic CAD fixture generated inside this repository.",
+      "license": "AGPL-3.0-only",
+      "generatedBy": "tools/generate_complex_dxf_dataset.py",
+      "generationProfile": "dense_deck_grid",
+      "sha256": "1e69b02c77f388e391dfc069eb5b431790bf23c6e1c186ffbd41e59d2027232d",
+      "parserExpectations": {
+        "minEntityCount": 150,
+        "requiredLayers": [
+          "TITLE",
+          "S-HULL",
+          "S-FRAME",
+          "S-STIFFENER",
+          "S-BULKHEAD",
+          "DIM-MAIN",
+          "TEXT-NOTE",
+          "HATCH-SECTION",
+          "SYM-WELD",
+          "EQUIP-OUTLINE"
+        ],
+        "requiredBlocks": [
+          "TITLE_BLOCK",
+          "FRAME_MARK",
+          "WELD_SYMBOL"
+        ],
+        "requiredEntityTypes": [
+          "LINE",
+          "LWPOLYLINE",
+          "CIRCLE",
+          "HATCH",
+          "INSERT",
+          "ATTRIB",
+          "DIMENSION",
+          "TEXT",
+          "MTEXT"
+        ],
+        "minTypeCounts": {
+          "LINE": 48,
+          "CIRCLE": 20,
+          "INSERT": 35,
+          "ATTRIB": 37,
+          "DIMENSION": 4,
+          "HATCH": 6
+        },
+        "requiredTexts": [
+          "DECK LONGITUDINAL",
+          "Synthetic deck grid"
+        ],
+        "bounds": {
+          "minWidth": 400,
+          "minHeight": 220
+        }
+      },
+      "previewExpectations": {
+        "dxfViewerParser": "required",
+        "minDxfViewerEntities": 130,
+        "minLayerCount": 10,
+        "requiresWebglSmoke": true
+      }
+    }
+  ]
+}

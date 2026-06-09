@@ -1,0 +1,147 @@
+{
+  "datasetVersion": "0.1.0",
+  "storagePolicy": "Remote DXF files are not vendored. Validation downloads pinned copies into .run/external-dxf-candidates/.",
+  "samples": [
+    {
+      "id": "baby_auv_mechanical_layout",
+      "title": "Baby AUV Mechanical Layout",
+      "description": "Real open-source micro-AUV mechanical drawing used to exercise dense multi-layer DXF parsing and preview.",
+      "format": "dxf",
+      "cacheFile": "baby-auv_baby.dxf",
+      "sourceRepository": "https://github.com/htarold/baby-auv",
+      "sourcePath": "mech/baby.dxf",
+      "sourceCommit": "e31ffa611c913359f8580ca4ce95f61e3795714e",
+      "sourceUrl": "https://raw.githubusercontent.com/htarold/baby-auv/e31ffa611c913359f8580ca4ce95f61e3795714e/mech/baby.dxf",
+      "sourcePage": "https://github.com/htarold/baby-auv/blob/e31ffa611c913359f8580ca4ce95f61e3795714e/mech/baby.dxf",
+      "license": "CC-BY-SA-4.0",
+      "licenseUrl": "https://github.com/htarold/baby-auv/blob/e31ffa611c913359f8580ca4ce95f61e3795714e/LICENCE",
+      "attribution": "Baby AUV project by htarold. CAD files are licensed CC BY-SA 4.0. The cached validation copy is unmodified.",
+      "repositoryInclusion": "remote-cache-only",
+      "sha256": "e305ecebb29e5f4b36c115a92137267ba551ee6e197f540fb54139408b800dd3",
+      "fileSize": 284482,
+      "parserExpectations": {
+        "minEntityCount": 1300,
+        "requiredLayers": [
+          "arm",
+          "arm-ext-dims",
+          "cnc",
+          "depth",
+          "hull",
+          "hull-dims",
+          "rclamp"
+        ],
+        "requiredEntityTypes": [
+          "LINE",
+          "CIRCLE",
+          "ARC",
+          "LEADER",
+          "DIMENSION",
+          "MTEXT",
+          "TEXT",
+          "HATCH"
+        ],
+        "minTypeCounts": {
+          "LINE": 900,
+          "CIRCLE": 300,
+          "ARC": 60,
+          "DIMENSION": 25,
+          "TEXT": 10
+        },
+        "requiredTexts": [
+          "Hull",
+          "Forward bulkhead",
+          "Rear clamp"
+        ],
+        "bounds": {
+          "minWidth": 1000,
+          "minHeight": 450
+        },
+        "minRenderBytes": 50000
+      },
+      "previewExpectations": {
+        "dxfViewerParser": "required",
+        "minDxfViewerEntities": 1300,
+        "minLayerCount": 45,
+        "requiredLayers": [
+          "arm",
+          "cnc",
+          "depth",
+          "hull",
+          "hull-dims"
+        ],
+        "requiredEntityTypes": [
+          "LINE",
+          "CIRCLE",
+          "ARC",
+          "DIMENSION",
+          "MTEXT",
+          "TEXT",
+          "HATCH"
+        ],
+        "requiresWebglSmoke": true
+      }
+    },
+    {
+      "id": "rc_boat_tunnel_hull",
+      "title": "RC Boat Tunnel Hull",
+      "description": "Open-source speed-boat hull profile drawing used as a small real-world multi-layer hull fixture.",
+      "format": "dxf",
+      "cacheFile": "rc-boat-hull_tunnel-hull.dxf",
+      "sourceRepository": "https://github.com/ayaromenok/rc_boat_hull",
+      "sourcePath": "dxf/03__tunnel_hull.dxf",
+      "sourceCommit": "3c27832a9d8101e62cfb2de23bd813c059e0a535",
+      "sourceUrl": "https://raw.githubusercontent.com/ayaromenok/rc_boat_hull/3c27832a9d8101e62cfb2de23bd813c059e0a535/dxf/03__tunnel_hull.dxf",
+      "sourcePage": "https://github.com/ayaromenok/rc_boat_hull/blob/3c27832a9d8101e62cfb2de23bd813c059e0a535/dxf/03__tunnel_hull.dxf",
+      "license": "MIT",
+      "licenseUrl": "https://github.com/ayaromenok/rc_boat_hull/blob/3c27832a9d8101e62cfb2de23bd813c059e0a535/LICENSE",
+      "attribution": "rc_boat_hull by Andrey E. Yaromenok, licensed under the MIT License. The cached validation copy is unmodified.",
+      "repositoryInclusion": "remote-cache-only",
+      "sha256": "d2784df170ff73aaad8b3b23f071cefdf0d1ff35dc37a075658c2393896e89c6",
+      "fileSize": 22497,
+      "parserExpectations": {
+        "minEntityCount": 30,
+        "requiredLayers": [
+          "draft",
+          "profile_00",
+          "profile_01",
+          "profile_02",
+          "profile_03",
+          "profile_04",
+          "profile_05"
+        ],
+        "requiredEntityTypes": [
+          "IMAGE",
+          "LINE",
+          "LWPOLYLINE",
+          "ARC"
+        ],
+        "minTypeCounts": {
+          "LINE": 20,
+          "LWPOLYLINE": 6,
+          "ARC": 4
+        },
+        "bounds": {
+          "minWidth": 100,
+          "minHeight": 80
+        },
+        "minRenderBytes": 50000
+      },
+      "previewExpectations": {
+        "dxfViewerParser": "required",
+        "minDxfViewerEntities": 30,
+        "minLayerCount": 8,
+        "requiredLayers": [
+          "draft",
+          "profile_00",
+          "profile_05"
+        ],
+        "requiredEntityTypes": [
+          "LINE",
+          "LWPOLYLINE",
+          "ARC"
+        ],
+        "requiresWebglSmoke": true
+      }
+    }
+  ]
+}

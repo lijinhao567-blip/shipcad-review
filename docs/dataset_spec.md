@@ -24,6 +24,8 @@ Use this structure:
 
 ```text
 datasets/
+  external/
+    manifest.json
   parser/
     cases/
       valid_title_block.dxf
@@ -36,21 +38,37 @@ datasets/
     expected.json
 ```
 
-`manifest.json` should describe parser expectations:
+`manifest.json` should describe parser expectations, provenance, checksum, and preview compatibility expectations:
 
 ```json
-[
-  {
-    "file": "valid_title_block.dxf",
-    "format": "dxf",
-    "parserExpectations": {
-      "minEntityCount": 1,
-      "requiredLayers": ["S-STRUCTURE", "S-TITLE"],
-      "requiredBlocks": ["TITLE_BLOCK"],
-      "requiredEntityTypes": ["INSERT", "ATTRIB", "DIMENSION"]
+{
+  "datasetVersion": "0.1.0",
+  "samples": [
+    {
+      "id": "complex_ship_section",
+      "file": "cases/complex_ship_section.dxf",
+      "format": "dxf",
+      "source": "Self-created synthetic CAD fixture generated inside this repository.",
+      "license": "AGPL-3.0-only",
+      "generatedBy": "tools/generate_complex_dxf_dataset.py",
+      "sha256": "...",
+      "parserExpectations": {
+        "minEntityCount": 70,
+        "requiredLayers": ["S-HULL", "S-FRAME", "DIM-MAIN"],
+        "requiredBlocks": ["TITLE_BLOCK", "WELD_SYMBOL"],
+        "requiredEntityTypes": ["INSERT", "ATTRIB", "DIMENSION", "HATCH"],
+        "minTypeCounts": {"HATCH": 2},
+        "bounds": {"minWidth": 280, "minHeight": 70}
+      },
+      "previewExpectations": {
+        "dxfViewerParser": "required",
+        "minDxfViewerEntities": 55,
+        "minLayerCount": 10,
+        "requiresWebglSmoke": true
+      }
     }
-  }
-]
+  ]
+}
 ```
 
 `expected.json` should describe rule expectations:
@@ -74,7 +92,78 @@ datasets/
 ]
 ```
 
-The system should not identify samples by file name. File names only help tests locate input files. The actual result must come from CAD parsing and rule execution.
+The system should not identify samples by file name. File names only help tests locate input files. The actual result must come from CAD parsing, rule execution, or `dxf-viewer` parsing.
+
+For `datasets/parser/manifest.json`, parser expectations use these machine-checkable keys:
+
+- `minEntityCount`: minimum parsed model-space entity count after expanding supported nested evidence such as block attributes.
+- `requiredLayers`: layer names that must appear in the parsed DXF layer table.
+- `requiredBlocks`: block names that must appear in parsed block references or related attributes.
+- `requiredEntityTypes`: entity types such as `INSERT`, `ATTRIB`, `DIMENSION`, `HATCH`, `LWPOLYLINE`, `MTEXT`, or `TEXT`.
+- `minTypeCounts`: per-entity minimum counts for dense fixture coverage.
+- `requiredTexts`: text snippets that must appear in parsed text evidence.
+- `bounds`: minimum model width and height derived from structured CAD evidence.
+
+Preview expectations use:
+
+- `dxfViewerParser`: whether `dxf-viewer` parser compatibility is required.
+- `minDxfViewerEntities`: minimum entity count returned by the `dxf-viewer` parser.
+- `minLayerCount`: minimum layer count returned by the `dxf-viewer` parser.
+- `requiresWebglSmoke`: marks samples that still need real browser WebGL smoke before release notes or demos claim visual quality.
+
+Current parser dataset:
+
+```text
+datasets/parser/cases/*.dxf
+datasets/parser/manifest.json
+```
+
+Generation and acceptance commands:
+
+```powershell
+.\.venv\Scripts\python.exe tools\generate_complex_dxf_dataset.py
+.\.venv\Scripts\python.exe tools\check_complex_dxf_dataset.py
+node tools\check_dxf_viewer_dataset.mjs
+```
+
+`tools/check_complex_dxf_dataset.py` validates provenance, license, SHA-256, CAD Worker parser expectations, HATCH bounds, CAD Worker PNG rendering, render metadata, and nonblank output. `tools/check_dxf_viewer_dataset.mjs` validates that the official `dxf-viewer` parser can parse the same DXF files and see the required layers, blocks, and entity types. Canvas diagnostic rendering is not used as a pass condition.
+
+When `requiresWebglSmoke` is `true`, release and demo verification should also run the real browser path:
+
+1. Start backend, CAD Worker, and frontend.
+2. Upload or select the fixture through authenticated product state.
+3. Confirm `DxfViewerPreview` loads the DXF Blob from `/api/versions/{versionId}/file`.
+4. Confirm the layer list and bounds are visible and no official preview error is shown.
+5. Capture the `.dxf-webgl-host` area and verify it is not blank.
+
+This smoke proves the formal WebGL preview path is usable; it must not be replaced by automatically opening Canvas diagnostics.
+
+## External DXF Candidate Registry
+
+`datasets/external/manifest.json` records real open-source DXF candidates without vendoring the third-party files. Every entry must include:
+
+- immutable source URL pinned to a 40-character Git commit
+- source repository, source path, and human-readable source page
+- SPDX-style license identifier, license URL, and attribution
+- `repositoryInclusion: remote-cache-only`
+- SHA-256 and exact file size
+- CAD Worker parser/render expectations
+- `dxf-viewer` parser expectations
+
+Commands:
+
+```powershell
+# No network access; suitable for CI and release-preflight metadata checks.
+.\.venv\Scripts\python.exe tools\check_external_dxf_candidates.py --manifest-only
+
+# Download pinned copies into .run, then validate CAD parsing and PNG rendering.
+.\.venv\Scripts\python.exe tools\check_external_dxf_candidates.py
+
+# Validate the cached copies with the official dxf-viewer parser.
+node tools\check_external_dxf_viewer_candidates.mjs
+```
+
+The external candidates are compatibility inputs, not rule ground truth. A drawing from an open repository cannot be labeled compliant or non-compliant without a separate reviewed rule annotation. Files under CC BY-SA must preserve attribution and share-alike obligations if they are ever redistributed; the default project policy therefore keeps them as pinned remote cache entries.
 
 For `datasets/rules/expected.json`, parser expectations use these machine-checkable keys:
 

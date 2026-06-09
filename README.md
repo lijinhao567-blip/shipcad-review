@@ -154,15 +154,34 @@ $env:SHIPCAD_BOOTSTRAP_ADMIN_DISPLAY_NAME="系统管理员"
 .\.venv\Scripts\python.exe tools\check_python_requirements.py
 .\.venv\Scripts\python.exe tools\check_action_pins.py
 .\.venv\Scripts\python.exe tools\check_rule_golden_coverage.py
+.\.venv\Scripts\python.exe tools\check_complex_dxf_dataset.py
 .\.venv\Scripts\python.exe tools\validate_vision_dataset.py
 .\.venv\Scripts\python.exe tools\run_secret_scan.py
 $env:JAVA_HOME=(Resolve-Path .tools\jdk-17).Path
 .\.tools\maven\bin\mvn.cmd -f backend-spring\pom.xml test
 cd frontend-vue
+node ..\tools\check_dxf_viewer_dataset.mjs
 npm run build
 ```
 
-同一组基础门禁会由 `.github/workflows/ci.yml` 在 push 和 pull request 时自动执行；CI 还会检查每条默认规则的 golden 正反样例覆盖，启动真实 CAD Worker 与后端，运行 golden dataset 和审查任务失败重试 E2E。`.github/workflows/secret-scan.yml` 会用校验过的 Gitleaks CLI 扫描完整 Git 历史，`.github/workflows/sbom.yml` 会按后端、前端和三个 Worker 生成 SPDX JSON 组件 SBOM 工件。Docker Compose、MinIO、Redis/Valkey、DM8 与真实 YOLO 权重仍按独立环境验收。
+同一组基础门禁会由 `.github/workflows/ci.yml` 在 push 和 pull request 时自动执行；CI 还会检查复杂 DXF parser/render 基线、`dxf-viewer` parser 兼容性、每条默认规则的 golden 正反样例覆盖，并启动真实 CAD Worker 与后端运行 golden dataset 和审查任务失败重试 E2E。`.github/workflows/secret-scan.yml` 会用校验过的 Gitleaks CLI 扫描完整 Git 历史，`.github/workflows/sbom.yml` 会按后端、前端和三个 Worker 生成 SPDX JSON 组件 SBOM 工件。Docker Compose、MinIO、Redis/Valkey、DM8 与真实 YOLO 权重仍按独立环境验收。
+
+复杂 DXF 解析与 `dxf-viewer` parser 兼容基线不需要启动后端：
+
+```powershell
+.\.venv\Scripts\python.exe tools\generate_complex_dxf_dataset.py
+.\.venv\Scripts\python.exe tools\check_complex_dxf_dataset.py
+node tools\check_dxf_viewer_dataset.mjs
+```
+
+这组样例位于 `datasets/parser/`，用于验证块参照、属性、尺寸、文字、多图层、HATCH 填充、较高实体数量、CAD Worker 渲染和 `dxf-viewer` parser 兼容性；Canvas 诊断视图不作为通过条件。发布或演示前还应启动后端、CAD Worker 和前端，走真实产品链路确认 `DxfViewerPreview` 能通过 `/api/versions/{versionId}/file` 加载 DXF Blob、显示图层和非空 WebGL 画面。
+
+真实开源 DXF 候选只在 `datasets/external/manifest.json` 中记录，不直接进入仓库。以下命令会把固定 commit 的 Baby AUV 和 RC boat hull 文件下载到 `.run/external-dxf-candidates/`，校验许可证元数据、SHA-256、CAD Worker 解析/渲染以及 `dxf-viewer` parser 兼容性：
+
+```powershell
+.\.venv\Scripts\python.exe tools\check_external_dxf_candidates.py
+node tools\check_external_dxf_viewer_candidates.mjs
+```
 
 Golden dataset 端到端验收需要后端和 CAD Worker 已启动。`tools/run_golden_e2e.py` 会按 `datasets/rules/expected.json` 逐个上传合成 DXF，校验问题数量、规则代码、解析摘要、证据链、报告和版本文件下载；包含自动 Vision/OCR 的样例会启动确定性 mock Worker，用来验证编排和规则消费，不代表真实 YOLO/OCR 精度：
 
@@ -225,12 +244,12 @@ If Windows blocks `9100/9200`, start the backend with matching ports and pass th
 
 - DXF 上传、异步解析和实体几何提取
 - DWG 上传入口和 LibreDWG 转 DXF 解析适配，需要本机安装 `dwg2dxf`
-- CAD Worker 图纸渲染：支持将 DXF/DWG 版本渲染为 PNG，并缓存到 `data/rendered/{versionId}`
+- CAD Worker 图纸渲染：支持将 DXF/DWG 版本渲染为 PNG，并缓存到 `data/rendered/{versionId}`；复杂合成 DXF parser/render 基线已覆盖块参照、属性、尺寸、文字、多图层、HATCH 填充和密集实体
 - 对象存储边界：原始图纸、渲染图、Vision/OCR 输入图片和报告 Markdown 通过统一接口保存；默认本地文件系统，S3 兼容模式可接 MinIO，并保留 Worker/下载本地缓存
 - 审查任务队列：支持 PENDING、RUNNING、FINISHED、FAILED 状态、阶段/步骤进度、失败重试和可选自动 Vision/OCR 证据采集；默认本地内存队列，Redis 协议模式已抽象为可部署队列适配
 - 系统状态页和审查任务详情页：支持查看组件健康、必需/可选 Worker 状态、任务步骤时间线和失败细节
 - 审图流程工作台：显示系统、登录、项目图纸、版本、审查、问题、报告的当前进度，并可在项目、图纸、版本列表中设置当前上下文
-- dxf-viewer DXF正式预览，支持图层查看、问题聚焦和 CAD 范围高亮；Canvas仅用于人工诊断解析实体
+- dxf-viewer DXF正式预览，支持图层查看、问题聚焦和 CAD 范围高亮；Canvas仅用于人工诊断解析实体；复杂 DXF 样例已纳入 `dxf-viewer` parser 兼容门禁
 - 问题定位高亮：优先按 `ReviewEvidence.location` 的 CAD 范围定位，缺少证据范围时按解析图元或图层范围辅助定位
 - YOLOv8 Vision Worker 骨架：支持使用版本渲染图或手动上传图像生成符号检测框，需配置模型权重
 - OCR Worker 骨架：支持使用版本渲染图或手动上传图像生成文字区域，需安装 Tesseract OCR

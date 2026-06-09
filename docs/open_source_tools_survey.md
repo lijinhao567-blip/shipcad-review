@@ -115,6 +115,34 @@ Integration plan:
 
 - Use as learning/reference only unless a very lightweight viewer is needed.
 
+## Open DXF Sample Sources
+
+### Baby AUV
+
+- Repository: `htarold/baby-auv`.
+- Relevant file: `mech/baby.dxf`.
+- License: CAD files and drawings are CC BY-SA 4.0.
+- Local evaluation: approximately 1,384 CAD Worker entities, 52 declared layers, 30 dimensions, and 49 text values; CAD Worker rendering and `dxf-viewer` parsing succeed.
+- Decision: keep as a pinned remote-cache candidate for dense real-world parser and preview regression. Do not vendor without preserving attribution and share-alike obligations.
+
+### rc_boat_hull
+
+- Repository: `ayaromenok/rc_boat_hull`.
+- Relevant file: `dxf/03__tunnel_hull.dxf`.
+- License: MIT.
+- Local evaluation: approximately 33 CAD Worker entities across 9 declared layers; CAD Worker rendering and `dxf-viewer` parsing succeed.
+- Decision: keep as a pinned remote-cache candidate for a small multi-layer hull profile.
+
+### Ship-SAFE Testbed
+
+- Repository: `ARTS-Laboratory/Ship-Structure-and-Fatigue-Environment-Ship-SAFE-testbed`.
+- Relevant file: `testbed/CAD/Boat_Hull/Boat Hull v4.dxf`.
+- License: CC BY-SA 4.0.
+- Local evaluation: the DXF primarily contains `3DSOLID`; current 2D parsing sees only a few line/point entities and the current renderer produces an effectively blank result.
+- Decision: record as a future 3D DXF/ACIS compatibility research source, not as a current 2D preview regression fixture.
+
+Repositories without an explicit license and download portals with unclear redistribution terms must not be copied into the project dataset.
+
 ## Dataset Labeling
 
 ### CVAT

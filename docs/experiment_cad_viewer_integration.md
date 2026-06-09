@@ -138,3 +138,34 @@ Implemented path:
 3. Display layers in side panel.
 4. Keep current `DxfCanvas` as a manual diagnostics panel, not as automatic fallback.
 5. Continue issue positioning through the structured evidence coordinate contract.
+
+## Complex Fixture Regression
+
+Issue #14 adds a dedicated parser and preview compatibility baseline under `datasets/parser/`.
+
+- `complex_ship_section.dxf`: synthetic section drawing with hull contour, frames, stiffeners, HATCH regions, title attributes, dimensions, and weld-symbol blocks.
+- `dense_deck_grid.dxf`: synthetic dense deck plan with repeated grid members, equipment outlines, HATCH panels, dimensions, notes, and repeated symbol blocks.
+
+Automated acceptance:
+
+```powershell
+.\.venv\Scripts\python.exe tools\check_complex_dxf_dataset.py
+node tools\check_dxf_viewer_dataset.mjs
+```
+
+The Python check validates CAD Worker parser summaries, HATCH bounds, render metadata, and nonblank PNG output. The Node check validates that `dxf-viewer`'s own parser accepts the same DXF files and sees the expected layers, blocks, and entity types. This is not a Canvas fallback and does not claim final WebGL visual quality; real browser smoke screenshots remain a release/demo verification step.
+
+Browser smoke acceptance:
+
+- Open the Vue frontend against a running backend and CAD Worker.
+- Upload or select one `datasets/parser/cases/*.dxf` version through the authenticated product flow.
+- Confirm `DxfViewerPreview` reports `dxf-viewer` load success, displays the expected layer list, and does not emit the official preview failure state.
+- Capture the `.dxf-webgl-host` area and verify the image is not blank. This smoke checks the official WebGL preview path only; Canvas diagnostics must remain closed unless a human intentionally opens them.
+
+Local result on 2026-06-08:
+
+- Fixture: `dense_deck_grid.dxf`.
+- Product flow: login as the development administrator, create project/drawing/version through REST API, parse through CAD Worker, then select the uploaded version in the Vue preview panel.
+- `dxf-viewer` result: loaded successfully with 13 layers and bounds approximately `-24,-45 - 384,184`.
+- Screenshot smoke: `.dxf-webgl-host` crop was `502 x 519`, with 87,432 non-white pixels out of 260,538 pixels (`0.3356` non-white ratio).
+- Failure state: no `viewer-error` or automatic Canvas fallback observed.

@@ -57,9 +57,19 @@ This project is licensed under GNU AGPL-3.0. Third-party dependencies keep their
 | Eclipse RDF4J | Candidate RDF framework | EDL-1.0 / BSD-style ecosystem |
 | Drools | Candidate advanced rule engine | Apache-2.0 |
 
+## External Dataset Candidates
+
+The following DXF files are referenced by immutable URLs in `datasets/external/manifest.json` but are not distributed in this repository. Validation downloads them only into the ignored `.run/` cache.
+
+| Candidate | Purpose | License Notes |
+|---|---|---|
+| Baby AUV `mech/baby.dxf` | Dense real-world CAD parser and preview compatibility candidate | CC-BY-SA-4.0; attribution and share-alike obligations apply if redistributed |
+| rc_boat_hull `dxf/03__tunnel_hull.dxf` | Small real-world hull profile compatibility candidate | MIT; retain copyright and permission notice if redistributed |
+
 ## Repository Policy
 
 - Do not commit proprietary CAD drawings.
 - Do not commit trained model weights such as `.pt`, `.onnx`, or TensorRT engine files.
 - Do not commit locally installed SDKs, system binaries, virtual environments, or generated databases.
+- Do not vendor external dataset candidates unless their license, attribution, redistribution impact, and repository placement have been explicitly reviewed.
 - If a dependency is added, update this file and mention whether it is required, optional, or development-only.

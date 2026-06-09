@@ -21,8 +21,8 @@ function resolveCachePath(cacheRoot, cacheFile) {
   return target
 }
 
-function sha256(file) {
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+function sha256Buffer(content) {
+  return crypto.createHash('sha256').update(content).digest('hex')
 }
 
 function loadManifest(manifestPath) {
@@ -37,19 +37,25 @@ function validateSample(cacheRoot, sample) {
   const errors = []
   const sampleId = sample.id || '<missing-id>'
   const file = resolveCachePath(cacheRoot, sample.cacheFile)
-  if (!fs.existsSync(file)) {
-    return [`${sampleId}: cached DXF is missing; run tools/check_external_dxf_candidates.py first`]
+  let content
+  try {
+    content = fs.readFileSync(file)
+  } catch (error) {
+    if (error && typeof error === 'object' && error.code === 'ENOENT') {
+      return [`${sampleId}: cached DXF is missing; run tools/check_external_dxf_candidates.py first`]
+    }
+    return [`${sampleId}: cached DXF could not be read: ${error instanceof Error ? error.message : String(error)}`]
   }
-  if (fs.statSync(file).size !== Number(sample.fileSize)) {
+  if (content.byteLength !== Number(sample.fileSize)) {
     errors.push(`${sampleId}: cached file size does not match manifest`)
   }
-  if (sha256(file) !== sample.sha256) {
+  if (sha256Buffer(content) !== sample.sha256) {
     errors.push(`${sampleId}: cached sha256 does not match manifest`)
   }
 
   let dxf
   try {
-    dxf = new DxfParser().parseSync(fs.readFileSync(file, 'utf8'))
+    dxf = new DxfParser().parseSync(content.toString('utf8'))
   } catch (error) {
     return [...errors, `${sampleId}: dxf-viewer parser failed: ${error instanceof Error ? error.message : String(error)}`]
   }

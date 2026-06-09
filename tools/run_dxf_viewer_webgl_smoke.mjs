@@ -609,16 +609,21 @@ async function main() {
   const report = {
     ok: true,
     time: new Date().toISOString(),
+    smoke: 'dxf-viewer-webgl',
     backendUrl: safeReportString(args.backendUrl),
     frontendUrl: safeReportString(args.frontendUrl),
     sample: safeReportString(args.sample),
     sampleSha256: sampleHash,
-    projectId: safeReportString(created.project.id),
-    drawingId: safeReportString(created.drawing.id),
-    versionId: safeReportString(created.version.id),
-    parseStatus: safeReportString(created.version.parseStatus),
-    entityCount: safeReportNumber(created.entityCount),
-    viewer: safeReportValue(browser),
+    assertions: {
+      authenticatedUpload: true,
+      cadWorkerParse: true,
+      frontendBlobLoad: true,
+      officialPreviewLoaded: true,
+      webglCanvasNonBlank: true,
+    },
+    artifacts: {
+      screenshot: safeReportString(args.screenshot),
+    },
   }
   await fs.promises.mkdir(path.dirname(args.output), { recursive: true })
   await fs.promises.writeFile(args.output, JSON.stringify(report, null, 2) + '\n', 'utf8')

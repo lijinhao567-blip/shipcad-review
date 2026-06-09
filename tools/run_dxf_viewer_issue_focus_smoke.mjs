@@ -13,10 +13,7 @@ import {
   launchBrowser,
   readCanvasPixels,
   resolveRunArtifactPath,
-  safeReportList,
-  safeReportNumber,
   safeReportString,
-  safeReportValue,
   waitFor,
 } from './run_dxf_viewer_webgl_smoke.mjs'
 
@@ -369,25 +366,22 @@ async function main() {
   const report = {
     ok: true,
     time: new Date().toISOString(),
+    smoke: 'dxf-viewer-issue-focus',
     backendUrl: safeReportString(args.backendUrl),
     frontendUrl: safeReportString(args.frontendUrl),
     sample: safeReportString(args.sample),
     sampleSha256: sampleHash,
-    projectId: safeReportString(created.project.id),
-    drawingId: safeReportString(created.drawing.id),
-    versionId: safeReportString(created.version.id),
-    taskId: safeReportString(created.task.id),
-    taskStatus: safeReportString(created.task.status),
-    issueCount: safeReportNumber(created.issues.length),
-    selectedIssue: {
-      id: safeReportString(created.selectedIssue.id),
-      ruleCode: safeReportString(created.selectedIssue.ruleCode),
-      layerName: safeReportString(created.selectedIssue.layerName),
-      entityRef: safeReportString(created.selectedIssue.entityRef),
-      evidenceTypes: safeReportList((created.selectedIssue.evidences ?? []).map((evidence) => evidence.evidenceType)),
+    assertions: {
+      authenticatedUpload: true,
+      reviewTaskFinished: true,
+      issueProduced: true,
+      exactIssueClicked: true,
+      officialPreviewFocused: true,
+      redHighlightIncreased: true,
     },
-    entityCount: safeReportNumber(created.entityCount),
-    viewer: safeReportValue(browser),
+    artifacts: {
+      screenshot: safeReportString(args.screenshot),
+    },
   }
   await fs.promises.mkdir(path.dirname(args.output), { recursive: true })
   await fs.promises.writeFile(args.output, JSON.stringify(report, null, 2) + '\n', 'utf8')

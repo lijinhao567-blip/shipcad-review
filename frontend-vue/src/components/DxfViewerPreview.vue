@@ -51,6 +51,11 @@ function errorMessage(value: unknown): string {
   return value instanceof Error ? value.message : String(value)
 }
 
+// Keep normal preview fast; only automated smoke needs a readable WebGL buffer.
+function preserveDrawingBufferForSmoke(): boolean {
+  return new URLSearchParams(window.location.search).has('dxf-preview-smoke')
+}
+
 async function load(url: string) {
   if (!viewer || !url) return
   const seq = ++loadSeq
@@ -302,6 +307,7 @@ onMounted(async () => {
     clearColor: new Color('#ffffff'),
     clearAlpha: 1,
     colorCorrection: true,
+    preserveDrawingBuffer: preserveDrawingBufferForSmoke(),
     retainParsedDxf: true
   })
   viewer.Subscribe('message', (event) => {

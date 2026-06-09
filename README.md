@@ -172,9 +172,18 @@ npm run build
 .\.venv\Scripts\python.exe tools\generate_complex_dxf_dataset.py
 .\.venv\Scripts\python.exe tools\check_complex_dxf_dataset.py
 node tools\check_dxf_viewer_dataset.mjs
+.\deploy\run-dxf-viewer-smoke.ps1
 ```
 
 这组样例位于 `datasets/parser/`，用于验证块参照、属性、尺寸、文字、多图层、HATCH 填充、较高实体数量、CAD Worker 渲染和 `dxf-viewer` parser 兼容性；Canvas 诊断视图不作为通过条件。发布或演示前还应启动后端、CAD Worker 和前端，走真实产品链路确认 `DxfViewerPreview` 能通过 `/api/versions/{versionId}/file` 加载 DXF Blob、显示图层和非空 WebGL 画面。
+
+`.\deploy\run-dxf-viewer-smoke.ps1` 会自动启动核心开发栈、上传复杂 DXF 样例，并在 `.run/` 写入正式预览 WebGL smoke 的 JSON 报告和 canvas 截图。问题定位链路可额外运行：
+
+```powershell
+.\deploy\run-dxf-issue-focus-smoke.ps1
+```
+
+该脚本会上传会触发 `LAYER_NAME_STANDARD` 的 DXF、发起真实审查任务、在前端点击生成的问题卡片，并验证正式 `dxf-viewer` WebGL 画面出现选中问题的红色 CAD 范围高亮。它验证的是 `ReviewIssue -> ReviewEvidence.location -> DxfViewerPreview` 定位闭环，不代表 YOLO/OCR 模型精度。
 
 真实开源 DXF 候选只在 `datasets/external/manifest.json` 中记录，不直接进入仓库。以下命令会把固定 commit 的 Baby AUV 和 RC boat hull 文件下载到 `.run/external-dxf-candidates/`，校验许可证元数据、SHA-256、CAD Worker 解析/渲染以及 `dxf-viewer` parser 兼容性：
 

@@ -162,6 +162,22 @@ Browser smoke acceptance:
 - Confirm `DxfViewerPreview` reports `dxf-viewer` load success, displays the expected layer list, and does not emit the official preview failure state.
 - Capture the `.dxf-webgl-host` area and verify the image is not blank. This smoke checks the official WebGL preview path only; Canvas diagnostics must remain closed unless a human intentionally opens them.
 
+Automated command:
+
+```powershell
+.\deploy\run-dxf-viewer-smoke.ps1
+```
+
+The script drives the authenticated product path from backend upload to frontend WebGL rendering and writes `.run/dxf-viewer-webgl-smoke.json` plus a WebGL canvas PNG at `.run/dxf-viewer-webgl-smoke.png`. It appends `dxf-preview-smoke=1` to the frontend URL only to preserve the WebGL drawing buffer for automated PNG verification; normal user preview keeps the default buffer behavior.
+
+Issue focus smoke acceptance:
+
+```powershell
+.\deploy\run-dxf-issue-focus-smoke.ps1
+```
+
+This script drives the issue定位 path end to end. It uploads `datasets/rules/cases/invalid_layer_name.dxf`, creates a real review task, fetches the generated issue, selects the same version in the Vue preview panel, clicks the exact issue card by `data-issue-id`, waits for `DxfViewerPreview` to report "已聚焦问题", and verifies that the official WebGL canvas gains red selected-issue highlight pixels. This is the acceptance check for `ReviewEvidence.location`-driven focus; Canvas diagnostics are not involved.
+
 Local result on 2026-06-08:
 
 - Fixture: `dense_deck_grid.dxf`.
